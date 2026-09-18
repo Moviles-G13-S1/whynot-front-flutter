@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../../app/app_routes.dart';
 import '../../../app/whynot_theme.dart';
 import '../../../shared/widgets/app_bottom_navigation.dart';
 import '../../../shared/widgets/brand_mark.dart';
 import 'widgets/home_content.dart';
+import '../../../app/app_routes.dart';
 
 /// Main feed containing wishlists and product recommendations.
 class HomeScreen extends StatefulWidget {
@@ -16,7 +16,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
-  int _selectedNavigationIndex = 0;
 
   @override
   void dispose() {
@@ -24,55 +23,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  /// Routes implemented destinations and keeps prototype destinations selected.
-  void _onNavigationSelected(int index) {
-    if (index == 2) return _showAddSheet();
-    if (index == 4) {
-      Navigator.pushReplacementNamed(context, AppRoutes.profile);
-      return;
-    }
-    setState(() => _selectedNavigationIndex = index);
-  }
-
-  /// Presents the temporary add-item action until its feature is implemented.
-  void _showAddSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: WhyNotColors.background,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Add a new item', style: WhyNotTextStyles.serif(size: 26)),
-              const SizedBox(height: 8),
-              const Text(
-                'Save something you love to one of your wishlists.',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  color: WhyNotColors.muted,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w300,
-                ),
-              ),
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: () => Navigator.pop(context),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  minimumSize: const Size.fromHeight(48),
-                ),
-                child: const Text('Continue'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -109,7 +59,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: HomeSectionHeader(
                       title: 'Your Wishlists',
                       action: 'View all',
-                      onAction: () {},
+                      onAction: () {
+                          Navigator.pushNamed(
+                            context,
+                            AppRoutes.wishlists,
+                          );
+                        },
                     ),
                   ),
                   const SizedBox(height: 29),
@@ -152,9 +107,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: AppBottomNavigation(
-        selectedIndex: _selectedNavigationIndex,
-        onSelected: _onNavigationSelected,
+      bottomNavigationBar: const AppBottomNavigation(
+        selectedIndex: 0,
       ),
     );
   }

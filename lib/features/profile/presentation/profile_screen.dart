@@ -11,17 +11,6 @@ import 'widgets/profile_controls.dart';
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
-  /// Handles only destinations currently represented by real screens.
-  void _onNavigationSelected(BuildContext context, int index) {
-    if (index == 0) {
-      Navigator.pushReplacementNamed(context, AppRoutes.home);
-    } else if (index == 2) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Add a new item')));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -81,9 +70,8 @@ class ProfileScreen extends StatelessWidget {
           ),
         ),
       ),
-      bottomNavigationBar: AppBottomNavigation(
+      bottomNavigationBar: const AppBottomNavigation(
         selectedIndex: 4,
-        onSelected: (index) => _onNavigationSelected(context, index),
       ),
     );
   }

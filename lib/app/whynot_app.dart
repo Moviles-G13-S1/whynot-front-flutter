@@ -9,6 +9,14 @@ import '../features/profile/presentation/edit_profile_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import 'app_routes.dart';
 import 'whynot_theme.dart';
+import '../features/wishlists/presentation/wishlists_screen.dart';
+import '../features/purchases/presentation/purchases_screen.dart';
+import '../features/products/presentation/product_detail_screen.dart';
+import '../features/wishlists/presentation/wishlist_detail_screen.dart';
+import '../features/wishlists/presentation/new_wishlist_screen.dart';
+import '../features/products/presentation/new_product_screen.dart';
+import '../features/products/presentation/new_product_manual_screen.dart';
+import '../features/products/presentation/edit_product_screen.dart';
 
 /// Root widget that owns global theme and navigation configuration.
 class WhyNotApp extends StatelessWidget {
@@ -27,9 +35,17 @@ class WhyNotApp extends StatelessWidget {
         AppRoutes.login: (_) => const LoginScreen(),
         AppRoutes.createAccount: (_) => const CreateAccountScreen(),
         AppRoutes.home: (_) => const HomeScreen(),
+        AppRoutes.wishlists: (_) => const WishlistsScreen(),
+        AppRoutes.wishlistDetail: (_) => const WishlistDetailScreen(),
+        AppRoutes.newWishlist: (_) => const NewWishlistScreen(),
+        AppRoutes.productDetail: (_) => const ProductDetailScreen(),
+        AppRoutes.newProduct: (_) => const NewProductScreen(),
+        AppRoutes.newProductManual: (_) => const NewProductManualScreen(),
+        AppRoutes.purchases: (_) => const PurchasesScreen(),
         AppRoutes.profile: (_) => const ProfileScreen(),
         AppRoutes.editProfile: (_) => const EditProfileScreen(),
         AppRoutes.changePassword: (_) => const ChangePasswordScreen(),
+        AppRoutes.editProduct: (_) => const EditProductScreen(),
       },
     );
   }
@@ -41,9 +57,18 @@ class WhyNotApp extends StatelessWidget {
     return switch (Uri.base.queryParameters['screen']) {
       'create-account' => AppRoutes.createAccount,
       'home' => AppRoutes.home,
+      'wishlists' => AppRoutes.wishlists,
+      'new-wishlist' => AppRoutes.newWishlist,
+      'purchases' => AppRoutes.purchases,
       'profile' => AppRoutes.profile,
       'edit-profile' => AppRoutes.editProfile,
       'change-password' => AppRoutes.changePassword,
+      'wishlist-detail' => AppRoutes.wishlistDetail,
+      'product-detail' => AppRoutes.productDetail,
+      'new-product' => AppRoutes.newProduct,
+      'new-product-manual' => AppRoutes.newProductManual,
+      'edit-product' => AppRoutes.editProduct,
+      
       _ => AppRoutes.login,
     };
   }

@@ -2,17 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../app/whynot_theme.dart';
+import '../navigation/app_navigation.dart';
 
 /// Five-item navigation bar shared by the main application screens.
 class AppBottomNavigation extends StatelessWidget {
   const AppBottomNavigation({
     required this.selectedIndex,
-    required this.onSelected,
+    this.onSelected,
     super.key,
   });
 
   final int selectedIndex;
-  final ValueChanged<int> onSelected;
+  final ValueChanged<int>? onSelected;
 
   static const _items = [
     _NavigationData('Home', 'assets/figma/home.svg'),
@@ -21,6 +22,19 @@ class AppBottomNavigation extends StatelessWidget {
     _NavigationData('Purchases', 'assets/figma/purchases.svg'),
     _NavigationData('Profile', 'assets/figma/profile.svg'),
   ];
+
+  void _handleSelection(BuildContext context, int index) {
+    if (onSelected != null) {
+      onSelected!(index);
+      return;
+    }
+
+    AppNavigation.select(
+      context,
+      index,
+      currentIndex: selectedIndex,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,14 +58,18 @@ class AppBottomNavigation extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: List.generate(_items.length, (index) {
           if (index == 2) {
-            return Expanded(child: _AddItem(onTap: () => onSelected(index)));
+            return Expanded(
+          child: _AddItem(
+            onTap: () => _handleSelection(context, index),
+          ),
+          );
           }
 
           return Expanded(
             child: _NavigationItem(
               data: _items[index],
               isSelected: selectedIndex == index,
-              onTap: () => onSelected(index),
+              onTap: () => _handleSelection(context, index),
             ),
           );
         }),
