@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/whynot_theme.dart';
+import '../../../../shared/widgets/wishlist_card.dart';
+import '../../../../app/app_routes.dart';
+
 
 /// Search control used at the top of the home feed.
 class HomeSearchField extends StatelessWidget {
@@ -87,68 +90,82 @@ class WishlistRail extends StatelessWidget {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.only(right: 18),
         itemCount: _categories.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 17),
-        itemBuilder: (context, index) =>
-            _WishlistCard(label: _categories[index], onTap: () {}),
+        separatorBuilder: (context, index) => const SizedBox(width: 17),
+        itemBuilder: (context, index) => SizedBox(
+          width: 131,
+          child: WishlistCard(
+            label: _categories[index],
+            onTap: () {
+              Navigator.pushNamed(
+                context,
+                AppRoutes.wishlistDetail,
+                arguments: {
+                  'categoryName': _categories[index],
+                  'itemCount': 6,
+                },
+              );
+            },
+            contentAlignment: CrossAxisAlignment.center,
+          ),
+        ),
       ),
     );
   }
 }
 
-/// Placeholder card for one wishlist category.
-class _WishlistCard extends StatelessWidget {
-  const _WishlistCard({required this.label, required this.onTap});
 
-  final String label;
-  final VoidCallback onTap;
+/// Product placeholder and price used by recommendation sections.
+class ProductRecommendation extends StatelessWidget {
+  const ProductRecommendation({
+    this.name = 'Product name',
+    this.store = 'Product Store',
+    this.originalPrice = r'$100',
+    this.currentPrice = r'$50',
+    super.key,
+  });
+
+  final String name;
+  final String store;
+  final String originalPrice;
+  final String currentPrice;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        Navigator.pushNamed(
+          context,
+          AppRoutes.productDetail,
+          arguments: {
+            'name': name,
+            'store': store,
+            'originalPrice': originalPrice,
+            'currentPrice': currentPrice,
+            'sourceTab': 0,
+          },
+        );
+      },
       borderRadius: BorderRadius.circular(18),
-      child: SizedBox(
-        width: 131,
-        child: Column(
-          children: [
-            Container(
-              height: 170,
-              decoration: BoxDecoration(
-                color: WhyNotColors.card,
-                borderRadius: BorderRadius.circular(18),
-              ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 121,
+            decoration: BoxDecoration(
+              color: WhyNotColors.card,
+              borderRadius: BorderRadius.circular(18),
             ),
-            const SizedBox(height: 12),
-            Text(label, style: WhyNotTextStyles.serif(size: 17)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Product placeholder and price used by recommendation sections.
-class ProductRecommendation extends StatelessWidget {
-  const ProductRecommendation({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          height: 121,
-          decoration: BoxDecoration(
-            color: WhyNotColors.card,
-            borderRadius: BorderRadius.circular(18),
           ),
-        ),
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.only(left: 15),
-          child: Text(r'$50', style: WhyNotTextStyles.muted(size: 13)),
-        ),
-      ],
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.only(left: 15),
+            child: Text(
+              currentPrice,
+              style: WhyNotTextStyles.muted(size: 13),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
