@@ -29,6 +29,18 @@ void main() {
     expect(find.text('Good Morning, Juliana'), findsOneWidget);
   });
 
+  testWidgets('opens the admin dashboard from login', (tester) async {
+    await tester.pumpWidget(const WhyNotApp());
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Admin login'));
+    await tester.tap(find.text('Admin login'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('WHYNOT ADMIN'), findsOneWidget);
+    expect(find.text('Saved products'), findsOneWidget);
+  });
+
   testWidgets('opens edit profile before change password', (tester) async {
     await tester.pumpWidget(const WhyNotApp());
     await tester.pumpAndSettle();

@@ -4,6 +4,11 @@
 /// routing package while the navigation flow is still small.
 abstract final class AppRoutes {
   static const login = '/login';
+  static const adminDashboard = adminSavedProducts;
+  static const adminSavedProducts = '/admin/saved-products';
+  static const adminSaveMethods = '/admin/save-methods';
+  static const adminPurchasedProducts = '/admin/purchased-products';
+  static const adminDemographicProfile = '/admin/demographic-profile';
   static const createAccount = '/create-account';
 
   static const home = '/home';
@@ -22,5 +27,4 @@ abstract final class AppRoutes {
   static const profile = '/profile';
   static const editProfile = '/edit-profile';
   static const changePassword = '/change-password';
-
 }

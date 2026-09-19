@@ -32,6 +32,12 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.pushReplacementNamed(context, AppRoutes.home);
   }
 
+  /// Temporary admin entry point while authentication is simulated.
+  void _adminLogin() {
+    FocusScope.of(context).unfocus();
+    Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
+  }
+
   @override
   Widget build(BuildContext context) {
     final safeTop = MediaQuery.paddingOf(context).top;
@@ -76,7 +82,13 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 22),
               PillButton(label: 'Log in', onPressed: _login),
-              const SizedBox(height: 37),
+              const SizedBox(height: 14),
+              TextButton(
+                onPressed: _adminLogin,
+                style: linkButtonStyle(),
+                child: const Text('Admin login'),
+              ),
+              const SizedBox(height: 23),
               const Divider(color: Color(0xFFC9C3BE), height: 1),
               const SizedBox(height: 19),
               Align(
