@@ -1,6 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../features/admin/presentation/demographic_profile_screen.dart';
+import '../features/admin/presentation/purchased_products_screen.dart';
+import '../features/admin/presentation/save_methods_screen.dart';
+import '../features/admin/presentation/saved_products_screen.dart';
 import '../features/authentication/presentation/create_account_screen.dart';
 import '../features/authentication/presentation/login_screen.dart';
 import '../features/home/presentation/home_screen.dart';
@@ -31,6 +35,7 @@ class WhyNotApp extends StatelessWidget {
       builder: (context, child) =>
           _WebPreviewFrame(child: child ?? const SizedBox.shrink()),
       initialRoute: _initialRoute,
+      onGenerateRoute: _generateRoute,
       routes: {
         AppRoutes.login: (_) => const LoginScreen(),
         AppRoutes.createAccount: (_) => const CreateAccountScreen(),
@@ -50,12 +55,54 @@ class WhyNotApp extends StatelessWidget {
     );
   }
 
+  Route<dynamic>? _generateRoute(RouteSettings settings) {
+    final screen = switch (settings.name) {
+      AppRoutes.adminSavedProducts => const SavedProductsScreen(),
+      AppRoutes.adminSaveMethods => const SaveMethodsScreen(),
+      AppRoutes.adminPurchasedProducts => const PurchasedProductsScreen(),
+      AppRoutes.adminDemographicProfile => const DemographicProfileScreen(),
+      _ => null,
+    };
+
+    if (screen == null) return null;
+
+    return PageRouteBuilder<void>(
+      settings: settings,
+      transitionDuration: const Duration(milliseconds: 220),
+      reverseTransitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (context, animation, secondaryAnimation) => screen,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.08, 0),
+            end: Offset.zero,
+          ).animate(curved),
+          child: FadeTransition(
+            opacity: Tween<double>(begin: 0, end: 1).animate(curved),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
   /// Allows opening one screen directly during browser-based visual reviews.
   String get _initialRoute {
     if (!kIsWeb) return AppRoutes.login;
 
     return switch (Uri.base.queryParameters['screen']) {
       'create-account' => AppRoutes.createAccount,
+      'admin-dashboard' => AppRoutes.adminDashboard,
+      'admin-saved-products' => AppRoutes.adminSavedProducts,
+      'admin-save-methods' => AppRoutes.adminSaveMethods,
+      'admin-purchased-products' => AppRoutes.adminPurchasedProducts,
+      'admin-demographic-profile' => AppRoutes.adminDemographicProfile,
       'home' => AppRoutes.home,
       'wishlists' => AppRoutes.wishlists,
       'new-wishlist' => AppRoutes.newWishlist,
@@ -68,7 +115,7 @@ class WhyNotApp extends StatelessWidget {
       'new-product' => AppRoutes.newProduct,
       'new-product-manual' => AppRoutes.newProductManual,
       'edit-product' => AppRoutes.editProduct,
-      
+
       _ => AppRoutes.login,
     };
   }
