@@ -1,41 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../app/app_routes.dart';
 import '../../../../app/whynot_theme.dart';
 import '../../../../shared/widgets/wishlist_card.dart';
-import '../../../../app/app_routes.dart';
-
-
-/// Search control used at the top of the home feed.
-class HomeSearchField extends StatelessWidget {
-  const HomeSearchField({required this.controller, super.key});
-
-  final TextEditingController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 44,
-      child: TextField(
-        controller: controller,
-        textInputAction: TextInputAction.search,
-        style: const TextStyle(fontFamily: 'Poppins', fontSize: 14),
-        decoration: InputDecoration(
-          hintText: 'Search',
-          hintStyle: WhyNotTextStyles.muted(size: 14),
-          prefixIcon: const Icon(Icons.search, size: 20),
-          suffixIcon: const Icon(Icons.mic_none_rounded, size: 21),
-          filled: true,
-          fillColor: WhyNotColors.search,
-          contentPadding: EdgeInsets.zero,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(24),
-            borderSide: BorderSide.none,
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 /// Heading row with an optional action on its trailing edge.
 class HomeSectionHeader extends StatelessWidget {
@@ -54,14 +23,25 @@ class HomeSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Text(title, style: WhyNotTextStyles.serif(size: 23))),
+        Expanded(
+          child: Text(
+            title,
+            style: WhyNotTextStyles.serif(
+              size: 23,
+            ),
+          ),
+        ),
         TextButton(
           onPressed: onAction,
           style: TextButton.styleFrom(
-            foregroundColor: WhyNotColors.muted,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+            foregroundColor:
+                WhyNotColors.muted,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 4,
+            ),
             minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            tapTargetSize:
+                MaterialTapTargetSize.shrinkWrap,
             textStyle: const TextStyle(
               fontFamily: 'Poppins',
               fontSize: 13,
@@ -75,96 +55,262 @@ class HomeSectionHeader extends StatelessWidget {
   }
 }
 
-/// Horizontally scrolling preview of the user's wishlist categories.
+/// Horizontally scrolling preview of the current user's real wishlists.
 class WishlistRail extends StatelessWidget {
   const WishlistRail({super.key});
 
-  static const _categories = ['Beauty', 'Clothes', 'Tech'];
-
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 204,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.only(right: 18),
-        itemCount: _categories.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 17),
-        itemBuilder: (context, index) => SizedBox(
-          width: 131,
-          child: WishlistCard(
-            label: _categories[index],
-            onTap: () {
-              Navigator.pushNamed(
-                context,
-                AppRoutes.wishlistDetail,
-                arguments: {
-                  'categoryName': _categories[index],
-                  'itemCount': 6,
-                },
-              );
-            },
-            contentAlignment: CrossAxisAlignment.center,
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return SizedBox(
+        height: 230,
+        child: Center(
+          child: Text(
+            'Log in to see your wishlists.',
+            style:
+                WhyNotTextStyles.muted(size: 13),
           ),
         ),
-      ),
+      );
+    }
+
+    return FutureBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance
+          .collection('categories')
+          .get(),
+      builder: (
+        context,
+        categorySnapshot,
+      ) {
+        if (categorySnapshot.connectionState ==
+            ConnectionState.waiting) {
+          return const SizedBox(
+            height: 230,
+            child: Center(
+              child:
+                  CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        final categoryNames = <String, String>{};
+
+        for (final document
+            in categorySnapshot.data?.docs ??
+                []) {
+          categoryNames[document.id] =
+              document.data()['name']
+                      as String? ??
+                  document.id;
+        }
+
+        return StreamBuilder<
+            QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('wishlists')
+              .where(
+                'ownerId',
+                isEqualTo: user.uid,
+              )
+              .snapshots(),
+          builder: (
+            context,
+            wishlistSnapshot,
+          ) {
+            if (wishlistSnapshot
+                    .connectionState ==
+                ConnectionState.waiting) {
+              return const SizedBox(
+                height: 230,
+                child: Center(
+                  child:
+                      CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            if (wishlistSnapshot.hasError) {
+              return SizedBox(
+                height: 230,
+                child: Center(
+                  child: Text(
+                    'Could not load wishlists.',
+                    style:
+                        WhyNotTextStyles.muted(
+                      size: 13,
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            final wishlists =
+                wishlistSnapshot.data?.docs ??
+                    [];
+
+            if (wishlists.isEmpty) {
+              return SizedBox(
+                height: 230,
+                child: Center(
+                  child: Text(
+                    'Create your first wishlist.',
+                    style:
+                        WhyNotTextStyles.muted(
+                      size: 13,
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            return SizedBox(
+              height: 230,
+              child: ListView.separated(
+                scrollDirection:
+                    Axis.horizontal,
+                physics:
+                    const BouncingScrollPhysics(),
+                padding: const EdgeInsets.only(
+                  right: 18,
+                ),
+                itemCount: wishlists.length,
+                separatorBuilder:
+                    (context, index) =>
+                        const SizedBox(
+                  width: 17,
+                ),
+                itemBuilder:
+                    (context, index) {
+                  final wishlist =
+                      wishlists[index];
+
+                  final data =
+                      wishlist.data();
+
+                  final categoryId =
+                      data['categoryId']
+                          as String?;
+
+                  final categoryName =
+                      categoryNames[
+                              categoryId] ??
+                          categoryId ??
+                          'Wishlist';
+
+                  final imageUrl =
+                      data['imageUrl']
+                          as String?;
+
+                  return SizedBox(
+                    width: 131,
+                    child:
+                        _HomeWishlistCard(
+                      wishlistId:
+                          wishlist.id,
+                      categoryId:
+                          categoryId,
+                      categoryName:
+                          categoryName,
+                      imageUrl:
+                          imageUrl,
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
 
-
-/// Product placeholder and price used by recommendation sections.
-class ProductRecommendation extends StatelessWidget {
-  const ProductRecommendation({
-    this.name = 'Product name',
-    this.store = 'Product Store',
-    this.originalPrice = r'$100',
-    this.currentPrice = r'$50',
-    super.key,
+/// Wrapper around WishlistCard that keeps its item count synchronized
+/// with Firestore.
+class _HomeWishlistCard
+    extends StatelessWidget {
+  const _HomeWishlistCard({
+    required this.wishlistId,
+    required this.categoryName,
+    this.categoryId,
+    this.imageUrl,
   });
 
-  final String name;
-  final String store;
-  final String originalPrice;
-  final String currentPrice;
+  final String wishlistId;
+  final String? categoryId;
+  final String categoryName;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () {
-        Navigator.pushNamed(
-          context,
-          AppRoutes.productDetail,
-          arguments: {
-            'name': name,
-            'store': store,
-            'originalPrice': originalPrice,
-            'currentPrice': currentPrice,
-            'sourceTab': 0,
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('products')
+          .where(
+            'wishlistId',
+            isEqualTo: wishlistId,
+          )
+          .snapshots(),
+      builder: (context, snapshot) {
+        final itemCount =
+            snapshot.data?.docs.length ?? 0;
+
+        return WishlistCard(
+          label: categoryName,
+          itemCount: itemCount,
+          imageUrl: imageUrl,
+          contentAlignment:
+              CrossAxisAlignment.center,
+          onTap: () {
+            Navigator.pushNamed(
+              context,
+              AppRoutes.wishlistDetail,
+              arguments: {
+                'wishlistId':
+                    wishlistId,
+                'categoryId':
+                    categoryId,
+                'categoryName':
+                    categoryName,
+                'itemCount':
+                    itemCount,
+              },
+            );
           },
         );
       },
-      borderRadius: BorderRadius.circular(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 121,
-            decoration: BoxDecoration(
-              color: WhyNotColors.card,
-              borderRadius: BorderRadius.circular(18),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.only(left: 15),
-            child: Text(
-              currentPrice,
-              style: WhyNotTextStyles.muted(size: 13),
-            ),
-          ),
-        ],
+    );
+  }
+}
+
+/// Placeholder for recommendation features that will be implemented later.
+class RecommendationPlaceholder
+    extends StatelessWidget {
+  const RecommendationPlaceholder({
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 121,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: WhyNotColors.card,
+        borderRadius:
+            BorderRadius.circular(18),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.auto_awesome_outlined,
+          size: 24,
+          color: WhyNotColors.muted
+              .withValues(alpha: 0.55),
+        ),
       ),
     );
   }

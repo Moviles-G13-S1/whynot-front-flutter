@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
@@ -6,8 +7,6 @@ import '../../../shared/widgets/brand_mark.dart';
 import '../../../shared/widgets/form_controls.dart';
 
 /// Entry screen for returning users.
-///
-/// Authentication is intentionally simulated until a backend contract exists.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -19,6 +18,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  bool _isLoading = false;
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -26,16 +27,70 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  /// Closes the keyboard and replaces authentication with the home screen.
-  void _login() {
+  /// Authenticates the user with Firebase Authentication.
+  Future<void> _login() async {
     FocusScope.of(context).unfocus();
-    Navigator.pushReplacementNamed(context, AppRoutes.home);
+
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      _showMessage('Please enter your email and password.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      if (!mounted) return;
+
+      Navigator.pushReplacementNamed(context, AppRoutes.home);
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) return;
+
+      switch (error.code) {
+        case 'invalid-email':
+          _showMessage('Please enter a valid email.');
+          break;
+
+        case 'user-not-found':
+        case 'wrong-password':
+        case 'invalid-credential':
+          _showMessage('Incorrect email or password.');
+          break;
+
+        case 'user-disabled':
+          _showMessage('This account has been disabled.');
+          break;
+
+        default:
+          _showMessage('Could not log in. Please try again.');
+      }
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('Something went wrong. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
-  /// Temporary admin entry point while authentication is simulated.
+  /// Temporary admin entry point.
   void _adminLogin() {
     FocusScope.of(context).unfocus();
     Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
@@ -54,7 +109,10 @@ class _LoginScreenState extends State<LoginScreen> {
               const Center(child: BrandMark()),
               const SizedBox(height: 43),
               Center(
-                child: Text('Log in', style: WhyNotTextStyles.muted(size: 15)),
+                child: Text(
+                  'Log in',
+                  style: WhyNotTextStyles.muted(size: 15),
+                ),
               ),
               const SizedBox(height: 20),
               FormSurface(
@@ -81,7 +139,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 22),
-              PillButton(label: 'Log in', onPressed: _login),
+              PillButton(
+                label: _isLoading ? 'Logging in...' : 'Log in',
+                onPressed: _isLoading ? () {} : _login,
+              ),
               const SizedBox(height: 14),
               TextButton(
                 onPressed: _adminLogin,
@@ -89,7 +150,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: const Text('Admin login'),
               ),
               const SizedBox(height: 23),
-              const Divider(color: Color(0xFFC9C3BE), height: 1),
+              const Divider(
+                color: Color(0xFFC9C3BE),
+                height: 1,
+              ),
               const SizedBox(height: 19),
               Align(
                 alignment: Alignment.centerLeft,

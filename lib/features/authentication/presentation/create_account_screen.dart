@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
@@ -19,8 +21,21 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   final _emailController = TextEditingController();
   final _ageController = TextEditingController();
   final _passwordController = TextEditingController();
+
   String? _gender;
   String? _category;
+  bool _isLoading = false;
+
+  static const Map<String, String> _categoryIds = {
+    'Fashion': 'fashion',
+    'Beauty': 'beauty',
+    'Technology': 'technology',
+    'Home': 'home',
+    'Accessories': 'accessories',
+    'Travel': 'travel',
+    'Gifts': 'gifts',
+    'Other': 'other',
+  };
 
   @override
   void dispose() {
@@ -31,10 +46,88 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     super.dispose();
   }
 
-  /// Completes the prototype flow without leaving authentication in history.
-  void _createAccount() {
+  Future<void> _createAccount() async {
     FocusScope.of(context).unfocus();
-    Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
+
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final age = int.tryParse(_ageController.text.trim());
+
+    if (name.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        age == null ||
+        _gender == null ||
+        _category == null) {
+      _showMessage('Please complete all fields.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Create the account in Firebase Authentication.
+      final credential =
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      final user = credential.user;
+
+      if (user == null) {
+        throw Exception('User could not be created.');
+      }
+
+      // 2. Save the rest of the user profile in Firestore.
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'name': name,
+        'email': email,
+        'gender': _gender,
+        'age': age,
+        'preferredCategoryId': _categoryIds[_category],
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.home,
+        (_) => false,
+      );
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) return;
+
+      switch (error.code) {
+        case 'weak-password':
+          _showMessage('The password is too weak.');
+          break;
+        case 'email-already-in-use':
+          _showMessage('An account already exists with this email.');
+          break;
+        case 'invalid-email':
+          _showMessage('Please enter a valid email.');
+          break;
+        default:
+          _showMessage('Could not create the account. Please try again.');
+      }
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('Something went wrong. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
@@ -108,15 +201,28 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       isLast: true,
                       child: DesignDropdown(
                         value: _category,
-                        items: const ['Beauty', 'Clothes', 'Tech'],
-                        onChanged: (value) => setState(() => _category = value),
+                        items: const [
+                          'Fashion',
+                          'Beauty',
+                          'Technology',
+                          'Home',
+                          'Accessories',
+                          'Travel',
+                          'Gifts',
+                          'Other',
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _category = value),
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 15),
-              PillButton(label: 'Create an account', onPressed: _createAccount),
+              PillButton(
+                label: _isLoading ? 'Creating...' : 'Create an account',
+                onPressed: _isLoading ? () {} : _createAccount,
+              ),
             ],
           ),
         ),

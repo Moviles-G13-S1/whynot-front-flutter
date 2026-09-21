@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
@@ -15,41 +17,135 @@ class EditProfileScreen extends StatefulWidget {
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
-  static const _initialName = 'Juliana Durán';
-  static const _initialEmail = 'j.duranl@uniandes.edu.co';
-  static const _initialAge = '22';
-  static const _initialGender = 'Female';
-  static const _initialCategory = 'Beauty';
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _ageController = TextEditingController();
 
-  final _nameController = TextEditingController(text: _initialName);
-  final _emailController = TextEditingController(text: _initialEmail);
-  final _ageController = TextEditingController(text: _initialAge);
-  String? _gender = _initialGender;
-  String? _category = _initialCategory;
+  String? _gender;
+  String? _category;
+
+  String _initialName = '';
+  String _initialEmail = '';
+  String _initialAge = '';
+  String? _initialGender;
+  String? _initialCategory;
+
+  bool _isLoading = true;
+  bool _isSaving = false;
+
+  static const Map<String, String> _categoryIds = {
+    'Fashion': 'fashion',
+    'Beauty': 'beauty',
+    'Technology': 'technology',
+    'Home': 'home',
+    'Accessories': 'accessories',
+    'Travel': 'travel',
+    'Gifts': 'gifts',
+    'Other': 'other',
+  };
+
+  static const Map<String, String> _categoryLabels = {
+    'fashion': 'Fashion',
+    'beauty': 'Beauty',
+    'technology': 'Technology',
+    'home': 'Home',
+    'accessories': 'Accessories',
+    'travel': 'Travel',
+    'gifts': 'Gifts',
+    'other': 'Other',
+  };
 
   List<TextEditingController> get _controllers => [
-    _nameController,
-    _emailController,
-    _ageController,
-  ];
+        _nameController,
+        _emailController,
+        _ageController,
+      ];
 
-  bool get _hasChanges =>
-      _nameController.text != _initialName ||
-      _emailController.text != _initialEmail ||
-      _ageController.text != _initialAge ||
-      _gender != _initialGender ||
-      _category != _initialCategory;
+  bool get _hasChanges {
+    if (_isLoading) return false;
+
+    return _nameController.text.trim() != _initialName ||
+        _ageController.text.trim() != _initialAge ||
+        _gender != _initialGender ||
+        _category != _initialCategory;
+  }
 
   @override
   void initState() {
     super.initState();
+
     for (final controller in _controllers) {
       controller.addListener(_refresh);
     }
+
+    _loadProfile();
   }
 
-  /// Updates the save state whenever a form value changes.
-  void _refresh() => setState(() {});
+  Future<void> _loadProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+      return;
+    }
+
+    try {
+      final document = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final data = document.data();
+
+      if (data == null) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+
+      final name = data['name'] as String? ?? '';
+      final email = data['email'] as String? ?? user.email ?? '';
+      final age = data['age']?.toString() ?? '';
+      final gender = data['gender'] as String?;
+      final categoryId = data['preferredCategoryId'] as String?;
+      final category = _categoryLabels[categoryId];
+
+      _initialName = name;
+      _initialEmail = email;
+      _initialAge = age;
+      _initialGender = gender;
+      _initialCategory = category;
+
+      _nameController.text = name;
+      _emailController.text = email;
+      _ageController.text = age;
+      _gender = gender;
+      _category = category;
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() => _isLoading = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not load profile.'),
+        ),
+      );
+    }
+  }
+
+  void _refresh() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
 
   @override
   void dispose() {
@@ -59,20 +155,75 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  /// Confirms the prototype update and returns to the profile summary.
-  void _save() {
-    if (!_hasChanges) return;
+  Future<void> _save() async {
+    if (!_hasChanges || _isSaving) return;
+
     FocusScope.of(context).unfocus();
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Profile updated')));
-    Navigator.pop(context);
+
+    final user = FirebaseAuth.instance.currentUser;
+    final age = int.tryParse(_ageController.text.trim());
+
+    if (user == null) {
+      _showMessage('No user logged in.');
+      return;
+    }
+
+    if (_nameController.text.trim().isEmpty ||
+        age == null ||
+        _gender == null ||
+        _category == null) {
+      _showMessage('Please complete all fields.');
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({
+        'name': _nameController.text.trim(),
+        'gender': _gender,
+        'age': age,
+        'preferredCategoryId': _categoryIds[_category],
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile updated'),
+        ),
+      );
+
+      Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
+
+      _showMessage('Could not update profile. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   /// Keeps bottom navigation consistent with the other profile screens.
   void _onNavigationSelected(int index) {
     if (index == 0) {
-      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.home,
+        (_) => false,
+      );
     } else if (index == 4) {
       Navigator.pushNamedAndRemoveUntil(
         context,
@@ -84,6 +235,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -108,12 +267,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
               ),
               const SizedBox(height: 18),
-              const Center(child: ProfileAvatar(size: 72)),
+              const Center(
+                child: ProfileAvatar(size: 72),
+              ),
               const SizedBox(height: 8),
               Center(
                 child: TextButton(
-                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Photo picker coming soon')),
+                  onPressed: () =>
+                      ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Photo picker coming soon'),
+                    ),
                   ),
                   style: linkButtonStyle(),
                   child: const Text('Change photo'),
@@ -125,7 +289,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _field('Name', DesignField(controller: _nameController)),
+                    _field(
+                      'Name',
+                      DesignField(
+                        controller: _nameController,
+                      ),
+                    ),
+
+                    // Email is displayed but not updated yet.
                     _field(
                       'Email',
                       DesignField(
@@ -133,12 +304,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         keyboardType: TextInputType.emailAddress,
                       ),
                     ),
+
                     _field(
                       'Gender',
                       DesignDropdown(
                         value: _gender,
-                        items: const ['Female', 'Male', 'Other'],
-                        onChanged: (value) => setState(() => _gender = value),
+                        items: const [
+                          'Female',
+                          'Male',
+                          'Other',
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _gender = value),
                       ),
                     ),
                     Row(
@@ -162,7 +339,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             'Preferred Category',
                             DesignDropdown(
                               value: _category,
-                              items: const ['Beauty', 'Clothes', 'Tech'],
+                              items: const [
+                                'Fashion',
+                                'Beauty',
+                                'Technology',
+                                'Home',
+                                'Accessories',
+                                'Travel',
+                                'Gifts',
+                                'Other',
+                              ],
                               onChanged: (value) =>
                                   setState(() => _category = value),
                             ),
@@ -191,7 +377,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 style: WhyNotTextStyles.muted(size: 15),
                               ),
                             ),
-                            Text('›', style: WhyNotTextStyles.muted(size: 20)),
+                            Text(
+                              '›',
+                              style: WhyNotTextStyles.muted(size: 20),
+                            ),
                           ],
                         ),
                       ),
@@ -210,14 +399,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const SizedBox(height: 14),
               PillButton(
-                label: 'Save changes',
+                label: _isSaving ? 'Saving...' : 'Save changes',
                 height: 42,
-                onPressed: _hasChanges ? _save : null,
+                onPressed: _hasChanges && !_isSaving ? _save : null,
               ),
               const SizedBox(height: 8),
               Center(
                 child: Text(
-                  _hasChanges ? 'Changes ready to save' : 'No changes to save',
+                  _hasChanges
+                      ? 'Changes ready to save'
+                      : 'No changes to save',
                   style: WhyNotTextStyles.muted(size: 11),
                 ),
               ),
@@ -232,8 +423,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  /// Builds the repeated label, spacing and control pattern from the design.
-  Widget _field(String label, Widget child, {double bottom = 12}) {
+  Widget _field(
+    String label,
+    Widget child, {
+    double bottom = 12,
+  }) {
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: Column(

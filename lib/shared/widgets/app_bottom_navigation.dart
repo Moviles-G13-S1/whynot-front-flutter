@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../app/app_routes.dart';
 import '../../app/whynot_theme.dart';
 import '../navigation/app_navigation.dart';
 
@@ -42,10 +43,19 @@ class AppBottomNavigation extends StatelessWidget {
 
     return Container(
       height: 92 + bottomPadding,
-      padding: EdgeInsets.fromLTRB(14, 7, 14, bottomPadding),
+      padding: EdgeInsets.fromLTRB(
+        14,
+        7,
+        14,
+        bottomPadding,
+      ),
       decoration: const BoxDecoration(
         color: Color(0xF9FEFDFB),
-        border: Border(top: BorderSide(color: WhyNotColors.divider)),
+        border: Border(
+          top: BorderSide(
+            color: WhyNotColors.divider,
+          ),
+        ),
         boxShadow: [
           BoxShadow(
             color: Color(0x18000000),
@@ -56,23 +66,36 @@ class AppBottomNavigation extends StatelessWidget {
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(_items.length, (index) {
-          if (index == 2) {
-            return Expanded(
-          child: _AddItem(
-            onTap: () => _handleSelection(context, index),
-          ),
-          );
-          }
+        children: List.generate(
+          _items.length,
+          (index) {
+            // Central Add button.
+            // Goes directly to the manual product creation screen.
+            if (index == 2) {
+              return Expanded(
+                child: _AddItem(
+                  onTap: () {
+                    Navigator.pushNamed(
+                      context,
+                      AppRoutes.newProductManual,
+                    );
+                  },
+                ),
+              );
+            }
 
-          return Expanded(
-            child: _NavigationItem(
-              data: _items[index],
-              isSelected: selectedIndex == index,
-              onTap: () => _handleSelection(context, index),
-            ),
-          );
-        }),
+            return Expanded(
+              child: _NavigationItem(
+                data: _items[index],
+                isSelected: selectedIndex == index,
+                onTap: () => _handleSelection(
+                  context,
+                  index,
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -80,7 +103,10 @@ class AppBottomNavigation extends StatelessWidget {
 
 /// Immutable display data for a navigation destination.
 class _NavigationData {
-  const _NavigationData(this.label, this.asset);
+  const _NavigationData(
+    this.label,
+    this.asset,
+  );
 
   final String label;
   final String asset;
@@ -117,7 +143,10 @@ class _NavigationItem extends StatelessWidget {
                 width: 28,
                 height: 29,
                 colorFilter: isSelected
-                    ? const ColorFilter.mode(Colors.black, BlendMode.srcIn)
+                    ? const ColorFilter.mode(
+                        Colors.black,
+                        BlendMode.srcIn,
+                      )
                     : null,
               ),
               const SizedBox(height: 6),
@@ -126,9 +155,13 @@ class _NavigationItem extends StatelessWidget {
                 maxLines: 1,
                 style: TextStyle(
                   fontFamily: 'Poppins',
-                  color: isSelected ? Colors.black : WhyNotColors.muted,
+                  color: isSelected
+                      ? Colors.black
+                      : WhyNotColors.muted,
                   fontSize: 10,
-                  fontWeight: isSelected ? FontWeight.w500 : FontWeight.w300,
+                  fontWeight: isSelected
+                      ? FontWeight.w500
+                      : FontWeight.w300,
                 ),
               ),
             ],
@@ -141,7 +174,9 @@ class _NavigationItem extends StatelessWidget {
 
 /// Central add action, which has a different visual treatment.
 class _AddItem extends StatelessWidget {
-  const _AddItem({required this.onTap});
+  const _AddItem({
+    required this.onTap,
+  });
 
   final VoidCallback onTap;
 
@@ -178,7 +213,12 @@ class _AddItem extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              Text('Add', style: WhyNotTextStyles.muted(size: 10)),
+              Text(
+                'Add',
+                style: WhyNotTextStyles.muted(
+                  size: 10,
+                ),
+              ),
             ],
           ),
         ),
