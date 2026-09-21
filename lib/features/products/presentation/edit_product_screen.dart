@@ -1,6 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../../../app/app_routes.dart';
 import '../../../app/whynot_theme.dart';
 import '../../../shared/widgets/app_bottom_navigation.dart';
 
@@ -13,112 +14,336 @@ class EditProductScreen extends StatefulWidget {
 
 class _EditProductScreenState extends State<EditProductScreen> {
   final _nameController = TextEditingController();
+  final _brandController = TextEditingController();
+  final _priceController = TextEditingController();
+  final _imageUrlController = TextEditingController();
+  final _productUrlController = TextEditingController();
 
-  static const _wishlists = [
-    'Beauty',
-    'Clothes',
-    'Tech',
-  ];
+  final List<Map<String, String>> _wishlists = [];
 
-  String? _selectedWishlist;
+  String? _productId;
+
+  String? _selectedWishlistId;
+  String? _selectedCategoryId;
+  String? _selectedWishlistName;
+
   bool _initialized = false;
+  bool _isLoading = true;
+  bool _isSaving = false;
 
-  late String _store;
-  late String _originalPrice;
-  late String _currentPrice;
-  late int _sourceTab;
+  int _sourceTab = 1;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _nameController.addListener(_refresh);
+    _brandController.addListener(_refresh);
+    _priceController.addListener(_refresh);
+    _imageUrlController.addListener(_refresh);
+    _productUrlController.addListener(_refresh);
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
 
     if (_initialized) return;
+    _initialized = true;
 
     final arguments =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
-    _nameController.text =
-        arguments?['name'] as String? ?? 'Product name';
+    _productId = arguments?['productId'] as String?;
+    _sourceTab = arguments?['sourceTab'] as int? ?? 1;
 
-    _store =
-        arguments?['store'] as String? ?? 'Product Store';
-
-    _originalPrice =
-        arguments?['originalPrice'] as String? ?? r'$100';
-
-    _currentPrice =
-        arguments?['currentPrice'] as String? ?? r'$50';
-
-    _selectedWishlist =
-        arguments?['wishlist'] as String?;
-
-    _sourceTab =
-        arguments?['sourceTab'] as int? ?? 1;
-
-    _initialized = true;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-
-    _nameController.addListener(() {
-      setState(() {});
-    });
+    _loadData();
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _brandController.dispose();
+    _priceController.dispose();
+    _imageUrlController.dispose();
+    _productUrlController.dispose();
+
     super.dispose();
   }
 
-  bool get _canSave =>
-      _nameController.text.trim().isNotEmpty &&
-      _selectedWishlist != null;
+  void _refresh() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
 
-  void _selectPicture() {
+  bool get _canSave {
+    final price = double.tryParse(
+      _priceController.text.trim().replaceAll(',', '.'),
+    );
+
+    return _nameController.text.trim().isNotEmpty &&
+        _brandController.text.trim().isNotEmpty &&
+        price != null &&
+        price >= 0 &&
+        _selectedWishlistId != null &&
+        _selectedCategoryId != null;
+  }
+
+  Future<void> _loadData() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null || _productId == null) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+      return;
+    }
+
+    try {
+      // Load the product.
+      final productDocument = await FirebaseFirestore.instance
+          .collection('products')
+          .doc(_productId)
+          .get();
+
+      final productData = productDocument.data();
+
+      if (productData == null) {
+        if (!mounted) return;
+
+        setState(() => _isLoading = false);
+        _showMessage('Product not found.');
+        return;
+      }
+
+      _nameController.text =
+          productData['name'] as String? ?? '';
+
+      _brandController.text =
+          productData['brand'] as String? ?? '';
+
+      final price = productData['price'];
+
+      if (price != null) {
+        if (price is num && price % 1 == 0) {
+          _priceController.text = price.toInt().toString();
+        } else {
+          _priceController.text = price.toString();
+        }
+      }
+
+      _imageUrlController.text =
+          productData['imageUrl'] as String? ?? '';
+
+      _productUrlController.text =
+          productData['productUrl'] as String? ?? '';
+
+      _selectedWishlistId =
+          productData['wishlistId'] as String?;
+
+      _selectedCategoryId =
+          productData['categoryId'] as String?;
+
+      // Load approved category names.
+      final categoriesSnapshot =
+          await FirebaseFirestore.instance
+              .collection('categories')
+              .get();
+
+      final categoryNames = {
+        for (final document in categoriesSnapshot.docs)
+          document.id:
+              document.data()['name'] as String? ?? document.id,
+      };
+
+      // Load this user's wishlists.
+      final wishlistSnapshot = await FirebaseFirestore.instance
+          .collection('wishlists')
+          .where('ownerId', isEqualTo: user.uid)
+          .get();
+
+      final loadedWishlists = <Map<String, String>>[];
+
+      for (final document in wishlistSnapshot.docs) {
+        final data = document.data();
+        final categoryId = data['categoryId'] as String?;
+
+        if (categoryId == null) continue;
+
+        final name =
+            categoryNames[categoryId] ?? categoryId;
+
+        loadedWishlists.add({
+          'wishlistId': document.id,
+          'categoryId': categoryId,
+          'name': name,
+        });
+
+        if (document.id == _selectedWishlistId) {
+          _selectedWishlistName = name;
+        }
+      }
+
+      loadedWishlists.sort(
+        (a, b) =>
+            (a['name'] ?? '').compareTo(b['name'] ?? ''),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _wishlists
+          ..clear()
+          ..addAll(loadedWishlists);
+
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() => _isLoading = false);
+
+      _showMessage('Could not load product.');
+    }
+  }
+
+  Future<void> _saveChanges() async {
+    if (!_canSave || _isSaving || _productId == null) {
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+
+    final normalizedPrice =
+        _priceController.text.trim().replaceAll(',', '.');
+
+    final price = double.tryParse(normalizedPrice);
+
+    if (price == null) {
+      _showMessage('Please enter a valid price.');
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('products')
+          .doc(_productId)
+          .update({
+        'name': _nameController.text.trim(),
+        'brand': _brandController.text.trim(),
+        'price': price,
+        'imageUrl': _imageUrlController.text.trim(),
+        'productUrl': _productUrlController.text.trim(),
+        'wishlistId': _selectedWishlistId,
+        'categoryId': _selectedCategoryId,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Product updated'),
+        ),
+      );
+
+      Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
+
+      _showMessage(
+        'Could not update product. Please try again.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  void _cancel() {
+    Navigator.pop(context);
+  }
+
+  void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Picture upload coming soon'),
+      SnackBar(
+        content: Text(message),
       ),
     );
   }
 
-  void _saveChanges() {
-    if (!_canSave) return;
-
-    Navigator.pushReplacementNamed(
-      context,
-      AppRoutes.productDetail,
-      arguments: {
-        'name': _nameController.text.trim(),
-        'store': _store,
-        'originalPrice': _originalPrice,
-        'currentPrice': _currentPrice,
-        'wishlist': _selectedWishlist,
-        'sourceTab': _sourceTab,
-      },
+  Widget _label(String text) {
+    return Text(
+      text,
+      style: WhyNotTextStyles.serif(size: 20),
     );
   }
 
-  void _cancel() {
-    Navigator.pushReplacementNamed(
-      context,
-      AppRoutes.productDetail,
-      arguments: {
-        'name': _nameController.text.trim(),
-        'store': _store,
-        'originalPrice': _originalPrice,
-        'currentPrice': _currentPrice,
-        'wishlist': _selectedWishlist,
-        'sourceTab': _sourceTab,
-      },
+  Widget _textField({
+    required TextEditingController controller,
+    required String hint,
+    TextInputType? keyboardType,
+  }) {
+    return SizedBox(
+      height: 42,
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        style: const TextStyle(
+          fontFamily: 'Poppins',
+          fontSize: 14,
+          fontWeight: FontWeight.w300,
+        ),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: WhyNotTextStyles.muted(size: 14),
+          filled: true,
+          fillColor: WhyNotColors.field,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(
+              color: WhyNotColors.border,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(
+              color: WhyNotColors.muted,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_productId == null) {
+      return Scaffold(
+        body: Center(
+          child: Text(
+            'Product not found.',
+            style: WhyNotTextStyles.muted(size: 14),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: WhyNotColors.background,
       extendBody: true,
@@ -126,7 +351,12 @@ class _EditProductScreenState extends State<EditProductScreen> {
         bottom: false,
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(24, 40, 24, 130),
+          padding: const EdgeInsets.fromLTRB(
+            24,
+            40,
+            24,
+            130,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -135,86 +365,70 @@ class _EditProductScreenState extends State<EditProductScreen> {
                 style: WhyNotTextStyles.serif(size: 30),
               ),
 
-              const SizedBox(height: 58),
+              const SizedBox(height: 42),
 
-              Text(
-                'Name',
-                style: WhyNotTextStyles.serif(size: 20),
-              ),
+              // Name
+              _label('Name'),
 
               const SizedBox(height: 14),
 
-              SizedBox(
-                height: 42,
-                child: TextField(
-                  controller: _nameController,
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w300,
-                  ),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: WhyNotColors.field,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(
-                        color: WhyNotColors.border,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(
-                        color: WhyNotColors.muted,
-                      ),
-                    ),
-                  ),
-                ),
+              _textField(
+                controller: _nameController,
+                hint: 'Product name',
               ),
 
-              const SizedBox(height: 35),
+              const SizedBox(height: 30),
 
-              Text(
-                'Picture',
-                style: WhyNotTextStyles.serif(size: 20),
-              ),
+              // Brand
+              _label('Brand'),
 
               const SizedBox(height: 14),
 
-              InkWell(
-                onTap: _selectPicture,
-                borderRadius: BorderRadius.circular(18),
-                child: Container(
-                  height: 58,
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                  ),
-                  decoration: BoxDecoration(
-                    color: WhyNotColors.field,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: WhyNotColors.border,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        'Change picture',
-                        style: WhyNotTextStyles.muted(size: 14),
-                      ),
-                      const Spacer(),
-                      const Icon(
-                        Icons.file_upload_outlined,
-                        size: 24,
-                        color: WhyNotColors.muted,
-                      ),
-                    ],
-                  ),
+              _textField(
+                controller: _brandController,
+                hint: 'Brand name',
+              ),
+
+              const SizedBox(height: 30),
+
+              // Price
+              _label('Price'),
+
+              const SizedBox(height: 14),
+
+              _textField(
+                controller: _priceController,
+                hint: 'Product price',
+                keyboardType:
+                    const TextInputType.numberWithOptions(
+                  decimal: true,
                 ),
+              ),
+
+              const SizedBox(height: 30),
+
+              // Picture link
+              _label('Picture link'),
+
+              const SizedBox(height: 14),
+
+              _textField(
+                controller: _imageUrlController,
+                hint: 'https://...',
+                keyboardType: TextInputType.url,
+              ),
+
+              const SizedBox(height: 30),
+
+              // Product link
+              _label('Product link'),
+
+              const SizedBox(height: 14),
+
+              _textField(
+                controller: _productUrlController,
+                hint: 'https://...',
+                keyboardType: TextInputType.url,
               ),
 
               const SizedBox(height: 36),
@@ -226,47 +440,64 @@ class _EditProductScreenState extends State<EditProductScreen> {
 
               const SizedBox(height: 18),
 
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: _wishlists.map((wishlist) {
-                  final selected =
-                      _selectedWishlist == wishlist;
+              if (_wishlists.isEmpty)
+                Text(
+                  'No wishlists available.',
+                  style: WhyNotTextStyles.muted(size: 14),
+                )
+              else
+                Column(
+                  children: _wishlists.map((wishlist) {
+                    final wishlistId =
+                        wishlist['wishlistId'];
 
-                  return InkWell(
-                    onTap: () {
-                      setState(() {
-                        _selectedWishlist = wishlist;
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(18),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 8,
+                    final categoryId =
+                        wishlist['categoryId'];
+
+                    final name = wishlist['name'];
+
+                    final selected =
+                        _selectedWishlistId == wishlistId;
+
+                    return InkWell(
+                      onTap: () {
+                        setState(() {
+                          _selectedWishlistId = wishlistId;
+                          _selectedCategoryId = categoryId;
+                          _selectedWishlistName = name;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(18),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 10,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              selected
+                                  ? Icons.check_circle
+                                  : Icons.circle_outlined,
+                              size: 18,
+                              color: selected
+                                  ? Colors.black
+                                  : WhyNotColors.muted,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              name ?? 'Wishlist',
+                              style:
+                                  WhyNotTextStyles.muted(
+                                size: 15,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            selected
-                                ? Icons.check_circle
-                                : Icons.circle_outlined,
-                            size: 18,
-                            color: selected
-                                ? Colors.black
-                                : WhyNotColors.muted,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            wishlist,
-                            style:
-                                WhyNotTextStyles.muted(size: 15),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
+                    );
+                  }).toList(),
+                ),
 
               const SizedBox(height: 44),
 
@@ -275,20 +506,26 @@ class _EditProductScreenState extends State<EditProductScreen> {
                 height: 44,
                 child: FilledButton(
                   onPressed:
-                      _canSave ? _saveChanges : null,
+                      _canSave && !_isSaving
+                          ? _saveChanges
+                          : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.black,
                     disabledBackgroundColor:
-                        Colors.black.withValues(alpha: 0.25),
+                        Colors.black.withValues(
+                      alpha: 0.25,
+                    ),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius:
                           BorderRadius.circular(24),
                     ),
                   ),
-                  child: const Text(
-                    'Save Changes',
-                    style: TextStyle(
+                  child: Text(
+                    _isSaving
+                        ? 'Saving...'
+                        : 'Save Changes',
+                    style: const TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: 15,
                       fontWeight: FontWeight.w300,
@@ -304,7 +541,8 @@ class _EditProductScreenState extends State<EditProductScreen> {
                   onPressed: _cancel,
                   child: Text(
                     'Cancel',
-                    style: WhyNotTextStyles.muted(size: 15),
+                    style:
+                        WhyNotTextStyles.muted(size: 15),
                   ),
                 ),
               ),
