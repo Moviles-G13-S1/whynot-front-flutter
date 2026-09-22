@@ -1,4 +1,5 @@
 import '../../authentication/domain/auth_repository.dart';
+import '../../../shared/domain/category.dart';
 import '../domain/wishlist.dart';
 import '../domain/wishlist_repository.dart';
 
@@ -13,6 +14,8 @@ class WishlistController {
   final WishlistRepository _wishlistRepository;
 
   String? get currentUserId => _authRepository.currentUser?.id;
+
+  Future<List<Category>> getCategories() => _wishlistRepository.getCategories();
 
   Stream<List<WishlistSummary>> watchCurrentSummaries() async* {
     final ownerId = currentUserId;

@@ -26,11 +26,13 @@ void main() {
         gender: 'Female',
         age: 28,
         preferredCategoryId: 'technology',
+        cityId: 'bogota',
       );
 
       final profile = users.profiles['test-user'];
       expect(profile?.name, 'Ada Lovelace');
       expect(profile?.preferredCategoryId, 'technology');
+      expect(profile?.cityId, 'bogota');
     },
   );
 
@@ -88,6 +90,12 @@ void main() {
       final result = await controller.watchCurrentProducts().first;
       expect(result.single.ownerId, 'owner');
       expect(result.single.purchased, isFalse);
+
+      await controller.markPurchased(result.single.id);
+
+      final purchased = await controller.watchCurrentProducts().first;
+      expect(purchased.single.purchased, isTrue);
+      expect(purchased.single.purchasedAt, isNotNull);
     },
   );
 }

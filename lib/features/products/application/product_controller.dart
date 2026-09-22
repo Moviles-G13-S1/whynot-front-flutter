@@ -18,6 +18,7 @@ class ProductController {
   final WishlistController _wishlistController;
 
   String? get currentUserId => _authRepository.currentUser?.id;
+  Stream<List<Product>> watchAllProducts() => _productRepository.watchAll();
   Stream<List<Product>> watchByWishlist(String wishlistId) =>
       _productRepository.watchByWishlist(wishlistId);
   Stream<List<Product>> watchCurrentProducts() {
@@ -41,7 +42,7 @@ class ProductController {
 
   Future<void> update(String productId, ProductDraft draft) =>
       _productRepository.update(productId, draft);
-  Future<void> setPurchased(String productId, {required bool purchased}) =>
-      _productRepository.setPurchased(productId, purchased: purchased);
+  Future<void> markPurchased(String productId) =>
+      _productRepository.markPurchased(productId);
   Future<void> delete(String productId) => _productRepository.delete(productId);
 }

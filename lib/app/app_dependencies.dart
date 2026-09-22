@@ -11,6 +11,8 @@ import '../features/profile/domain/user_repository.dart';
 import '../features/wishlists/application/wishlist_controller.dart';
 import '../features/wishlists/data/firebase_wishlist_repository.dart';
 import '../features/wishlists/domain/wishlist_repository.dart';
+import '../shared/data/firebase_city_repository.dart';
+import '../shared/domain/city_repository.dart';
 
 class AppDependencies {
   AppDependencies({
@@ -19,6 +21,7 @@ class AppDependencies {
     required this.wishlistController,
     required this.productController,
     required this.adminAccessController,
+    required this.cityRepository,
   });
 
   factory AppDependencies.firebase() {
@@ -47,6 +50,7 @@ class AppDependencies {
         wishlistController: wishlistController,
       ),
       adminAccessController: AdminAccessController(authRepository),
+      cityRepository: FirebaseCityRepository(),
     );
   }
 
@@ -55,4 +59,5 @@ class AppDependencies {
   final WishlistController wishlistController;
   final ProductController productController;
   final AdminAccessController adminAccessController;
+  final CityRepository cityRepository;
 }

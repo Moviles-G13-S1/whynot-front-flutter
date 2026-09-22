@@ -12,16 +12,9 @@ class ProductDetailScreen extends StatelessWidget {
   String _formatPrice(double price) =>
       price % 1 == 0 ? '\$${price.toInt()}' : '\$${price.toStringAsFixed(2)}';
 
-  Future<void> _togglePurchased(
-    BuildContext context,
-    String productId,
-    bool purchased,
-  ) async {
+  Future<void> _markPurchased(BuildContext context, String productId) async {
     try {
-      await context.dependencies.productController.setPurchased(
-        productId,
-        purchased: !purchased,
-      );
+      await context.dependencies.productController.markPurchased(productId);
     } catch (_) {
       if (!context.mounted) return;
 
@@ -155,9 +148,9 @@ class ProductDetailScreen extends StatelessWidget {
                               ),
                             ),
                             TextButton.icon(
-                              onPressed: () {
-                                _togglePurchased(context, productId, purchased);
-                              },
+                              onPressed: purchased
+                                  ? null
+                                  : () => _markPurchased(context, productId),
                               style: TextButton.styleFrom(
                                 foregroundColor: purchased
                                     ? Colors.black

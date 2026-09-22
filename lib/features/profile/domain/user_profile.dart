@@ -6,6 +6,7 @@ class UserProfile {
     required this.gender,
     required this.age,
     required this.preferredCategoryId,
+    this.cityId,
     this.createdAt,
     this.updatedAt,
   });
@@ -16,6 +17,7 @@ class UserProfile {
   final String gender;
   final int age;
   final String preferredCategoryId;
+  final String? cityId;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 }
@@ -26,10 +28,12 @@ class UserProfileUpdate {
     required this.gender,
     required this.age,
     required this.preferredCategoryId,
+    required this.cityId,
   });
 
   final String name;
   final String gender;
   final int age;
   final String preferredCategoryId;
+  final String cityId;
 }

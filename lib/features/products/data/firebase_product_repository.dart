@@ -10,6 +10,12 @@ class FirebaseProductRepository implements ProductRepository {
   final FirebaseFirestore _firestore;
 
   @override
+  Stream<List<Product>> watchAll() => _firestore
+      .collection('products')
+      .snapshots()
+      .map((snapshot) => snapshot.docs.map(_fromQueryDocument).toList());
+
+  @override
   Stream<List<Product>> watchByWishlist(String wishlistId) => _firestore
       .collection('products')
       .where('wishlistId', isEqualTo: wishlistId)
@@ -45,6 +51,7 @@ class FirebaseProductRepository implements ProductRepository {
         'ownerId': ownerId,
         ..._draftData(draft),
         'purchased': false,
+        'purchasedAt': null,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -57,9 +64,10 @@ class FirebaseProductRepository implements ProductRepository {
       });
 
   @override
-  Future<void> setPurchased(String productId, {required bool purchased}) =>
+  Future<void> markPurchased(String productId) =>
       _firestore.collection('products').doc(productId).update({
-        'purchased': purchased,
+        'purchased': true,
+        'purchasedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
@@ -97,6 +105,7 @@ class FirebaseProductRepository implements ProductRepository {
     imageUrl: data['imageUrl'] as String? ?? '',
     productUrl: data['productUrl'] as String? ?? '',
     purchased: data['purchased'] as bool? ?? false,
+    purchasedAt: (data['purchasedAt'] as Timestamp?)?.toDate(),
     createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
     updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
   );

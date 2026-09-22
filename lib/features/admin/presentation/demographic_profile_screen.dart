@@ -1,35 +1,146 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
+import '../../../shared/domain/category.dart';
+import '../../../shared/domain/city.dart';
+import '../../products/domain/product.dart';
+import '../../profile/domain/user_profile.dart';
+import '../domain/demographic_summary.dart';
 import 'widgets/admin_components.dart';
 
-class DemographicProfileScreen extends StatelessWidget {
+class DemographicProfileScreen extends StatefulWidget {
   const DemographicProfileScreen({super.key});
 
   @override
+  State<DemographicProfileScreen> createState() =>
+      _DemographicProfileScreenState();
+}
+
+class _DemographicProfileScreenState extends State<DemographicProfileScreen> {
+  Future<List<Category>>? _categories;
+  Future<List<City>>? _cities;
+  String? _selectedCategoryId;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _categories ??= context.dependencies.wishlistController.getCategories();
+    _cities ??= context.dependencies.cityRepository.getCities();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return AdminPage(
-      title: 'Demographic profile',
-      subtitle: 'Audience insights by product category',
-      currentRoute: AppRoutes.adminDemographicProfile,
-      titleSize: 27,
-      children: const [
-        SizedBox(height: 14),
-        _CategorySelector(),
-        SizedBox(height: 16),
-        _AgeCard(),
-        SizedBox(height: 16),
-        _GenderCard(),
-        SizedBox(height: 16),
-        _TopCitiesCard(),
-      ],
+    return FutureBuilder<List<Category>>(
+      future: _categories,
+      builder: (context, categorySnapshot) {
+        if (categorySnapshot.hasError) {
+          return _page(const Text('Could not load categories.'));
+        }
+        if (!categorySnapshot.hasData) {
+          return _page(const Center(child: CircularProgressIndicator()));
+        }
+        final categories = categorySnapshot.data!;
+        if (categories.isEmpty) {
+          return _page(const Text('No categories found.'));
+        }
+        final selectedId =
+            categories.any((item) => item.id == _selectedCategoryId)
+            ? _selectedCategoryId!
+            : categories.first.id;
+
+        return FutureBuilder<List<City>>(
+          future: _cities,
+          builder: (context, citySnapshot) {
+            if (citySnapshot.hasError) {
+              return _page(const Text('Could not load cities.'));
+            }
+            if (!citySnapshot.hasData) {
+              return _page(const Center(child: CircularProgressIndicator()));
+            }
+            return StreamBuilder<List<Product>>(
+              stream: context.dependencies.productController.watchAllProducts(),
+              builder: (context, productSnapshot) {
+                if (productSnapshot.hasError) {
+                  return _page(const Text('Could not load products.'));
+                }
+                if (!productSnapshot.hasData) {
+                  return _page(
+                    const Center(child: CircularProgressIndicator()),
+                  );
+                }
+                return StreamBuilder<List<UserProfile>>(
+                  stream: context.dependencies.profileController
+                      .watchAllProfiles(),
+                  builder: (context, profileSnapshot) {
+                    if (profileSnapshot.hasError) {
+                      return _page(const Text('Could not load profiles.'));
+                    }
+                    if (!profileSnapshot.hasData) {
+                      return _page(
+                        const Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    final summary = DemographicSummary.fromData(
+                      categoryId: selectedId,
+                      products: productSnapshot.data!,
+                      profiles: profileSnapshot.data!,
+                      cityCatalog: citySnapshot.data!,
+                    );
+                    final selectedName = categories
+                        .firstWhere((item) => item.id == selectedId)
+                        .name;
+                    return _page(
+                      Column(
+                        children: [
+                          _CategorySelector(
+                            categories: categories,
+                            selectedId: selectedId,
+                            onSelected: (id) =>
+                                setState(() => _selectedCategoryId = id),
+                          ),
+                          const SizedBox(height: 16),
+                          _AgeCard(summary: summary),
+                          const SizedBox(height: 16),
+                          _GenderCard(summary: summary),
+                          const SizedBox(height: 16),
+                          _TopCitiesCard(
+                            summary: summary,
+                            categoryName: selectedName,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
+
+  Widget _page(Widget content) => AdminPage(
+    title: 'Demographic profile',
+    subtitle: 'Audience insights by product category',
+    currentRoute: AppRoutes.adminDemographicProfile,
+    titleSize: 27,
+    children: [const SizedBox(height: 14), content],
+  );
 }
 
 class _CategorySelector extends StatelessWidget {
-  const _CategorySelector();
+  const _CategorySelector({
+    required this.categories,
+    required this.selectedId,
+    required this.onSelected,
+  });
+
+  final List<Category> categories;
+  final String selectedId;
+  final ValueChanged<String> onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -42,20 +153,20 @@ class _CategorySelector extends StatelessWidget {
           physics: const BouncingScrollPhysics(),
           children: [
             Container(
-              width: 650,
               decoration: BoxDecoration(
                 color: const Color(0xFFF0EBE3),
                 borderRadius: BorderRadius.circular(21),
               ),
               child: Row(
-                children: const [
-                  _CategoryPill(label: 'Tech', selected: true, width: 74),
-                  _CategoryPill(label: 'Beauty', width: 84),
-                  _CategoryPill(label: 'Clothing', width: 94),
-                  _CategoryPill(label: 'Home', width: 76),
-                  _CategoryPill(label: 'Entertainment', width: 132),
-                  _CategoryPill(label: 'Events', width: 82),
-                  _CategoryPill(label: 'Travel', width: 78),
+                children: [
+                  for (final category in categories)
+                    InkWell(
+                      onTap: () => onSelected(category.id),
+                      child: _CategoryPill(
+                        label: category.name,
+                        selected: category.id == selectedId,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -67,20 +178,16 @@ class _CategorySelector extends StatelessWidget {
 }
 
 class _CategoryPill extends StatelessWidget {
-  const _CategoryPill({
-    required this.label,
-    required this.width,
-    this.selected = false,
-  });
+  const _CategoryPill({required this.label, this.selected = false});
 
   final String label;
-  final double width;
   final bool selected;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: width,
+      constraints: const BoxConstraints(minWidth: 74),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       height: 36,
       margin: EdgeInsets.only(left: selected ? 3 : 0),
       alignment: Alignment.center,
@@ -102,7 +209,9 @@ class _CategoryPill extends StatelessWidget {
 }
 
 class _AgeCard extends StatelessWidget {
-  const _AgeCard();
+  const _AgeCard({required this.summary});
+
+  final DemographicSummary summary;
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +227,7 @@ class _AgeCard extends StatelessWidget {
               Text('Median age', style: adminLightStyle(size: 10)),
               const SizedBox(width: 14),
               Text(
-                '29',
+                summary.medianAge,
                 style: WhyNotTextStyles.serif(size: 22, color: adminInk),
               ),
               const SizedBox(width: 8),
@@ -127,7 +236,7 @@ class _AgeCard extends StatelessWidget {
           const SizedBox(height: 14),
           Expanded(
             child: CustomPaint(
-              painter: _AgeChartPainter(),
+              painter: _AgeChartPainter(summary.ages),
               child: const SizedBox.expand(),
             ),
           ),
@@ -138,7 +247,15 @@ class _AgeCard extends StatelessWidget {
 }
 
 class _GenderCard extends StatelessWidget {
-  const _GenderCard();
+  const _GenderCard({required this.summary});
+
+  final DemographicSummary summary;
+
+  static const _colors = [
+    Color(0xFFB99875),
+    Color(0xFF89847E),
+    Color(0xFFE8DBC9),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -156,35 +273,37 @@ class _GenderCard extends StatelessWidget {
               height: 30,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: const [
-                  Expanded(
-                    flex: 48,
-                    child: ColoredBox(color: Color(0xFFB99875)),
-                  ),
-                  Expanded(
-                    flex: 44,
-                    child: ColoredBox(color: Color(0xFF89847E)),
-                  ),
-                  Expanded(
-                    flex: 8,
-                    child: ColoredBox(color: Color(0xFFE8DBC9)),
-                  ),
-                ],
+                children: summary.userCount == 0
+                    ? const [
+                        Expanded(child: ColoredBox(color: Color(0xFFE8DBC9))),
+                      ]
+                    : [
+                        for (
+                          var index = 0;
+                          index < summary.genders.length;
+                          index++
+                        )
+                          if (summary.genders[index].count > 0)
+                            Expanded(
+                              flex: summary.genders[index].count,
+                              child: ColoredBox(color: _colors[index]),
+                            ),
+                      ],
               ),
             ),
           ),
           const SizedBox(height: 10),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 4),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _GenderLegendItem(color: Color(0xFFB99875), label: 'Women 48%'),
-                _GenderLegendItem(color: Color(0xFF89847E), label: 'Men 44%'),
-                _GenderLegendItem(
-                  color: Color(0xFFE8DBC9),
-                  label: 'Other / N.A. 8%',
-                ),
+                for (var index = 0; index < summary.genders.length; index++)
+                  _GenderLegendItem(
+                    color: _colors[index],
+                    label:
+                        '${summary.genders[index].label} ${summary.genders[index].percent}%',
+                  ),
               ],
             ),
           ),
@@ -224,15 +343,10 @@ class _GenderLegendItem extends StatelessWidget {
 }
 
 class _TopCitiesCard extends StatelessWidget {
-  const _TopCitiesCard();
+  const _TopCitiesCard({required this.summary, required this.categoryName});
 
-  static const _cities = [
-    _CityShare('Bogotá', 34),
-    _CityShare('Medellín', 21),
-    _CityShare('Cali', 14),
-    _CityShare('Barranquilla', 9),
-    _CityShare('Other', 22),
-  ];
+  final DemographicSummary summary;
+  final String categoryName;
 
   @override
   Widget build(BuildContext context) {
@@ -245,21 +359,31 @@ class _TopCitiesCard extends StatelessWidget {
           Row(
             children: [
               Text('TOP CITIES', style: adminMetaStyle(size: 10)),
-              const Spacer(),
-              Text(
-                'Share of Tech-category users',
-                style: adminLightStyle(size: 9),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Share of $categoryName users',
+                  style: adminLightStyle(size: 9),
+                  textAlign: TextAlign.right,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 22),
-          for (final city in _cities) ...[
-            _CityShareRow(city: city),
+          for (final city in summary.cities) ...[
+            _CityShareRow(
+              city: city,
+              maxCount: summary.cities.fold<int>(
+                0,
+                (max, item) => item.count > max ? item.count : max,
+              ),
+            ),
             const SizedBox(height: 15),
           ],
           const Spacer(),
           Text(
-            'Users with at least one product saved in Tech',
+            '${summary.userCount} ${summary.userCount == 1 ? 'user' : 'users'} with a current product in $categoryName',
             style: adminLightStyle(size: 9),
           ),
         ],
@@ -269,18 +393,21 @@ class _TopCitiesCard extends StatelessWidget {
 }
 
 class _CityShareRow extends StatelessWidget {
-  const _CityShareRow({required this.city});
+  const _CityShareRow({required this.city, required this.maxCount});
 
-  final _CityShare city;
+  final DemographicGroup city;
+  final int maxCount;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         SizedBox(
-          width: 86,
+          width: 96,
           child: Text(
-            city.name,
+            city.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: adminLightStyle(size: 9, color: adminInk),
           ),
         ),
@@ -291,11 +418,11 @@ class _CityShareRow extends StatelessWidget {
               children: [
                 Container(height: 16, color: const Color(0xFFE8E0D4)),
                 FractionallySizedBox(
-                  widthFactor: city.percent / 34,
+                  widthFactor: maxCount == 0 ? 0 : city.count / maxCount,
                   child: Container(
                     height: 16,
                     decoration: BoxDecoration(
-                      color: city.percent == 34
+                      color: city.count == maxCount && maxCount > 0
                           ? adminBar
                           : const Color(0xFFB8B0A5),
                       borderRadius: BorderRadius.circular(8),
@@ -320,21 +447,21 @@ class _CityShareRow extends StatelessWidget {
 }
 
 class _AgeChartPainter extends CustomPainter {
-  final _items = const [
-    _AgeBar('18–24', '28%', 0.28),
-    _AgeBar('25–34', '41%', 0.41),
-    _AgeBar('35–44', '20%', 0.20),
-    _AgeBar('45–54', '8%', 0.08),
-    _AgeBar('55+', '3%', 0.03),
-  ];
+  const _AgeChartPainter(this.items);
+
+  final List<DemographicGroup> items;
 
   @override
   void paint(Canvas canvas, Size size) {
     const baselineOffset = 20.0;
-    const barWidth = 36.0;
+    const barWidth = 28.0;
     final baseline = size.height - baselineOffset;
     final usableHeight = size.height - 34;
-    final step = size.width / _items.length;
+    final step = size.width / items.length;
+    final maxCount = items.fold<int>(
+      0,
+      (max, item) => item.count > max ? item.count : max,
+    );
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
     final baselinePaint = Paint()
       ..color = adminDivider
@@ -357,10 +484,12 @@ class _AgeChartPainter extends CustomPainter {
       baselinePaint,
     );
 
-    for (var index = 0; index < _items.length; index += 1) {
-      final item = _items[index];
+    for (var index = 0; index < items.length; index += 1) {
+      final item = items[index];
       final centerX = (step * index) + (step / 2);
-      final height = (item.value / 0.41) * (usableHeight - 20);
+      final height = maxCount == 0
+          ? 0.0
+          : (item.count / maxCount) * (usableHeight - 20);
       final rect = RRect.fromRectAndCorners(
         Rect.fromLTWH(
           centerX - (barWidth / 2),
@@ -376,12 +505,12 @@ class _AgeChartPainter extends CustomPainter {
       canvas.drawRRect(
         rect,
         Paint()
-          ..color = index == 1
+          ..color = item.count == maxCount && maxCount > 0
               ? const Color(0xFF988B7B)
               : const Color(0xFFB9B0A5),
       );
       drawCentered(
-        item.percent,
+        '${item.percent}%',
         Offset(centerX, baseline - height - 14),
         adminBodyStyle(size: 9),
       );
@@ -395,21 +524,6 @@ class _AgeChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _AgeChartPainter oldDelegate) {
-    return false;
+    return oldDelegate.items != items;
   }
-}
-
-class _AgeBar {
-  const _AgeBar(this.label, this.percent, this.value);
-
-  final String label;
-  final String percent;
-  final double value;
-}
-
-class _CityShare {
-  const _CityShare(this.name, this.percent);
-
-  final String name;
-  final double percent;
 }

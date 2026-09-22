@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
+import '../../products/domain/product.dart';
 import 'widgets/admin_components.dart';
 
 class SavedProductsScreen extends StatefulWidget {
@@ -12,77 +14,130 @@ class SavedProductsScreen extends StatefulWidget {
 }
 
 class _SavedProductsScreenState extends State<SavedProductsScreen> {
-  static const _percentageBars = [
-    SavedProductsDistributionBar('1–5', '26%', 0.26),
-    SavedProductsDistributionBar('6–10', '22%', 0.22),
-    SavedProductsDistributionBar('11–20', '19%', 0.19),
-    SavedProductsDistributionBar('21–50', '11%', 0.11),
-    SavedProductsDistributionBar('51+', '4%', 0.04),
-  ];
-
-  static const _userBars = [
-    SavedProductsDistributionBar('1–5', '29', 0.278),
-    SavedProductsDistributionBar('6–10', '24', 0.235),
-    SavedProductsDistributionBar('11–20', '20', 0.204),
-    SavedProductsDistributionBar('21–50', '13', 0.117),
-    SavedProductsDistributionBar('51+', '5', 0.043),
-  ];
-
   var _selectedMetric = SavedProductsMetric.percentage;
 
   @override
   Widget build(BuildContext context) {
-    final usersSelected = _selectedMetric == SavedProductsMetric.users;
+    return StreamBuilder<List<Product>>(
+      stream: context.dependencies.productController.watchAllProducts(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _page(const Text('Could not load products.'));
+        }
+        if (!snapshot.hasData) {
+          return _page(const Center(child: CircularProgressIndicator()));
+        }
 
-    return AdminPage(
-      title: 'Saved products',
-      subtitle: 'How many products has a user saved?',
-      currentRoute: AppRoutes.adminSavedProducts,
-      children: [
-        const SizedBox(height: 25),
-        const SavedProductsKpis(),
-        const SizedBox(height: 25),
-        SavedProductsActivationCard(
-          users: usersSelected ? '225 users' : '35 users',
-        ),
-        const SizedBox(height: 23),
-        SavedProductsDistributionCard(
-          bars: usersSelected ? _userBars : _percentageBars,
-          selectedMetric: _selectedMetric,
-          yAxisLabels: usersSelected
-              ? const ['30', '20', '10', '0']
-              : const ['30%', '20%', '10%', '0%'],
-          note: '91 users  •  Last 30 days',
-          insight: usersSelected
-              ? '60 users save between 1 and 10 products.'
-              : 'Most users save between 1 and 10 products.',
-          onMetricSelected: (metric) {
-            setState(() {
-              _selectedMetric = metric;
-            });
-          },
-        ),
-      ],
+        final byOwner = <String, int>{};
+        for (final product in snapshot.data!) {
+          byOwner[product.ownerId] = (byOwner[product.ownerId] ?? 0) + 1;
+        }
+        final activeUsers = byOwner.length;
+        final totalProducts = snapshot.data!.length;
+        final singleUsers = byOwner.values.where((count) => count == 1).length;
+        final multipleUsers = activeUsers - singleUsers;
+        final average = activeUsers == 0 ? 0.0 : totalProducts / activeUsers;
+        final groupCounts = [0, 0, 0, 0, 0];
+        for (final count in byOwner.values) {
+          final index = count <= 5
+              ? 0
+              : count <= 10
+              ? 1
+              : count <= 20
+              ? 2
+              : count <= 50
+              ? 3
+              : 4;
+          groupCounts[index] += 1;
+        }
+
+        final usersSelected = _selectedMetric == SavedProductsMetric.users;
+        const labels = ['1–5', '6–10', '11–20', '21–50', '51+'];
+        final bars = List.generate(5, (index) {
+          final count = groupCounts[index];
+          final share = activeUsers == 0 ? 0.0 : count / activeUsers;
+          return SavedProductsDistributionBar(
+            labels[index],
+            usersSelected ? '$count' : '${(share * 100).round()}%',
+            usersSelected ? count.toDouble() : share,
+          );
+        });
+        final maxValue = usersSelected
+            ? ((activeUsers + 2) ~/ 3 * 3).clamp(3, 1000000).toDouble()
+            : 1.0;
+        final yAxisLabels = usersSelected
+            ? [for (var i = 3; i >= 0; i--) '${(maxValue * i / 3).round()}']
+            : const ['100%', '67%', '33%', '0%'];
+
+        return _page(
+          Column(
+            children: [
+              SavedProductsKpis(
+                average: average.toStringAsFixed(1),
+                singleUsers: singleUsers,
+                multipleUsers: multipleUsers,
+              ),
+              const SizedBox(height: 25),
+              SavedProductsActivationCard(
+                activeUsers: activeUsers,
+                totalProducts: totalProducts,
+              ),
+              const SizedBox(height: 23),
+              SavedProductsDistributionCard(
+                bars: bars,
+                maxValue: maxValue,
+                selectedMetric: _selectedMetric,
+                yAxisLabels: yAxisLabels,
+                note: '$activeUsers active users  •  Current products',
+                insight: 'Users with no products are not included.',
+                onMetricSelected: (metric) =>
+                    setState(() => _selectedMetric = metric),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
+
+  Widget _page(Widget content) => AdminPage(
+    title: 'Saved products',
+    subtitle: 'How many products has a user saved?',
+    currentRoute: AppRoutes.adminSavedProducts,
+    children: [const SizedBox(height: 25), content],
+  );
 }
 
 class SavedProductsKpis extends StatelessWidget {
-  const SavedProductsKpis({super.key});
+  const SavedProductsKpis({
+    required this.average,
+    required this.singleUsers,
+    required this.multipleUsers,
+    super.key,
+  });
+
+  final String average;
+  final int singleUsers;
+  final int multipleUsers;
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    return Row(
       children: [
         Expanded(
           child: SavedProductsKpiCard(
             label: 'Average',
-            value: '9.8',
-            unit: 'products / user',
+            value: average,
+            unit: 'per active user',
           ),
         ),
-        SizedBox(width: 8),
-        Expanded(child: SavedProductsSplitKpiCard()),
+        const SizedBox(width: 8),
+        Expanded(
+          child: SavedProductsSplitKpiCard(
+            singleUsers: singleUsers,
+            multipleUsers: multipleUsers,
+          ),
+        ),
       ],
     );
   }
@@ -93,6 +148,7 @@ class SavedProductsKpiCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.unit,
+    super.key,
   });
 
   final String label;
@@ -113,12 +169,16 @@ class SavedProductsKpiCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(value, style: WhyNotTextStyles.serif(size: 24)),
-              const SizedBox(width: 13),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  unit,
-                  style: adminLightStyle(size: 9, color: Colors.black),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    unit,
+                    style: adminLightStyle(size: 9, color: Colors.black),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ],
@@ -130,7 +190,14 @@ class SavedProductsKpiCard extends StatelessWidget {
 }
 
 class SavedProductsSplitKpiCard extends StatelessWidget {
-  const SavedProductsSplitKpiCard({super.key});
+  const SavedProductsSplitKpiCard({
+    required this.singleUsers,
+    required this.multipleUsers,
+    super.key,
+  });
+
+  final int singleUsers;
+  final int multipleUsers;
 
   @override
   Widget build(BuildContext context) {
@@ -141,7 +208,7 @@ class SavedProductsSplitKpiCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '1 product saved vs. + 1 saved',
+            '1 product vs. 2+ products',
             style: adminLightStyle(size: 10),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -149,14 +216,14 @@ class SavedProductsSplitKpiCard extends StatelessWidget {
           const Spacer(),
           Row(
             children: [
-              const SavedProductsKpiPair(value: '26'),
+              SavedProductsKpiPair(value: '$singleUsers'),
               Container(
                 width: 1,
                 height: 34,
                 margin: const EdgeInsets.symmetric(horizontal: 8),
                 color: Colors.black,
               ),
-              const SavedProductsKpiPair(value: '65'),
+              SavedProductsKpiPair(value: '$multipleUsers'),
             ],
           ),
         ],
@@ -172,32 +239,24 @@ class SavedProductsKpiPair extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(value, style: WhyNotTextStyles.serif(size: 24)),
-        const SizedBox(width: 4),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Text(
-            'users',
-            style: adminLightStyle(size: 9, color: Colors.black),
-          ),
-        ),
-      ],
-    );
+    return Text(value, style: WhyNotTextStyles.serif(size: 24));
   }
 }
 
 class SavedProductsActivationCard extends StatelessWidget {
-  const SavedProductsActivationCard({required this.users, super.key});
+  const SavedProductsActivationCard({
+    required this.activeUsers,
+    required this.totalProducts,
+    super.key,
+  });
 
-  final String users;
+  final int activeUsers;
+  final int totalProducts;
 
   @override
   Widget build(BuildContext context) {
     return AdminSurface(
-      height: 76,
+      height: 84,
       padding: const EdgeInsets.fromLTRB(16, 12, 20, 13),
       child: Row(
         children: [
@@ -205,10 +264,13 @@ class SavedProductsActivationCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('0 products saved', style: adminBodyStyle(size: 11)),
+                Text(
+                  'Products currently saved',
+                  style: adminBodyStyle(size: 11),
+                ),
                 const SizedBox(height: 6),
                 Text(
-                  'Activation opportunity',
+                  'Deleted products are excluded',
                   style: adminLightStyle(size: 10),
                 ),
               ],
@@ -217,8 +279,11 @@ class SavedProductsActivationCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('18%', style: WhyNotTextStyles.serif(size: 28)),
-              Text(users, style: adminLightStyle(size: 9)),
+              Text('$totalProducts', style: WhyNotTextStyles.serif(size: 28)),
+              Text(
+                '$activeUsers active users',
+                style: adminLightStyle(size: 9),
+              ),
             ],
           ),
         ],
@@ -232,14 +297,17 @@ enum SavedProductsMetric { users, percentage }
 class SavedProductsDistributionCard extends StatelessWidget {
   const SavedProductsDistributionCard({
     required this.bars,
+    required this.maxValue,
     required this.selectedMetric,
     required this.yAxisLabels,
     required this.note,
     required this.insight,
     required this.onMetricSelected,
+    super.key,
   });
 
   final List<SavedProductsDistributionBar> bars;
+  final double maxValue;
   final SavedProductsMetric selectedMetric;
   final List<String> yAxisLabels;
   final String note;
@@ -287,6 +355,7 @@ class SavedProductsDistributionCard extends StatelessWidget {
             child: CustomPaint(
               painter: SavedProductsDistributionChartPainter(
                 bars: bars,
+                maxValue: maxValue,
                 yAxisLabels: yAxisLabels,
               ),
               child: const SizedBox.expand(),
@@ -312,17 +381,19 @@ class SavedProductsDistributionCard extends StatelessWidget {
 class SavedProductsDistributionChartPainter extends CustomPainter {
   const SavedProductsDistributionChartPainter({
     required this.bars,
+    required this.maxValue,
     required this.yAxisLabels,
   });
 
   final List<SavedProductsDistributionBar> bars;
+  final double maxValue;
   final List<String> yAxisLabels;
 
   @override
   void paint(Canvas canvas, Size size) {
     const leftAxis = 28.0;
-    const top = 4.0;
-    const chartHeight = 126.0;
+    const top = 22.0;
+    const chartHeight = 108.0;
     const labelGap = 10.0;
     const barWidth = 34.0;
     final bottom = top + chartHeight;
@@ -359,8 +430,8 @@ class SavedProductsDistributionChartPainter extends CustomPainter {
 
     final axisStyle = adminLightStyle(size: 9);
     for (var index = 0; index < yAxisLabels.length; index += 1) {
-      final tick = 0.3 - (index * 0.1);
-      final y = bottom - (tick / 0.3) * chartHeight;
+      final tick = maxValue * (3 - index) / 3;
+      final y = bottom - (tick / maxValue) * chartHeight;
       drawText(yAxisLabels[index], Offset(0, y - 7), axisStyle, width: 26);
       canvas.drawLine(
         Offset(leftAxis, y),
@@ -375,7 +446,7 @@ class SavedProductsDistributionChartPainter extends CustomPainter {
     for (var index = 0; index < bars.length; index += 1) {
       final bar = bars[index];
       final centerX = leftAxis + (step * index) + (step / 2);
-      final barHeight = (bar.value / 0.3) * chartHeight;
+      final barHeight = (bar.value / maxValue) * chartHeight;
       final rect = RRect.fromRectAndCorners(
         Rect.fromLTWH(
           centerX - (barWidth / 2),
@@ -406,7 +477,9 @@ class SavedProductsDistributionChartPainter extends CustomPainter {
   bool shouldRepaint(
     covariant SavedProductsDistributionChartPainter oldDelegate,
   ) {
-    return oldDelegate.bars != bars || oldDelegate.yAxisLabels != yAxisLabels;
+    return oldDelegate.bars != bars ||
+        oldDelegate.maxValue != maxValue ||
+        oldDelegate.yAxisLabels != yAxisLabels;
   }
 }
 

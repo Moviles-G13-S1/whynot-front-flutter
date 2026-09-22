@@ -4,7 +4,9 @@ import '../../../app/app_routes.dart';
 import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
 import '../../../shared/domain/category_catalog.dart';
+import '../../../shared/domain/city.dart';
 import '../../../shared/widgets/app_bottom_navigation.dart';
+import '../../../shared/widgets/city_selector.dart';
 import '../../../shared/widgets/form_controls.dart';
 import 'widgets/profile_controls.dart';
 import '../domain/user_profile.dart';
@@ -21,22 +23,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _ageController = TextEditingController();
+  final _cityController = TextEditingController();
 
   String? _gender;
   String? _category;
+  String? _cityId;
+  List<City> _cities = const [];
 
   String _initialName = '';
   String _initialAge = '';
   String? _initialGender;
   String? _initialCategory;
+  String? _initialCityId;
 
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _profileRequested = false;
 
   List<TextEditingController> get _controllers => [
     _nameController,
     _emailController,
     _ageController,
+    _cityController,
   ];
 
   bool get _hasChanges {
@@ -45,7 +53,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return _nameController.text.trim() != _initialName ||
         _ageController.text.trim() != _initialAge ||
         _gender != _initialGender ||
-        _category != _initialCategory;
+        _category != _initialCategory ||
+        _cityId != _initialCityId;
   }
 
   @override
@@ -55,8 +64,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     for (final controller in _controllers) {
       controller.addListener(_refresh);
     }
+  }
 
-    _loadProfile();
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_profileRequested) {
+      _profileRequested = true;
+      _loadProfile();
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -69,6 +85,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
 
     try {
+      final cities = await context.dependencies.cityRepository.getCities();
       final profile = await profileController.getCurrentProfile();
       if (profile == null) {
         if (mounted) {
@@ -82,17 +99,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final age = profile.age.toString();
       final gender = profile.gender;
       final category = CategoryCatalog.labelsById[profile.preferredCategoryId];
+      final city = cities
+          .where((item) => item.id == profile.cityId)
+          .firstOrNull;
 
       _initialName = name;
       _initialAge = age;
       _initialGender = gender;
       _initialCategory = category;
+      _initialCityId = profile.cityId;
 
       _nameController.text = name;
       _emailController.text = email;
       _ageController.text = age;
       _gender = gender;
       _category = category;
+      _cities = cities;
+      _cityId = profile.cityId;
+      _cityController.text = city?.name ?? '';
 
       if (mounted) {
         setState(() => _isLoading = false);
@@ -128,6 +152,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     FocusScope.of(context).unfocus();
 
     final age = int.tryParse(_ageController.text.trim());
+    final selectedCity = _cities
+        .where((city) => city.id == _cityId)
+        .firstOrNull;
 
     if (context.dependencies.profileController.currentUserId == null) {
       _showMessage('No user logged in.');
@@ -136,6 +163,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     if (_nameController.text.trim().isEmpty ||
         age == null ||
+        selectedCity == null ||
+        _cityController.text.trim() != selectedCity.name ||
         _gender == null ||
         _category == null) {
       _showMessage('Please complete all fields.');
@@ -151,6 +180,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           gender: _gender!,
           age: age,
           preferredCategoryId: CategoryCatalog.idsByLabel[_category]!,
+          cityId: selectedCity.id,
         ),
       );
 
@@ -255,6 +285,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         value: _gender,
                         items: const ['Female', 'Male', 'Other'],
                         onChanged: (value) => setState(() => _gender = value),
+                      ),
+                    ),
+                    _field(
+                      'City',
+                      CitySelector(
+                        cities: _cities,
+                        controller: _cityController,
+                        selectedId: _cityId,
+                        onSelected: (id) => setState(() => _cityId = id),
                       ),
                     ),
                     Row(
