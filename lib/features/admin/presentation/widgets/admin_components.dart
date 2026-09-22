@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../app/app_routes.dart';
@@ -296,6 +297,18 @@ class AdminNavigationPanel extends StatelessWidget {
     ),
   ];
 
+  Future<void> _signOut(BuildContext context) async {
+    await FirebaseAuth.instance.signOut();
+
+    if (!context.mounted) return;
+
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      AppRoutes.login,
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -369,6 +382,12 @@ class AdminNavigationPanel extends StatelessWidget {
               ),
               const SizedBox(height: 12),
             ],
+            const Spacer(),
+            TextButton.icon(
+              onPressed: () => _signOut(context),
+              icon: const Icon(Icons.logout_rounded, size: 18),
+              label: const Text('Sign out'),
+            ),
           ],
         ),
       ),
