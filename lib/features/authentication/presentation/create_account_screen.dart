@@ -1,12 +1,13 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
+import '../../../shared/domain/category_catalog.dart';
 import '../../../shared/widgets/brand_mark.dart';
 import '../../../shared/widgets/form_controls.dart';
 import 'widgets/account_field.dart';
+import '../domain/auth_repository.dart';
 
 /// Registration form for new WhyNot users.
 class CreateAccountScreen extends StatefulWidget {
@@ -25,17 +26,6 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   String? _gender;
   String? _category;
   bool _isLoading = false;
-
-  static const Map<String, String> _categoryIds = {
-    'Fashion': 'fashion',
-    'Beauty': 'beauty',
-    'Technology': 'technology',
-    'Home': 'home',
-    'Accessories': 'accessories',
-    'Travel': 'travel',
-    'Gifts': 'gifts',
-    'Other': 'other',
-  };
 
   @override
   void dispose() {
@@ -67,38 +57,19 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Create the account in Firebase Authentication.
-      final credential =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      await context.dependencies.authController.createAccount(
+        name: name,
         email: email,
         password: password,
+        gender: _gender!,
+        age: age,
+        preferredCategoryId: CategoryCatalog.idsByLabel[_category]!,
       );
-
-      final user = credential.user;
-
-      if (user == null) {
-        throw Exception('User could not be created.');
-      }
-
-      // 2. Save the rest of the user profile in Firestore.
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'name': name,
-        'email': email,
-        'gender': _gender,
-        'age': age,
-        'preferredCategoryId': _categoryIds[_category],
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
 
       if (!mounted) return;
 
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        AppRoutes.home,
-        (_) => false,
-      );
-    } on FirebaseAuthException catch (error) {
+      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
+    } on AuthFailure catch (error) {
       if (!mounted) return;
 
       switch (error.code) {
@@ -125,9 +96,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -201,18 +172,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       isLast: true,
                       child: DesignDropdown(
                         value: _category,
-                        items: const [
-                          'Fashion',
-                          'Beauty',
-                          'Technology',
-                          'Home',
-                          'Accessories',
-                          'Travel',
-                          'Gifts',
-                          'Other',
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _category = value),
+                        items: CategoryCatalog.labelsById.values.toList(),
+                        onChanged: (value) => setState(() => _category = value),
                       ),
                     ),
                   ],

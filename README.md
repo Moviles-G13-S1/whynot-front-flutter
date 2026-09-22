@@ -546,6 +546,8 @@ lib/
 │
 ├── app/
 │   ├── app_routes.dart
+│   ├── app_dependencies.dart
+│   ├── dependencies_scope.dart
 │   ├── whynot_app.dart
 │   └── whynot_theme.dart
 │
@@ -559,16 +561,25 @@ lib/
 │   └── admin/
 │
 └── shared/
+    ├── domain/
     └── widgets/
 ```
 
-Each feature owns its screens and feature-specific components.
+Data-backed features own `domain/`, `data/`, `application/`, and
+`presentation/` layers. Domain models and repository contracts are typed and
+Firebase-free. Firebase implementations live under `data/`; controllers in
+`application/` translate screen intents into repository operations.
 
 A widget is moved to `shared` only when more than one feature uses it.
 
-Firebase currently provides the shared backend and authenticated user session, while screen-specific UI state remains local to each feature.
+Firebase provides the shared backend and authenticated user session, while
+screen-specific UI state remains local to each feature.
 
-The project currently communicates directly with Firebase through the Flutter Firebase SDK instead of introducing a custom backend or REST API.
+Screens do not call Firebase directly. `AppDependencies` wires the Firebase
+repositories and controllers once at the application boundary, and
+`DependenciesScope` makes them available to routes. Tests replace those
+repositories with in-memory fakes.
 
-A larger domain or state-management layer may be introduced later if the application grows enough to require it, but the current structure keeps the implementation simple while meeting the existing requirements.
+No Provider/Riverpod/Bloc dependency is used; widgets continue to own local UI
+state with `StatefulWidget` and `setState`.
 ````

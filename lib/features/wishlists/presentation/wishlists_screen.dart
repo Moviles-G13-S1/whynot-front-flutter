@@ -1,37 +1,19 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
+import '../../products/domain/product.dart';
+import '../domain/wishlist.dart';
 import '../../../shared/widgets/app_bottom_navigation.dart';
 import '../../../shared/widgets/wishlist_card.dart';
 
 class WishlistsScreen extends StatelessWidget {
   const WishlistsScreen({super.key});
 
-  Future<Map<String, String>> _loadCategories() async {
-    final snapshot =
-        await FirebaseFirestore.instance.collection('categories').get();
-
-    return {
-      for (final document in snapshot.docs)
-        document.id: document.data()['name'] as String? ?? document.id,
-    };
-  }
-
-  Future<int> _loadItemCount(String wishlistId) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('products')
-        .where('wishlistId', isEqualTo: wishlistId)
-        .get();
-
-    return snapshot.docs.length;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final wishlistController = context.dependencies.wishlistController;
 
     return Scaffold(
       backgroundColor: WhyNotColors.background,
@@ -43,10 +25,7 @@ class WishlistsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'My Wishlists',
-                style: WhyNotTextStyles.serif(size: 30),
-              ),
+              Text('My Wishlists', style: WhyNotTextStyles.serif(size: 30)),
               const SizedBox(height: 8),
               Text(
                 'Every thing you want, all in one place.',
@@ -55,117 +34,76 @@ class WishlistsScreen extends StatelessWidget {
               const SizedBox(height: 30),
 
               Expanded(
-                child: user == null
+                child: wishlistController.currentUserId == null
                     ? Center(
                         child: Text(
                           'No user logged in.',
                           style: WhyNotTextStyles.muted(size: 14),
                         ),
                       )
-                    : FutureBuilder<Map<String, String>>(
-                        future: _loadCategories(),
-                        builder: (context, categorySnapshot) {
-                          if (categorySnapshot.connectionState ==
+                    : StreamBuilder<List<WishlistSummary>>(
+                        stream: wishlistController.watchCurrentSummaries(),
+                        builder: (context, wishlistSnapshot) {
+                          if (wishlistSnapshot.connectionState ==
                               ConnectionState.waiting) {
                             return const Center(
                               child: CircularProgressIndicator(),
                             );
                           }
 
-                          if (categorySnapshot.hasError) {
+                          if (wishlistSnapshot.hasError) {
                             return Center(
                               child: Text(
-                                'Could not load categories.',
+                                'Could not load wishlists.',
                                 style: WhyNotTextStyles.muted(size: 14),
                               ),
                             );
                           }
 
-                          final categories =
-                              categorySnapshot.data ?? <String, String>{};
+                          final wishlists = wishlistSnapshot.data ?? const [];
 
-                          return StreamBuilder<
-                              QuerySnapshot<Map<String, dynamic>>>(
-                            stream: FirebaseFirestore.instance
-                                .collection('wishlists')
-                                .where(
-                                  'ownerId',
-                                  isEqualTo: user.uid,
-                                )
-                                .snapshots(),
-                            builder: (context, wishlistSnapshot) {
-                              if (wishlistSnapshot.connectionState ==
-                                  ConnectionState.waiting) {
-                                return const Center(
-                                  child: CircularProgressIndicator(),
-                                );
-                              }
+                          if (wishlists.isEmpty) {
+                            return Center(
+                              child: Text(
+                                'You do not have any wishlists yet.',
+                                style: WhyNotTextStyles.muted(size: 14),
+                              ),
+                            );
+                          }
 
-                              if (wishlistSnapshot.hasError) {
-                                return Center(
-                                  child: Text(
-                                    'Could not load wishlists.',
-                                    style: WhyNotTextStyles.muted(size: 14),
-                                  ),
-                                );
-                              }
-
-                              final wishlists =
-                                  wishlistSnapshot.data?.docs ?? [];
-
-                              if (wishlists.isEmpty) {
-                                return Center(
-                                  child: Text(
-                                    'You do not have any wishlists yet.',
-                                    style: WhyNotTextStyles.muted(size: 14),
-                                  ),
-                                );
-                              }
-
-                              return GridView.builder(
-                                physics: const BouncingScrollPhysics(),
-                                itemCount: wishlists.length,
-                                gridDelegate:
-                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                          return GridView.builder(
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: wishlists.length,
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: 2,
                                   crossAxisSpacing: 20,
                                   mainAxisSpacing: 24,
                                   childAspectRatio: 0.62,
                                 ),
-                                itemBuilder: (context, index) {
-                                  final wishlist = wishlists[index];
-                                  final data = wishlist.data();
+                            itemBuilder: (context, index) {
+                              final summary = wishlists[index];
+                              final wishlist = summary.wishlist;
+                              return StreamBuilder<List<Product>>(
+                                stream: context.dependencies.productController
+                                    .watchByWishlist(wishlist.id),
+                                builder: (context, countSnapshot) {
+                                  final itemCount =
+                                      countSnapshot.data?.length ?? 0;
 
-                                  final categoryId =
-                                      data['categoryId'] as String? ?? '';
-
-                                  final categoryName =
-                                      categories[categoryId] ?? categoryId;
-
-                                  final imageUrl =
-                                      data['imageUrl'] as String?;
-
-                                  return FutureBuilder<int>(
-                                    future: _loadItemCount(wishlist.id),
-                                    builder: (context, countSnapshot) {
-                                      final itemCount =
-                                          countSnapshot.data ?? 0;
-
-                                      return WishlistCard(
-                                        label: categoryName,
-                                        itemCount: itemCount,
-                                        imageUrl: imageUrl,
-                                        onTap: () {
-                                          Navigator.pushNamed(
-                                            context,
-                                            AppRoutes.wishlistDetail,
-                                            arguments: {
-                                              'wishlistId': wishlist.id,
-                                              'categoryId': categoryId,
-                                              'categoryName': categoryName,
-                                              'itemCount': itemCount,
-                                            },
-                                          );
+                                  return WishlistCard(
+                                    label: summary.categoryName,
+                                    itemCount: itemCount,
+                                    imageUrl: wishlist.imageUrl,
+                                    onTap: () {
+                                      Navigator.pushNamed(
+                                        context,
+                                        AppRoutes.wishlistDetail,
+                                        arguments: {
+                                          'wishlistId': wishlist.id,
+                                          'categoryId': wishlist.categoryId,
+                                          'categoryName': summary.categoryName,
+                                          'itemCount': itemCount,
                                         },
                                       );
                                     },
@@ -182,10 +120,7 @@ class WishlistsScreen extends StatelessWidget {
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      AppRoutes.newWishlist,
-                    );
+                    Navigator.pushNamed(context, AppRoutes.newWishlist);
                   },
                   style: TextButton.styleFrom(
                     foregroundColor: WhyNotColors.muted,
@@ -207,9 +142,7 @@ class WishlistsScreen extends StatelessWidget {
           ),
         ),
       ),
-      bottomNavigationBar: const AppBottomNavigation(
-        selectedIndex: 1,
-      ),
+      bottomNavigationBar: const AppBottomNavigation(selectedIndex: 1),
     );
   }
 }

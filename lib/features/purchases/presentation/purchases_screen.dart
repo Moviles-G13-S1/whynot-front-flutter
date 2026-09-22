@@ -1,16 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
 import '../../../shared/widgets/app_bottom_navigation.dart';
+import '../../products/domain/product.dart';
 
-enum _PurchaseSort {
-  none,
-  lowToHigh,
-  highToLow,
-}
+enum _PurchaseSort { none, lowToHigh, highToLow }
 
 class PurchasesScreen extends StatefulWidget {
   const PurchasesScreen({super.key});
@@ -22,35 +18,12 @@ class PurchasesScreen extends StatefulWidget {
 class _PurchasesScreenState extends State<PurchasesScreen> {
   _PurchaseSort _sort = _PurchaseSort.none;
 
-  String _formatPrice(dynamic price) {
-    if (price == null) return '';
+  String _formatPrice(double price) =>
+      price % 1 == 0 ? '\$${price.toInt()}' : '\$${price.toStringAsFixed(2)}';
 
-    if (price is num) {
-      if (price % 1 == 0) {
-        return '\$${price.toInt()}';
-      }
+  double _numericPrice(Product product) => product.price;
 
-      return '\$${price.toStringAsFixed(2)}';
-    }
-
-    return '\$$price';
-  }
-
-  double _numericPrice(
-    QueryDocumentSnapshot<Map<String, dynamic>> product,
-  ) {
-    final price = product.data()['price'];
-
-    if (price is num) {
-      return price.toDouble();
-    }
-
-    return double.tryParse(price?.toString() ?? '') ?? 0;
-  }
-
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _sortProducts(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> products,
-  ) {
+  List<Product> _sortProducts(List<Product> products) {
     final sortedProducts = [...products];
 
     switch (_sort) {
@@ -91,34 +64,25 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final productController = context.dependencies.productController;
 
     return Scaffold(
       backgroundColor: WhyNotColors.background,
       extendBody: true,
       body: SafeArea(
         bottom: false,
-        child: user == null
+        child: productController.currentUserId == null
             ? Center(
                 child: Text(
                   'No user logged in.',
                   style: WhyNotTextStyles.muted(size: 14),
                 ),
               )
-            : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .collection('products')
-                    .where(
-                      'ownerId',
-                      isEqualTo: user.uid,
-                    )
-                    .snapshots(),
+            : StreamBuilder<List<Product>>(
+                stream: productController.watchCurrentProducts(),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState ==
-                      ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
                   }
 
                   if (snapshot.hasError) {
@@ -130,48 +94,33 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                     );
                   }
 
-                  final allProducts = snapshot.data?.docs ?? [];
+                  final allProducts = snapshot.data ?? const [];
 
                   final purchasedProducts = allProducts.where((product) {
-                    final purchased =
-                        product.data()['purchased'] as bool? ?? false;
-
-                    return purchased;
+                    return product.purchased;
                   }).toList();
 
-                  final visibleProducts =
-                      _sortProducts(purchasedProducts);
+                  final visibleProducts = _sortProducts(purchasedProducts);
 
                   return SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(
-                      0,
-                      47,
-                      0,
-                      135,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(0, 47, 0, 135),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 25,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 25),
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'Purchases',
-                                style: WhyNotTextStyles.serif(
-                                  size: 30,
-                                ),
+                                style: WhyNotTextStyles.serif(size: 30),
                               ),
                               const SizedBox(height: 8),
                               Text(
                                 '${purchasedProducts.length} items',
-                                style:
-                                    WhyNotTextStyles.muted(size: 15),
+                                style: WhyNotTextStyles.muted(size: 15),
                               ),
                             ],
                           ),
@@ -189,22 +138,17 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
 
                         if (purchasedProducts.isEmpty)
                           Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 25,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 25),
                             child: Center(
                               child: Text(
                                 'You have no purchased items yet.',
-                                style:
-                                    WhyNotTextStyles.muted(size: 14),
+                                style: WhyNotTextStyles.muted(size: 14),
                               ),
                             ),
                           )
                         else
                           Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 25,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 25),
                             child: LayoutBuilder(
                               builder: (context, constraints) {
                                 const spacing = 20.0;
@@ -216,29 +160,16 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                                   spacing: spacing,
                                   runSpacing: 30,
                                   children: visibleProducts.map((product) {
-                                    final data = product.data();
-
-                                    final name =
-                                        data['name'] as String? ??
-                                            'Product';
-
-                                    final brand =
-                                        data['brand'] as String? ?? '';
-
-                                    final imageUrl =
-                                        data['imageUrl'] as String?;
-
-                                    final price =
-                                        _formatPrice(data['price']);
-
                                     return SizedBox(
                                       width: cardWidth,
                                       child: _PurchaseCard(
                                         productId: product.id,
-                                        name: name,
-                                        brand: brand,
-                                        price: price,
-                                        imageUrl: imageUrl,
+                                        name: product.name.isEmpty
+                                            ? 'Product'
+                                            : product.name,
+                                        brand: product.brand,
+                                        price: _formatPrice(product.price),
+                                        imageUrl: product.imageUrl,
                                       ),
                                     );
                                   }).toList(),
@@ -252,9 +183,7 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
                 },
               ),
       ),
-      bottomNavigationBar: const AppBottomNavigation(
-        selectedIndex: 3,
-      ),
+      bottomNavigationBar: const AppBottomNavigation(selectedIndex: 3),
     );
   }
 }
@@ -325,9 +254,7 @@ class _FilterItem extends StatelessWidget {
             Icon(
               icon,
               size: 18,
-              color: selected
-                  ? Colors.black
-                  : WhyNotColors.muted,
+              color: selected ? Colors.black : WhyNotColors.muted,
             ),
             const SizedBox(width: 7),
             Text(
@@ -335,11 +262,8 @@ class _FilterItem extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'Poppins',
                 fontSize: 12,
-                fontWeight:
-                    selected ? FontWeight.w500 : FontWeight.w300,
-                color: selected
-                    ? Colors.black
-                    : WhyNotColors.muted,
+                fontWeight: selected ? FontWeight.w500 : FontWeight.w300,
+                color: selected ? Colors.black : WhyNotColors.muted,
               ),
             ),
           ],
@@ -366,8 +290,7 @@ class _PurchaseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasImage =
-        imageUrl != null && imageUrl!.trim().isNotEmpty;
+    final hasImage = imageUrl != null && imageUrl!.trim().isNotEmpty;
 
     return InkWell(
       onTap: () {
@@ -394,11 +317,7 @@ class _PurchaseCard extends StatelessWidget {
                   ? Image.network(
                       imageUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (
-                        context,
-                        error,
-                        stackTrace,
-                      ) {
+                      errorBuilder: (context, error, stackTrace) {
                         return Container(
                           color: WhyNotColors.card,
                           child: const Center(
@@ -410,9 +329,7 @@ class _PurchaseCard extends StatelessWidget {
                         );
                       },
                     )
-                  : Container(
-                      color: WhyNotColors.card,
-                    ),
+                  : Container(color: WhyNotColors.card),
             ),
           ),
 
@@ -420,20 +337,14 @@ class _PurchaseCard extends StatelessWidget {
 
           Padding(
             padding: const EdgeInsets.only(left: 4),
-            child: Text(
-              name,
-              style: WhyNotTextStyles.serif(size: 20),
-            ),
+            child: Text(name, style: WhyNotTextStyles.serif(size: 20)),
           ),
 
           if (brand.isNotEmpty) ...[
             const SizedBox(height: 3),
             Padding(
               padding: const EdgeInsets.only(left: 5),
-              child: Text(
-                brand,
-                style: WhyNotTextStyles.muted(size: 11),
-              ),
+              child: Text(brand, style: WhyNotTextStyles.muted(size: 11)),
             ),
           ],
 
@@ -441,10 +352,7 @@ class _PurchaseCard extends StatelessWidget {
 
           Padding(
             padding: const EdgeInsets.only(left: 5),
-            child: Text(
-              price,
-              style: WhyNotTextStyles.muted(size: 12),
-            ),
+            child: Text(price, style: WhyNotTextStyles.muted(size: 12)),
           ),
         ],
       ),

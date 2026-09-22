@@ -10,7 +10,6 @@ abstract final class AppNavigation {
     int index, {
     required int currentIndex,
   }) {
-
     switch (index) {
       case 0:
         Navigator.pushReplacementNamed(context, AppRoutes.home);
@@ -46,10 +45,7 @@ abstract final class AppNavigation {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Add a new item',
-                style: WhyNotTextStyles.serif(size: 26),
-              ),
+              Text('Add a new item', style: WhyNotTextStyles.serif(size: 26)),
               const SizedBox(height: 8),
               const Text(
                 'Save something you love to one of your wishlists.',
@@ -65,10 +61,7 @@ abstract final class AppNavigation {
                 onPressed: () {
                   Navigator.pop(sheetContext);
 
-                  Navigator.pushNamed(
-                    context,
-                    AppRoutes.newProduct,
-                  );
+                  Navigator.pushNamed(context, AppRoutes.newProduct);
                 },
                 style: FilledButton.styleFrom(
                   backgroundColor: Colors.black,

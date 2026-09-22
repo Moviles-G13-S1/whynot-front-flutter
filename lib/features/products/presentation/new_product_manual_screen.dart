@@ -1,17 +1,16 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
 import '../../../shared/widgets/app_bottom_navigation.dart';
+import '../domain/product.dart';
 
 class NewProductManualScreen extends StatefulWidget {
   const NewProductManualScreen({super.key});
 
   @override
-  State<NewProductManualScreen> createState() =>
-      _NewProductManualScreenState();
+  State<NewProductManualScreen> createState() => _NewProductManualScreenState();
 }
 
 class _NewProductManualScreenState extends State<NewProductManualScreen> {
@@ -91,44 +90,22 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
   }
 
   Future<void> _loadWishlists() async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) return;
+    if (context.dependencies.productController.currentUserId == null) return;
 
     setState(() => _isLoadingWishlists = true);
 
     try {
-      final wishlistSnapshot = await FirebaseFirestore.instance
-          .collection('wishlists')
-          .where('ownerId', isEqualTo: user.uid)
-          .get();
-
-      final categorySnapshot =
-          await FirebaseFirestore.instance.collection('categories').get();
-
-      final categoryNames = {
-        for (final document in categorySnapshot.docs)
-          document.id: document.data()['name'] as String? ?? document.id,
-      };
-
-      final loadedWishlists = <Map<String, String>>[];
-
-      for (final document in wishlistSnapshot.docs) {
-        final data = document.data();
-        final categoryId = data['categoryId'] as String?;
-
-        if (categoryId == null) continue;
-
-        loadedWishlists.add({
-          'wishlistId': document.id,
-          'categoryId': categoryId,
-          'name': categoryNames[categoryId] ?? categoryId,
-        });
-      }
-
-      loadedWishlists.sort(
-        (a, b) => (a['name'] ?? '').compareTo(b['name'] ?? ''),
-      );
+      final summaries = await context.dependencies.productController
+          .getCurrentWishlists();
+      final loadedWishlists = summaries
+          .map(
+            (summary) => {
+              'wishlistId': summary.wishlist.id,
+              'categoryId': summary.wishlist.categoryId,
+              'name': summary.categoryName,
+            },
+          )
+          .toList();
 
       if (!mounted) return;
 
@@ -151,15 +128,12 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
   Future<void> _saveItem() async {
     if (!_canSave || _isSaving) return;
 
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
+    if (context.dependencies.productController.currentUserId == null) {
       _showMessage('No user logged in.');
       return;
     }
 
-    final normalizedPrice =
-        _priceController.text.trim().replaceAll(',', '.');
+    final normalizedPrice = _priceController.text.trim().replaceAll(',', '.');
 
     final price = double.tryParse(normalizedPrice);
 
@@ -171,22 +145,17 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
     setState(() => _isSaving = true);
 
     try {
-      await FirebaseFirestore.instance.collection('products').add({
-        'ownerId': user.uid,
-        'wishlistId': _selectedWishlistId,
-        'categoryId': _selectedCategoryId,
-        'name': _nameController.text.trim(),
-        'brand': _brandController.text.trim(),
-        'price': price,
-        'imageUrl': _imageUrlController.text.trim(),
-        'productUrl': _productUrlController.text.trim(),
-
-        // Every new product starts as not purchased.
-        'purchased': false,
-
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await context.dependencies.productController.create(
+        ProductDraft(
+          wishlistId: _selectedWishlistId!,
+          categoryId: _selectedCategoryId!,
+          name: _nameController.text.trim(),
+          brand: _brandController.text.trim(),
+          price: price,
+          imageUrl: _imageUrlController.text.trim(),
+          productUrl: _productUrlController.text.trim(),
+        ),
+      );
 
       if (!mounted) return;
 
@@ -202,9 +171,7 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
     } catch (_) {
       if (!mounted) return;
 
-      _showMessage(
-        'Could not save product. Please try again.',
-      );
+      _showMessage('Could not save product. Please try again.');
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -213,18 +180,13 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Widget _label(String text) {
-    return Text(
-      text,
-      style: WhyNotTextStyles.serif(size: 20),
-    );
+    return Text(text, style: WhyNotTextStyles.serif(size: 20));
   }
 
   Widget _textField({
@@ -247,20 +209,14 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
           hintStyle: WhyNotTextStyles.muted(size: 14),
           filled: true,
           fillColor: WhyNotColors.field,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(
-              color: WhyNotColors.border,
-            ),
+            borderSide: const BorderSide(color: WhyNotColors.border),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(
-              color: WhyNotColors.muted,
-            ),
+            borderSide: const BorderSide(color: WhyNotColors.muted),
           ),
         ),
       ),
@@ -276,37 +232,23 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
         bottom: false,
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            24,
-            40,
-            24,
-            130,
-          ),
+          padding: const EdgeInsets.fromLTRB(24, 40, 24, 130),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'New Product',
-                style: WhyNotTextStyles.serif(size: 30),
-              ),
+              Text('New Product', style: WhyNotTextStyles.serif(size: 30)),
 
               const SizedBox(height: 42),
 
               _label('Name'),
               const SizedBox(height: 14),
-              _textField(
-                controller: _nameController,
-                hint: 'Product name',
-              ),
+              _textField(controller: _nameController, hint: 'Product name'),
 
               const SizedBox(height: 30),
 
               _label('Brand'),
               const SizedBox(height: 14),
-              _textField(
-                controller: _brandController,
-                hint: 'Brand name',
-              ),
+              _textField(controller: _brandController, hint: 'Brand name'),
 
               const SizedBox(height: 30),
 
@@ -342,10 +284,7 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
 
               const SizedBox(height: 36),
 
-              Text(
-                'Save to:',
-                style: WhyNotTextStyles.muted(size: 15),
-              ),
+              Text('Save to:', style: WhyNotTextStyles.muted(size: 15)),
 
               const SizedBox(height: 18),
 
@@ -359,9 +298,7 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
                   decoration: BoxDecoration(
                     color: WhyNotColors.field,
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: WhyNotColors.border,
-                    ),
+                    border: Border.all(color: WhyNotColors.border),
                   ),
                   child: Row(
                     children: [
@@ -379,9 +316,7 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
                   ),
                 )
               else if (_isLoadingWishlists)
-                const Center(
-                  child: CircularProgressIndicator(),
-                )
+                const Center(child: CircularProgressIndicator())
               else if (_wishlists.isEmpty)
                 Text(
                   'Create a wishlist before adding a product.',
@@ -394,8 +329,7 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
                     final categoryId = wishlist['categoryId'];
                     final name = wishlist['name'];
 
-                    final selected =
-                        _selectedWishlistId == wishlistId;
+                    final selected = _selectedWishlistId == wishlistId;
 
                     return InkWell(
                       onTap: () {
@@ -425,9 +359,7 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
                             const SizedBox(width: 8),
                             Text(
                               name ?? 'Wishlist',
-                              style: WhyNotTextStyles.muted(
-                                size: 15,
-                              ),
+                              style: WhyNotTextStyles.muted(size: 15),
                             ),
                           ],
                         ),
@@ -442,12 +374,12 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
                 width: double.infinity,
                 height: 44,
                 child: FilledButton(
-                  onPressed:
-                      _canSave && !_isSaving ? _saveItem : null,
+                  onPressed: _canSave && !_isSaving ? _saveItem : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.black,
-                    disabledBackgroundColor:
-                        Colors.black.withValues(alpha: 0.25),
+                    disabledBackgroundColor: Colors.black.withValues(
+                      alpha: 0.25,
+                    ),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(24),
@@ -467,9 +399,7 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: const AppBottomNavigation(
-        selectedIndex: 2,
-      ),
+      bottomNavigationBar: const AppBottomNavigation(selectedIndex: 2),
     );
   }
 }

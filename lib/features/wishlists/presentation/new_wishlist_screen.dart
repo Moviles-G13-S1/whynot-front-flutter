@@ -1,8 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
 import '../../../shared/widgets/app_bottom_navigation.dart';
 import '../../../shared/widgets/form_controls.dart';
@@ -24,10 +23,13 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _initialized = false;
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized) return;
+    _initialized = true;
     _loadCategories();
   }
 
@@ -37,12 +39,9 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
     super.dispose();
   }
 
-  /// Loads the approved categories from Firestore and removes
-  /// categories already used by the current user's wishlists.
+  /// Loads approved categories not already used by this user's wishlists.
   Future<void> _loadCategories() async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
+    if (context.dependencies.wishlistController.currentUserId == null) {
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -50,38 +49,14 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
     }
 
     try {
-      final categoriesSnapshot =
-          await FirebaseFirestore.instance.collection('categories').get();
-
-      final wishlistsSnapshot = await FirebaseFirestore.instance
-          .collection('wishlists')
-          .where('ownerId', isEqualTo: user.uid)
-          .get();
-
-      final usedCategoryIds = wishlistsSnapshot.docs
-          .map((doc) => doc.data()['categoryId'] as String?)
-          .whereType<String>()
-          .toSet();
-
-      final availableCategories = <String>[];
-
-      for (final document in categoriesSnapshot.docs) {
-        if (usedCategoryIds.contains(document.id)) {
-          continue;
-        }
-
-        final data = document.data();
-        final name = data['name'] as String?;
-
-        if (name == null) {
-          continue;
-        }
-
-        _categoryIdsByName[name] = document.id;
-        availableCategories.add(name);
-      }
-
-      availableCategories.sort();
+      final available = await context.dependencies.wishlistController
+          .getAvailableCategories();
+      final availableCategories = available
+          .map((entry) => entry.value)
+          .toList();
+      _categoryIdsByName.addEntries(
+        available.map((entry) => MapEntry(entry.value, entry.key)),
+      );
 
       if (!mounted) return;
 
@@ -95,9 +70,7 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
       setState(() => _isLoading = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not load categories.'),
-        ),
+        const SnackBar(content: Text('Could not load categories.')),
       );
     }
   }
@@ -107,24 +80,19 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
       return;
     }
 
-    final user = FirebaseAuth.instance.currentUser;
     final categoryId = _categoryIdsByName[_selectedCategory];
 
-    if (user == null || categoryId == null) {
+    if (categoryId == null) {
       return;
     }
 
     setState(() => _isSaving = true);
 
     try {
-      final wishlist =
-          await FirebaseFirestore.instance.collection('wishlists').add({
-        'ownerId': user.uid,
-        'categoryId': categoryId,
-        'imageUrl': _imageUrlController.text.trim(),
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      final wishlistId = await context.dependencies.wishlistController.create(
+        categoryId: categoryId,
+        imageUrl: _imageUrlController.text.trim(),
+      );
 
       if (!mounted) return;
 
@@ -132,7 +100,7 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
         context,
         AppRoutes.wishlistDetail,
         arguments: {
-          'wishlistId': wishlist.id,
+          'wishlistId': wishlistId,
           'categoryId': categoryId,
           'categoryName': _selectedCategory,
           'itemCount': 0,
@@ -154,10 +122,7 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
   }
 
   void _cancel() {
-    Navigator.pushReplacementNamed(
-      context,
-      AppRoutes.wishlists,
-    );
+    Navigator.pushReplacementNamed(context, AppRoutes.wishlists);
   }
 
   @override
@@ -173,10 +138,7 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'New Wishlist',
-                style: WhyNotTextStyles.serif(size: 30),
-              ),
+              Text('New Wishlist', style: WhyNotTextStyles.serif(size: 30)),
 
               const SizedBox(height: 58),
 
@@ -185,9 +147,7 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
               const SizedBox(height: 14),
 
               if (_isLoading)
-                const Center(
-                  child: CircularProgressIndicator(),
-                )
+                const Center(child: CircularProgressIndicator())
               else if (_categories.isEmpty)
                 Text(
                   'You already have a wishlist for every available category.',
@@ -243,8 +203,9 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
                         : _saveWishlist,
                     style: TextButton.styleFrom(
                       foregroundColor: WhyNotColors.muted,
-                      disabledForegroundColor:
-                          WhyNotColors.muted.withValues(alpha: 0.35),
+                      disabledForegroundColor: WhyNotColors.muted.withValues(
+                        alpha: 0.35,
+                      ),
                       padding: EdgeInsets.zero,
                     ),
                     child: Text(
@@ -262,9 +223,7 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: const AppBottomNavigation(
-        selectedIndex: 1,
-      ),
+      bottomNavigationBar: const AppBottomNavigation(selectedIndex: 1),
     );
   }
 }

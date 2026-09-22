@@ -45,18 +45,27 @@ class _LatestMonthCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('143', style: WhyNotTextStyles.serif(size: 34, color: adminInk)),
+              Text(
+                '143',
+                style: WhyNotTextStyles.serif(size: 34, color: adminInk),
+              ),
               const SizedBox(width: 18),
               Padding(
                 padding: const EdgeInsets.only(bottom: 7),
-                child: Text('products purchased', style: adminLightStyle(size: 10)),
+                child: Text(
+                  'products purchased',
+                  style: adminLightStyle(size: 10),
+                ),
               ),
               const Spacer(),
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
                   '↑ 12.6% vs May',
-                  style: adminBodyStyle(size: 11, color: const Color(0xFF337A4D)),
+                  style: adminBodyStyle(
+                    size: 11,
+                    color: const Color(0xFF337A4D),
+                  ),
                 ),
               ),
             ],
@@ -182,14 +191,17 @@ class _PurchasedChartCardState extends State<_PurchasedChartCard> {
     const plotTop = 15.0;
     final plotHeight = plotBottom - plotTop;
     final plotRight = size.width - 8;
-    final step = (plotRight - leftAxis) / _PurchasedStackedChartPainter.months.length;
+    final step =
+        (plotRight - leftAxis) / _PurchasedStackedChartPainter.months.length;
     final activeSegments = _PurchasedStackedChartPainter.segments
         .where((segment) => _activeCategories.contains(segment.label))
         .toList();
 
-    for (var monthIndex = 0;
-        monthIndex < _PurchasedStackedChartPainter.months.length;
-        monthIndex += 1) {
+    for (
+      var monthIndex = 0;
+      monthIndex < _PurchasedStackedChartPainter.months.length;
+      monthIndex += 1
+    ) {
       final centerX = leftAxis + (step * monthIndex) + (step / 2);
       var currentBottom = plotBottom;
       final monthTotal = activeSegments.fold<double>(
@@ -306,48 +318,42 @@ class _PurchasedLegend extends StatelessWidget {
     return Wrap(
       spacing: 22,
       runSpacing: 13,
-      children: _LegendItem.items
-          .map(
-            (item) {
-              final selected = activeCategories.contains(item.label);
-              final itemColor = selected
-                  ? item.color
-                  : const Color(0xFFCFC8BE);
-              final textColor = selected
-                  ? const Color(0xFF45413C)
-                  : adminMuted.withValues(alpha: 0.55);
+      children: _LegendItem.items.map((item) {
+        final selected = activeCategories.contains(item.label);
+        final itemColor = selected ? item.color : const Color(0xFFCFC8BE);
+        final textColor = selected
+            ? const Color(0xFF45413C)
+            : adminMuted.withValues(alpha: 0.55);
 
-              return InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () => onToggle(item.label),
-                child: SizedBox(
-                  width: item.label == 'Entertainment' ? 118 : 81,
-                  height: 18,
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: itemColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          item.label,
-                          style: adminLightStyle(size: 10, color: textColor),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
+        return InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => onToggle(item.label),
+          child: SizedBox(
+            width: item.label == 'Entertainment' ? 118 : 81,
+            height: 18,
+            child: Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: itemColor,
+                    shape: BoxShape.circle,
                   ),
                 ),
-              );
-            },
-          )
-          .toList(),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    item.label,
+                    style: adminLightStyle(size: 10, color: textColor),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }
@@ -363,11 +369,7 @@ class _PurchasedStackedChartPainter extends CustomPainter {
     _StackSegment('Beauty', Color(0xFFD984A7), [10, 12, 13, 15, 16, 18]),
     _StackSegment('Clothing', Color(0xFF8B6DB1), [14, 16, 15, 18, 19, 21]),
     _StackSegment('Home', Color(0xFF6FA17B), [15, 18, 17, 20, 21, 23]),
-    _StackSegment(
-      'Entertainment',
-      Color(0xFFD98B4E),
-      [9, 11, 12, 14, 15, 17],
-    ),
+    _StackSegment('Entertainment', Color(0xFFD98B4E), [9, 11, 12, 14, 15, 17]),
     _StackSegment('Events', Color(0xFFE0BE55), [6, 8, 7, 10, 11, 13]),
     _StackSegment('Travel', Color(0xFF58AAA4), [8, 11, 11, 13, 14, 17]),
   ];

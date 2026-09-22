@@ -1,26 +1,16 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
 import '../../../shared/widgets/app_bottom_navigation.dart';
+import '../domain/product.dart';
 
 class ProductDetailScreen extends StatelessWidget {
   const ProductDetailScreen({super.key});
 
-  String _formatPrice(dynamic price) {
-    if (price == null) return '';
-
-    if (price is num) {
-      if (price % 1 == 0) {
-        return '\$${price.toInt()}';
-      }
-
-      return '\$${price.toStringAsFixed(2)}';
-    }
-
-    return '\$$price';
-  }
+  String _formatPrice(double price) =>
+      price % 1 == 0 ? '\$${price.toInt()}' : '\$${price.toStringAsFixed(2)}';
 
   Future<void> _togglePurchased(
     BuildContext context,
@@ -28,28 +18,20 @@ class ProductDetailScreen extends StatelessWidget {
     bool purchased,
   ) async {
     try {
-      await FirebaseFirestore.instance
-          .collection('products')
-          .doc(productId)
-          .update({
-        'purchased': !purchased,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await context.dependencies.productController.setPurchased(
+        productId,
+        purchased: !purchased,
+      );
     } catch (_) {
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not update product.'),
-        ),
+        const SnackBar(content: Text('Could not update product.')),
       );
     }
   }
 
-  Future<void> _deleteProduct(
-    BuildContext context,
-    String productId,
-  ) async {
+  Future<void> _deleteProduct(BuildContext context, String productId) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -81,10 +63,7 @@ class ProductDetailScreen extends StatelessWidget {
     }
 
     try {
-      await FirebaseFirestore.instance
-          .collection('products')
-          .doc(productId)
-          .delete();
+      await context.dependencies.productController.delete(productId);
 
       if (!context.mounted) return;
 
@@ -93,9 +72,7 @@ class ProductDetailScreen extends StatelessWidget {
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not delete product.'),
-        ),
+        const SnackBar(content: Text('Could not delete product.')),
       );
     }
   }
@@ -120,16 +97,11 @@ class ProductDetailScreen extends StatelessWidget {
                   style: WhyNotTextStyles.muted(size: 14),
                 ),
               )
-            : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .collection('products')
-                    .doc(productId)
-                    .snapshots(),
+            : StreamBuilder<Product?>(
+                stream: context.dependencies.productController.watch(productId),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
+                    return const Center(child: CircularProgressIndicator());
                   }
 
                   if (snapshot.hasError) {
@@ -141,7 +113,7 @@ class ProductDetailScreen extends StatelessWidget {
                     );
                   }
 
-                  if (!snapshot.hasData || !snapshot.data!.exists) {
+                  if (!snapshot.hasData) {
                     return Center(
                       child: Text(
                         'Product not found.',
@@ -150,52 +122,26 @@ class ProductDetailScreen extends StatelessWidget {
                     );
                   }
 
-                  final data = snapshot.data!.data()!;
+                  final product = snapshot.data!;
+                  final name = product.name.isEmpty ? 'Product' : product.name;
+                  final brand = product.brand;
+                  final imageUrl = product.imageUrl;
+                  final productUrl = product.productUrl;
+                  final purchased = product.purchased;
+                  final price = _formatPrice(product.price);
 
-                  final name =
-                      data['name'] as String? ?? 'Product';
+                  final hasImage = imageUrl.trim().isNotEmpty;
 
-                  final brand =
-                      data['brand'] as String? ?? '';
-
-                  final imageUrl =
-                      data['imageUrl'] as String?;
-
-                  final productUrl =
-                      data['productUrl'] as String?;
-
-                  final purchased =
-                      data['purchased'] as bool? ?? false;
-
-                  final price =
-                      _formatPrice(data['price']);
-
-                  final hasImage =
-                      imageUrl != null &&
-                      imageUrl.trim().isNotEmpty;
-
-                  final hasProductUrl =
-                      productUrl != null &&
-                      productUrl.trim().isNotEmpty;
+                  final hasProductUrl = productUrl.trim().isNotEmpty;
 
                   return SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(
-                      32,
-                      47,
-                      32,
-                      135,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(32, 47, 32, 135),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Product name
-                        Text(
-                          name,
-                          style: WhyNotTextStyles.serif(
-                            size: 30,
-                          ),
-                        ),
+                        Text(name, style: WhyNotTextStyles.serif(size: 30)),
 
                         const SizedBox(height: 8),
 
@@ -205,18 +151,12 @@ class ProductDetailScreen extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 brand,
-                                style: WhyNotTextStyles.muted(
-                                  size: 15,
-                                ),
+                                style: WhyNotTextStyles.muted(size: 15),
                               ),
                             ),
                             TextButton.icon(
                               onPressed: () {
-                                _togglePurchased(
-                                  context,
-                                  productId,
-                                  purchased,
-                                );
+                                _togglePurchased(context, productId, purchased);
                               },
                               style: TextButton.styleFrom(
                                 foregroundColor: purchased
@@ -224,8 +164,7 @@ class ProductDetailScreen extends StatelessWidget {
                                     : WhyNotColors.muted,
                                 padding: EdgeInsets.zero,
                                 minimumSize: Size.zero,
-                                tapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
                               icon: Icon(
                                 purchased
@@ -237,9 +176,7 @@ class ProductDetailScreen extends StatelessWidget {
                                     : WhyNotColors.muted,
                               ),
                               label: Text(
-                                purchased
-                                    ? 'Purchased'
-                                    : 'Mark as purchased',
+                                purchased ? 'Purchased' : 'Mark as purchased',
                                 style: const TextStyle(
                                   fontFamily: 'Poppins',
                                   fontSize: 15,
@@ -262,28 +199,20 @@ class ProductDetailScreen extends StatelessWidget {
                                 ? Image.network(
                                     imageUrl,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (
-                                      context,
-                                      error,
-                                      stackTrace,
-                                    ) {
+                                    errorBuilder: (context, error, stackTrace) {
                                       return Container(
                                         color: WhyNotColors.card,
                                         child: const Center(
                                           child: Icon(
-                                            Icons
-                                                .image_not_supported_outlined,
-                                            color:
-                                                WhyNotColors.muted,
+                                            Icons.image_not_supported_outlined,
+                                            color: WhyNotColors.muted,
                                             size: 34,
                                           ),
                                         ),
                                       );
                                     },
                                   )
-                                : Container(
-                                    color: WhyNotColors.card,
-                                  ),
+                                : Container(color: WhyNotColors.card),
                           ),
                         ),
 
@@ -294,9 +223,7 @@ class ProductDetailScreen extends StatelessWidget {
                           children: [
                             Text(
                               price,
-                              style: WhyNotTextStyles.muted(
-                                size: 15,
-                              ),
+                              style: WhyNotTextStyles.muted(size: 15),
                             ),
                             const Spacer(),
                             TextButton.icon(
@@ -311,12 +238,10 @@ class ProductDetailScreen extends StatelessWidget {
                                 );
                               },
                               style: TextButton.styleFrom(
-                                foregroundColor:
-                                    WhyNotColors.muted,
+                                foregroundColor: WhyNotColors.muted,
                                 padding: EdgeInsets.zero,
                                 minimumSize: Size.zero,
-                                tapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
                               icon: const Icon(
                                 Icons.edit_outlined,
@@ -340,24 +265,18 @@ class ProductDetailScreen extends StatelessWidget {
                           const SizedBox(height: 22),
                           Text(
                             'Product link',
-                            style: WhyNotTextStyles.serif(
-                              size: 20,
-                            ),
+                            style: WhyNotTextStyles.serif(size: 20),
                           ),
                           const SizedBox(height: 8),
                           SelectableText(
                             productUrl,
-                            style: WhyNotTextStyles.muted(
-                              size: 13,
-                            ),
+                            style: WhyNotTextStyles.muted(size: 13),
                           ),
                         ],
 
                         const SizedBox(height: 34),
 
-                        const Divider(
-                          color: WhyNotColors.divider,
-                        ),
+                        const Divider(color: WhyNotColors.divider),
 
                         const SizedBox(height: 18),
 
@@ -365,10 +284,7 @@ class ProductDetailScreen extends StatelessWidget {
                         Center(
                           child: TextButton.icon(
                             onPressed: () {
-                              _deleteProduct(
-                                context,
-                                productId,
-                              );
+                              _deleteProduct(context, productId);
                             },
                             icon: const Icon(
                               Icons.delete_outline,
@@ -392,9 +308,7 @@ class ProductDetailScreen extends StatelessWidget {
                 },
               ),
       ),
-      bottomNavigationBar: AppBottomNavigation(
-        selectedIndex: sourceTab,
-      ),
+      bottomNavigationBar: AppBottomNavigation(selectedIndex: sourceTab),
     );
   }
 }
