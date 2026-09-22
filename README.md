@@ -229,6 +229,7 @@ The current database uses the following main collections:
 
 ```text
 categories/
+cities/
 users/
 wishlists/
 products/
@@ -250,11 +251,26 @@ email
 gender
 age
 preferredCategoryId
+cityId
 createdAt
 updatedAt
 ```
 
 The document ID corresponds to the Firebase Authentication user ID.
+`cityId` references a city in Firestore. New accounts select a city from a
+searchable list; existing profiles without a city can select one while editing.
+Typed city names and device location are not saved in the profile.
+
+### `cities`
+
+`cities/{cityId}` contains a canonical `name`. The app reads these documents
+for account creation, profile editing, and city display. Only the selected ID
+is stored in `users/{uid}`.
+
+The admin demographic view groups users who own a current product in the
+selected Firestore category. It shows age, gender, and city shares; each user
+counts once per category. Profiles without `cityId` count under
+`Other / unknown`. It needs the admin-only profile listing rule in the backend.
 
 ---
 
@@ -386,7 +402,13 @@ Every newly created product starts with:
 
 ```text
 purchased: false
+purchasedAt: null
 ```
+
+A product can be marked as purchased once. The client writes `purchased: true`
+and a server-generated `purchasedAt` timestamp together. The action cannot be
+reverted. Deleting the active product does not remove its backend purchase
+event.
 
 ---
 

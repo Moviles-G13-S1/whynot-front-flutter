@@ -19,6 +19,8 @@ import '../features/recommendations/domain/recommendation_repository.dart';
 import '../features/wishlists/application/wishlist_controller.dart';
 import '../features/wishlists/data/firebase_wishlist_repository.dart';
 import '../features/wishlists/domain/wishlist_repository.dart';
+import '../shared/data/firebase_city_repository.dart';
+import '../shared/domain/city_repository.dart';
 
 /// Composition root for application dependencies.
 ///
@@ -33,6 +35,7 @@ class AppDependencies {
     required this.wishlistController,
     required this.productController,
     required this.adminAccessController,
+    required this.cityRepository,
     required this.recommendationController,
     required this.nearbyStoreController,
   });
@@ -45,10 +48,8 @@ class AppDependencies {
   factory AppDependencies.firebase() {
     final AuthRepository authRepository = FirebaseAuthRepository();
     final UserRepository userRepository = FirebaseUserRepository();
-    final WishlistRepository wishlistRepository =
-        FirebaseWishlistRepository();
-    final ProductRepository productRepository =
-        FirebaseProductRepository();
+    final WishlistRepository wishlistRepository = FirebaseWishlistRepository();
+    final ProductRepository productRepository = FirebaseProductRepository();
 
     final RecommendationRepository recommendationRepository =
         FirebaseRecommendationRepository();
@@ -79,9 +80,8 @@ class AppDependencies {
         productRepository: productRepository,
         wishlistController: wishlistController,
       ),
-      adminAccessController: AdminAccessController(
-        authRepository,
-      ),
+      adminAccessController: AdminAccessController(authRepository),
+      cityRepository: FirebaseCityRepository(),
       recommendationController: RecommendationController(
         recommendationRepository: recommendationRepository,
       ),
@@ -97,6 +97,7 @@ class AppDependencies {
   final WishlistController wishlistController;
   final ProductController productController;
   final AdminAccessController adminAccessController;
+  final CityRepository cityRepository;
 
   /// Controller for the demographic Smart Recommendation feature.
   final RecommendationController recommendationController;

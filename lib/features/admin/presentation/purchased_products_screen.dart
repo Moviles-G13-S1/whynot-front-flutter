@@ -2,35 +2,157 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
+import '../../products/domain/product.dart';
 import 'widgets/admin_components.dart';
 
-class PurchasedProductsScreen extends StatelessWidget {
+class PurchasedProductsScreen extends StatefulWidget {
   const PurchasedProductsScreen({super.key});
 
   @override
+  State<PurchasedProductsScreen> createState() =>
+      _PurchasedProductsScreenState();
+}
+
+class _PurchasedProductsScreenState extends State<PurchasedProductsScreen> {
+  static const _monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  static const _colors = [
+    Color(0xFF4F7CAC),
+    Color(0xFFD984A7),
+    Color(0xFF8B6DB1),
+    Color(0xFF6FA17B),
+    Color(0xFFD98B4E),
+    Color(0xFFE0BE55),
+    Color(0xFF58AAA4),
+    Color(0xFF817D78),
+  ];
+
+  int _windowMonths = 6;
+
+  @override
   Widget build(BuildContext context) {
-    return AdminPage(
-      title: 'Purchased products',
-      subtitle: 'By month and category',
-      currentRoute: AppRoutes.adminPurchasedProducts,
-      children: const [
-        SizedBox(height: 13),
-        _LatestMonthCard(),
-        SizedBox(height: 16),
-        AdminSegmentedControl(
-          labels: ['6 months', '12 months', '24 months'],
-          selectedIndex: 0,
-        ),
-        SizedBox(height: 12),
-        _PurchasedChartCard(),
-      ],
+    return StreamBuilder<List<Product>>(
+      stream: context.dependencies.productController.watchAllProducts(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _page(const Text('Could not load products.'));
+        }
+        if (!snapshot.hasData) {
+          return _page(const Center(child: CircularProgressIndicator()));
+        }
+
+        final now = DateTime.now();
+        final months = List.generate(
+          _windowMonths,
+          (index) => DateTime(now.year, now.month - _windowMonths + index + 1),
+        );
+        final counts = <String, List<double>>{};
+        for (final product in snapshot.data!) {
+          final date = product.purchasedAt;
+          if (!product.purchased || date == null) continue;
+          final monthIndex = months.indexWhere(
+            (month) => month.year == date.year && month.month == date.month,
+          );
+          if (monthIndex < 0) continue;
+          final values = counts.putIfAbsent(
+            product.categoryId,
+            () => List.filled(_windowMonths, 0),
+          );
+          values[monthIndex] += 1;
+        }
+        final categories = counts.keys.toList()..sort();
+        final segments = [
+          for (var index = 0; index < categories.length; index++)
+            _StackSegment(
+              categories[index],
+              _colors[index % _colors.length],
+              counts[categories[index]]!,
+            ),
+        ];
+        final monthLabels = [
+          for (final month in months) _monthNames[month.month - 1],
+        ];
+        final currentCount = segments.fold<int>(
+          0,
+          (sum, segment) => sum + segment.values.last.round(),
+        );
+        final previousCount = segments.fold<int>(
+          0,
+          (sum, segment) => sum + segment.values[_windowMonths - 2].round(),
+        );
+        final peak = List.generate(
+          _windowMonths,
+          (index) => segments.fold<double>(
+            0,
+            (sum, segment) => sum + segment.values[index],
+          ),
+        ).fold<double>(0, (max, value) => value > max ? value : max);
+        final maxValue = ((peak.ceil() + 2) ~/ 3 * 3)
+            .clamp(3, 1000000)
+            .toDouble();
+
+        return _page(
+          Column(
+            children: [
+              _LatestMonthCard(
+                month: _monthNames[now.month - 1],
+                count: currentCount,
+                previousCount: previousCount,
+              ),
+              const SizedBox(height: 16),
+              AdminSegmentedControl(
+                labels: const ['6 months', '12 months', '24 months'],
+                selectedIndex: [6, 12, 24].indexOf(_windowMonths),
+                onSelected: (index) =>
+                    setState(() => _windowMonths = [6, 12, 24][index]),
+              ),
+              const SizedBox(height: 12),
+              _PurchasedChartCard(
+                key: ValueKey(_windowMonths),
+                monthLabels: monthLabels,
+                months: months,
+                segments: segments,
+                maxValue: maxValue,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
+
+  Widget _page(Widget content) => AdminPage(
+    title: 'Purchased products',
+    subtitle: 'By month and category',
+    currentRoute: AppRoutes.adminPurchasedProducts,
+    children: [const SizedBox(height: 13), content],
+  );
 }
 
 class _LatestMonthCard extends StatelessWidget {
-  const _LatestMonthCard();
+  const _LatestMonthCard({
+    required this.month,
+    required this.count,
+    required this.previousCount,
+  });
+
+  final String month;
+  final int count;
+  final int previousCount;
 
   @override
   Widget build(BuildContext context) {
@@ -40,13 +162,28 @@ class _LatestMonthCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('LATEST MONTH · JUN', style: adminMetaStyle(size: 10)),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'CURRENT MONTH · ${month.toUpperCase()}',
+                  style: adminMetaStyle(size: 10),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Text(
+                'Previous: $previousCount',
+                style: adminLightStyle(size: 10),
+              ),
+            ],
+          ),
           const Spacer(),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '143',
+                '$count',
                 style: WhyNotTextStyles.serif(size: 34, color: adminInk),
               ),
               const SizedBox(width: 18),
@@ -55,17 +192,6 @@ class _LatestMonthCard extends StatelessWidget {
                 child: Text(
                   'products purchased',
                   style: adminLightStyle(size: 10),
-                ),
-              ),
-              const Spacer(),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  '↑ 12.6% vs May',
-                  style: adminBodyStyle(
-                    size: 11,
-                    color: const Color(0xFF337A4D),
-                  ),
                 ),
               ),
             ],
@@ -77,29 +203,49 @@ class _LatestMonthCard extends StatelessWidget {
 }
 
 class _PurchasedChartCard extends StatefulWidget {
-  const _PurchasedChartCard();
+  const _PurchasedChartCard({
+    required this.monthLabels,
+    required this.months,
+    required this.segments,
+    required this.maxValue,
+    super.key,
+  });
+
+  final List<String> monthLabels;
+  final List<DateTime> months;
+  final List<_StackSegment> segments;
+  final double maxValue;
 
   @override
   State<_PurchasedChartCard> createState() => _PurchasedChartCardState();
 }
 
 class _PurchasedChartCardState extends State<_PurchasedChartCard> {
-  final Set<String> _activeCategories = {
-    for (final item in _LegendItem.items) item.label,
-  };
+  final Set<String> _hiddenCategories = {};
 
   _PurchasedSegmentSelection? _selectedSegment;
 
+  @override
+  void didUpdateWidget(covariant _PurchasedChartCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.segments != widget.segments) {
+      _selectedSegment = null;
+    }
+  }
+
   void _toggleCategory(String label) {
     setState(() {
-      if (_activeCategories.contains(label)) {
-        if (_activeCategories.length == 1) return;
-        _activeCategories.remove(label);
+      if (!_hiddenCategories.contains(label)) {
+        final visible = widget.segments
+            .where((segment) => !_hiddenCategories.contains(segment.label))
+            .length;
+        if (visible == 1) return;
+        _hiddenCategories.add(label);
         _selectedSegment = null;
         return;
       }
 
-      _activeCategories.add(label);
+      _hiddenCategories.remove(label);
       _selectedSegment = null;
     });
   }
@@ -113,53 +259,65 @@ class _PurchasedChartCardState extends State<_PurchasedChartCard> {
   @override
   Widget build(BuildContext context) {
     return AdminSurface(
-      height: 369,
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 17),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('PURCHASED BY MONTH', style: adminMetaStyle(size: 10)),
           const SizedBox(height: 10),
-          Text(
-            'Count of first transitions to purchased',
-            style: adminLightStyle(size: 10),
-          ),
+          Text('Existing purchased products', style: adminLightStyle(size: 10)),
           const SizedBox(height: 13),
           SizedBox(
             height: 183,
             child: LayoutBuilder(
-              builder: (context, constraints) {
-                final chartSize = Size(
-                  constraints.maxWidth,
-                  constraints.maxHeight,
-                );
-
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTapDown: (details) => _handleChartTap(details, chartSize),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      CustomPaint(
-                        painter: _PurchasedStackedChartPainter(
-                          activeCategories: Set.unmodifiable(_activeCategories),
-                        ),
-                        child: const SizedBox.expand(),
-                      ),
-                      if (_selectedSegment != null)
-                        Positioned(
-                          left: 20,
-                          top: 12,
-                          child: _PurchasedSegmentTooltip(
-                            selection: _selectedSegment!,
-                            onClose: () {
-                              setState(() {
-                                _selectedSegment = null;
-                              });
-                            },
+              builder: (context, viewport) {
+                final minimumWidth = widget.months.length * 44.0 + 28;
+                final chartWidth = viewport.maxWidth > minimumWidth
+                    ? viewport.maxWidth
+                    : minimumWidth;
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: chartWidth,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final chartSize = Size(
+                          constraints.maxWidth,
+                          constraints.maxHeight,
+                        );
+                        return GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTapDown: (details) =>
+                              _handleChartTap(details, chartSize),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              CustomPaint(
+                                painter: _PurchasedStackedChartPainter(
+                                  monthLabels: widget.monthLabels,
+                                  segments: widget.segments,
+                                  maxValue: widget.maxValue,
+                                  hiddenCategories: Set.unmodifiable(
+                                    _hiddenCategories,
+                                  ),
+                                ),
+                                child: const SizedBox.expand(),
+                              ),
+                              if (_selectedSegment != null)
+                                Positioned(
+                                  left: 20,
+                                  top: 12,
+                                  child: _PurchasedSegmentTooltip(
+                                    selection: _selectedSegment!,
+                                    onClose: () =>
+                                        setState(() => _selectedSegment = null),
+                                  ),
+                                ),
+                            ],
                           ),
-                        ),
-                    ],
+                        );
+                      },
+                    ),
                   ),
                 );
               },
@@ -167,13 +325,16 @@ class _PurchasedChartCardState extends State<_PurchasedChartCard> {
           ),
           const SizedBox(height: 5),
           _PurchasedLegend(
-            activeCategories: _activeCategories,
+            segments: widget.segments,
+            hiddenCategories: _hiddenCategories,
             onToggle: _toggleCategory,
           ),
-          const Spacer(),
+          const SizedBox(height: 18),
           Center(
             child: Text(
-              'Tap a category to hide/show · Tap a segment for details',
+              widget.segments.isEmpty
+                  ? 'No purchases in this period'
+                  : 'Tap a category to hide/show · Tap a segment for details',
               style: adminLightStyle(size: 9),
               textAlign: TextAlign.center,
             ),
@@ -187,19 +348,17 @@ class _PurchasedChartCardState extends State<_PurchasedChartCard> {
     const leftAxis = 28.0;
     const plotBottom = 145.0;
     const barWidth = 24.0;
-    const maxValue = 150.0;
     const plotTop = 15.0;
     final plotHeight = plotBottom - plotTop;
     final plotRight = size.width - 8;
-    final step =
-        (plotRight - leftAxis) / _PurchasedStackedChartPainter.months.length;
-    final activeSegments = _PurchasedStackedChartPainter.segments
-        .where((segment) => _activeCategories.contains(segment.label))
+    final step = (plotRight - leftAxis) / widget.months.length;
+    final activeSegments = widget.segments
+        .where((segment) => !_hiddenCategories.contains(segment.label))
         .toList();
 
     for (
       var monthIndex = 0;
-      monthIndex < _PurchasedStackedChartPainter.months.length;
+      monthIndex < widget.months.length;
       monthIndex += 1
     ) {
       final centerX = leftAxis + (step * monthIndex) + (step / 2);
@@ -211,7 +370,7 @@ class _PurchasedChartCardState extends State<_PurchasedChartCard> {
 
       for (final segment in activeSegments) {
         final value = segment.values[monthIndex];
-        final height = (value / maxValue) * plotHeight;
+        final height = (value / widget.maxValue) * plotHeight;
         final rect = Rect.fromLTWH(
           centerX - (barWidth / 2),
           currentBottom - height,
@@ -221,7 +380,8 @@ class _PurchasedChartCardState extends State<_PurchasedChartCard> {
 
         if (rect.contains(offset)) {
           return _PurchasedSegmentSelection(
-            month: _PurchasedStackedChartPainter.months[monthIndex],
+            month:
+                '${widget.monthLabels[monthIndex]} ${widget.months[monthIndex].year}',
             category: segment.label,
             value: value,
             monthTotal: monthTotal,
@@ -306,11 +466,13 @@ class _PurchasedSegmentTooltip extends StatelessWidget {
 
 class _PurchasedLegend extends StatelessWidget {
   const _PurchasedLegend({
-    required this.activeCategories,
+    required this.segments,
+    required this.hiddenCategories,
     required this.onToggle,
   });
 
-  final Set<String> activeCategories;
+  final List<_StackSegment> segments;
+  final Set<String> hiddenCategories;
   final ValueChanged<String> onToggle;
 
   @override
@@ -318,8 +480,8 @@ class _PurchasedLegend extends StatelessWidget {
     return Wrap(
       spacing: 22,
       runSpacing: 13,
-      children: _LegendItem.items.map((item) {
-        final selected = activeCategories.contains(item.label);
+      children: segments.map((item) {
+        final selected = !hiddenCategories.contains(item.label);
         final itemColor = selected ? item.color : const Color(0xFFCFC8BE);
         final textColor = selected
             ? const Color(0xFF45413C)
@@ -329,7 +491,7 @@ class _PurchasedLegend extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           onTap: () => onToggle(item.label),
           child: SizedBox(
-            width: item.label == 'Entertainment' ? 118 : 81,
+            width: item.label.length > 10 ? 118 : 81,
             height: 18,
             child: Row(
               children: [
@@ -359,20 +521,17 @@ class _PurchasedLegend extends StatelessWidget {
 }
 
 class _PurchasedStackedChartPainter extends CustomPainter {
-  const _PurchasedStackedChartPainter({required this.activeCategories});
+  const _PurchasedStackedChartPainter({
+    required this.monthLabels,
+    required this.segments,
+    required this.maxValue,
+    required this.hiddenCategories,
+  });
 
-  final Set<String> activeCategories;
-
-  static const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-  static const segments = [
-    _StackSegment('Tech', Color(0xFF4F7CAC), [22, 26, 21, 28, 31, 34]),
-    _StackSegment('Beauty', Color(0xFFD984A7), [10, 12, 13, 15, 16, 18]),
-    _StackSegment('Clothing', Color(0xFF8B6DB1), [14, 16, 15, 18, 19, 21]),
-    _StackSegment('Home', Color(0xFF6FA17B), [15, 18, 17, 20, 21, 23]),
-    _StackSegment('Entertainment', Color(0xFFD98B4E), [9, 11, 12, 14, 15, 17]),
-    _StackSegment('Events', Color(0xFFE0BE55), [6, 8, 7, 10, 11, 13]),
-    _StackSegment('Travel', Color(0xFF58AAA4), [8, 11, 11, 13, 14, 17]),
-  ];
+  final List<String> monthLabels;
+  final List<_StackSegment> segments;
+  final double maxValue;
+  final Set<String> hiddenCategories;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -380,11 +539,10 @@ class _PurchasedStackedChartPainter extends CustomPainter {
     const plotTop = 15.0;
     const plotBottom = 145.0;
     const barWidth = 24.0;
-    const maxValue = 150.0;
     final plotHeight = plotBottom - plotTop;
     final plotRight = size.width - 8;
     final activeSegments = segments
-        .where((segment) => activeCategories.contains(segment.label))
+        .where((segment) => !hiddenCategories.contains(segment.label))
         .toList();
     final gridPaint = Paint()
       ..color = adminDivider
@@ -414,14 +572,14 @@ class _PurchasedStackedChartPainter extends CustomPainter {
     }
 
     final axisStyle = adminLightStyle(size: 8);
-    for (final tick in [150, 100, 50, 0]) {
+    for (final tick in [maxValue, maxValue * 2 / 3, maxValue / 3, 0.0]) {
       final y = plotBottom - (tick / maxValue) * plotHeight;
       canvas.drawLine(Offset(leftAxis, y), Offset(plotRight, y), gridPaint);
-      drawRight('$tick', Offset(leftAxis - 4, y - 5), axisStyle);
+      drawRight('${tick.round()}', Offset(leftAxis - 4, y - 5), axisStyle);
     }
 
-    final step = (plotRight - leftAxis) / months.length;
-    for (var monthIndex = 0; monthIndex < months.length; monthIndex += 1) {
+    final step = (plotRight - leftAxis) / monthLabels.length;
+    for (var monthIndex = 0; monthIndex < monthLabels.length; monthIndex += 1) {
       final centerX = leftAxis + (step * monthIndex) + (step / 2);
       var currentBottom = plotBottom;
       for (final segment in activeSegments) {
@@ -438,13 +596,16 @@ class _PurchasedStackedChartPainter extends CustomPainter {
         );
         currentBottom -= height;
       }
-      drawCentered(months[monthIndex], Offset(centerX, 154), axisStyle);
+      drawCentered(monthLabels[monthIndex], Offset(centerX, 154), axisStyle);
     }
   }
 
   @override
   bool shouldRepaint(covariant _PurchasedStackedChartPainter oldDelegate) {
-    return !setEquals(oldDelegate.activeCategories, activeCategories);
+    return !setEquals(oldDelegate.hiddenCategories, hiddenCategories) ||
+        oldDelegate.segments != segments ||
+        oldDelegate.monthLabels != monthLabels ||
+        oldDelegate.maxValue != maxValue;
   }
 }
 
@@ -475,21 +636,4 @@ class _StackSegment {
   final String label;
   final Color color;
   final List<double> values;
-}
-
-class _LegendItem {
-  const _LegendItem(this.label, this.color);
-
-  static const items = [
-    _LegendItem('Tech', Color(0xFF4F7CAC)),
-    _LegendItem('Beauty', Color(0xFFD984A7)),
-    _LegendItem('Clothing', Color(0xFF8B6DB1)),
-    _LegendItem('Home', Color(0xFF6FA17B)),
-    _LegendItem('Entertainment', Color(0xFFD98B4E)),
-    _LegendItem('Events', Color(0xFFE0BE55)),
-    _LegendItem('Travel', Color(0xFF58AAA4)),
-  ];
-
-  final String label;
-  final Color color;
 }

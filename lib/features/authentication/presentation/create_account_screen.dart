@@ -4,7 +4,9 @@ import '../../../app/app_routes.dart';
 import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
 import '../../../shared/domain/category_catalog.dart';
+import '../../../shared/domain/city.dart';
 import '../../../shared/widgets/brand_mark.dart';
+import '../../../shared/widgets/city_selector.dart';
 import '../../../shared/widgets/form_controls.dart';
 import 'widgets/account_field.dart';
 import '../domain/auth_repository.dart';
@@ -21,17 +23,51 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _ageController = TextEditingController();
+  final _cityController = TextEditingController();
   final _passwordController = TextEditingController();
 
   String? _gender;
   String? _category;
+  String? _cityId;
+  List<City> _cities = const [];
+  bool _citiesLoading = true;
+  bool _citiesRequested = false;
+  bool _citiesError = false;
   bool _isLoading = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_citiesRequested) {
+      _citiesRequested = true;
+      _loadCities();
+    }
+  }
+
+  Future<void> _loadCities() async {
+    try {
+      final cities = await context.dependencies.cityRepository.getCities();
+      if (!mounted) return;
+      setState(() {
+        _cities = cities;
+        _citiesLoading = false;
+        _citiesError = cities.isEmpty;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _citiesLoading = false;
+        _citiesError = true;
+      });
+    }
+  }
 
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
     _ageController.dispose();
+    _cityController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -43,11 +79,16 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     final age = int.tryParse(_ageController.text.trim());
+    final selectedCity = _cities
+        .where((city) => city.id == _cityId)
+        .firstOrNull;
 
     if (name.isEmpty ||
         email.isEmpty ||
         password.isEmpty ||
         age == null ||
+        selectedCity == null ||
+        _cityController.text.trim() != selectedCity.name ||
         _gender == null ||
         _category == null) {
       _showMessage('Please complete all fields.');
@@ -64,6 +105,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         gender: _gender!,
         age: age,
         preferredCategoryId: CategoryCatalog.idsByLabel[_category]!,
+        cityId: selectedCity.id,
       );
 
       if (!mounted) return;
@@ -158,6 +200,28 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         controller: _ageController,
                         keyboardType: TextInputType.number,
                       ),
+                    ),
+                    AccountField(
+                      label: 'City',
+                      child: _citiesLoading
+                          ? const Text('Loading cities...')
+                          : _citiesError
+                          ? TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _citiesLoading = true;
+                                  _citiesError = false;
+                                });
+                                _loadCities();
+                              },
+                              child: const Text('Could not load cities. Retry'),
+                            )
+                          : CitySelector(
+                              cities: _cities,
+                              controller: _cityController,
+                              selectedId: _cityId,
+                              onSelected: (id) => setState(() => _cityId = id),
+                            ),
                     ),
                     AccountField(
                       label: 'Password',

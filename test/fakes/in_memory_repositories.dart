@@ -7,6 +7,23 @@ import 'package:whynot_mobile/features/profile/domain/user_repository.dart';
 import 'package:whynot_mobile/features/wishlists/domain/wishlist.dart';
 import 'package:whynot_mobile/features/wishlists/domain/wishlist_repository.dart';
 import 'package:whynot_mobile/shared/domain/category.dart';
+import 'package:whynot_mobile/shared/domain/city.dart';
+import 'package:whynot_mobile/shared/domain/city_repository.dart';
+
+class InMemoryCityRepository implements CityRepository {
+  InMemoryCityRepository({
+    this.cities = const [
+      City(id: 'bogota', name: 'Bogotá'),
+      City(id: 'medellin', name: 'Medellín'),
+      City(id: 'other', name: 'Other'),
+    ],
+  });
+
+  final List<City> cities;
+
+  @override
+  Future<List<City>> getCities() async => cities;
+}
 
 class InMemoryAuthRepository implements AuthRepository {
   InMemoryAuthRepository({this.user, this.claims = const {}});
@@ -49,6 +66,10 @@ class InMemoryUserRepository implements UserRepository {
   final profiles = <String, UserProfile>{};
 
   @override
+  Stream<List<UserProfile>> watchAll() =>
+      Stream.value(profiles.values.toList());
+
+  @override
   Stream<UserProfile?> watch(String userId) => Stream.value(profiles[userId]);
 
   @override
@@ -70,6 +91,7 @@ class InMemoryUserRepository implements UserRepository {
       gender: update.gender,
       age: update.age,
       preferredCategoryId: update.preferredCategoryId,
+      cityId: update.cityId,
       createdAt: profile.createdAt,
       updatedAt: DateTime.now(),
     );
@@ -123,6 +145,9 @@ class InMemoryProductRepository implements ProductRepository {
   final List<Product> _products;
 
   @override
+  Stream<List<Product>> watchAll() => Stream.value(List.of(_products));
+
+  @override
   Stream<List<Product>> watchByWishlist(String wishlistId) => Stream.value(
     _products.where((product) => product.wishlistId == wishlistId).toList(),
   );
@@ -160,11 +185,12 @@ class InMemoryProductRepository implements ProductRepository {
       product.ownerId,
       draft,
       purchased: product.purchased,
+      purchasedAt: product.purchasedAt,
     );
   }
 
   @override
-  Future<void> setPurchased(String productId, {required bool purchased}) async {
+  Future<void> markPurchased(String productId) async {
     final index = _products.indexWhere((product) => product.id == productId);
     final product = _products[index];
     _products[index] = Product(
@@ -177,7 +203,8 @@ class InMemoryProductRepository implements ProductRepository {
       price: product.price,
       imageUrl: product.imageUrl,
       productUrl: product.productUrl,
-      purchased: purchased,
+      purchased: true,
+      purchasedAt: product.purchasedAt ?? DateTime.now(),
       createdAt: product.createdAt,
       updatedAt: DateTime.now(),
     );
@@ -193,6 +220,7 @@ class InMemoryProductRepository implements ProductRepository {
     String ownerId,
     ProductDraft draft, {
     bool purchased = false,
+    DateTime? purchasedAt,
   }) => Product(
     id: id,
     ownerId: ownerId,
@@ -204,6 +232,7 @@ class InMemoryProductRepository implements ProductRepository {
     imageUrl: draft.imageUrl,
     productUrl: draft.productUrl,
     purchased: purchased,
+    purchasedAt: purchasedAt,
   );
 }
 

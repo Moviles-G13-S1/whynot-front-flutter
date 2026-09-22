@@ -4,9 +4,12 @@ import 'package:whynot_mobile/features/authentication/application/auth_controlle
 import 'package:whynot_mobile/features/authentication/domain/auth_user.dart';
 import 'package:whynot_mobile/features/nearby/application/nearby_store_controller.dart';
 import 'package:whynot_mobile/features/products/application/product_controller.dart';
+import 'package:whynot_mobile/features/products/domain/product.dart';
 import 'package:whynot_mobile/features/profile/application/profile_controller.dart';
+import 'package:whynot_mobile/features/profile/domain/user_profile.dart';
 import 'package:whynot_mobile/features/recommendations/application/recommendation_controller.dart';
 import 'package:whynot_mobile/features/wishlists/application/wishlist_controller.dart';
+import 'package:whynot_mobile/shared/domain/category.dart';
 
 import 'in_memory_location_repository.dart';
 import 'in_memory_nearby_store_repository.dart';
@@ -19,19 +22,20 @@ import 'in_memory_repositories.dart';
 /// in-memory implementations so tests do not depend on external services.
 AppDependencies createTestDependencies({
   bool signedIn = false,
+  List<Product> products = const [],
+  List<UserProfile> profiles = const [],
+  List<Category> categories = const [],
 }) {
   final auth = InMemoryAuthRepository(
     user: signedIn
-        ? const AuthUser(
-            id: 'test-user',
-            email: 'user@example.com',
-          )
+        ? const AuthUser(id: 'test-user', email: 'user@example.com')
         : null,
   );
 
   final users = InMemoryUserRepository();
-  final wishlists = InMemoryWishlistRepository();
-  final products = InMemoryProductRepository();
+  users.profiles.addAll({for (final profile in profiles) profile.id: profile});
+  final wishlists = InMemoryWishlistRepository(categories: categories);
+  final productRepository = InMemoryProductRepository(products: products);
 
   final recommendations = InMemoryRecommendationRepository();
 
@@ -44,10 +48,7 @@ AppDependencies createTestDependencies({
   );
 
   return AppDependencies(
-    authController: AuthController(
-      authRepository: auth,
-      userRepository: users,
-    ),
+    authController: AuthController(authRepository: auth, userRepository: users),
     profileController: ProfileController(
       authRepository: auth,
       userRepository: users,
@@ -55,12 +56,11 @@ AppDependencies createTestDependencies({
     wishlistController: wishlistController,
     productController: ProductController(
       authRepository: auth,
-      productRepository: products,
+      productRepository: productRepository,
       wishlistController: wishlistController,
     ),
-    adminAccessController: AdminAccessController(
-      auth,
-    ),
+    adminAccessController: AdminAccessController(auth),
+    cityRepository: InMemoryCityRepository(),
     recommendationController: RecommendationController(
       recommendationRepository: recommendations,
     ),

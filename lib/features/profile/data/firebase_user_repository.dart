@@ -17,6 +17,15 @@ class FirebaseUserRepository implements UserRepository {
       .map((document) => _fromDocument(document));
 
   @override
+  Stream<List<UserProfile>> watchAll() => _firestore
+      .collection('users')
+      .snapshots()
+      .map(
+        (snapshot) =>
+            snapshot.docs.map(_fromDocument).whereType<UserProfile>().toList(),
+      );
+
+  @override
   Future<UserProfile?> get(String userId) async {
     final document = await _firestore.collection('users').doc(userId).get();
     return _fromDocument(document);
@@ -30,6 +39,7 @@ class FirebaseUserRepository implements UserRepository {
         'gender': profile.gender,
         'age': profile.age,
         'preferredCategoryId': profile.preferredCategoryId,
+        'cityId': profile.cityId,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -41,6 +51,7 @@ class FirebaseUserRepository implements UserRepository {
         'gender': update.gender,
         'age': update.age,
         'preferredCategoryId': update.preferredCategoryId,
+        'cityId': update.cityId,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
@@ -55,6 +66,7 @@ class FirebaseUserRepository implements UserRepository {
       gender: data['gender'] as String? ?? '',
       age: (data['age'] as num?)?.toInt() ?? 0,
       preferredCategoryId: data['preferredCategoryId'] as String? ?? '',
+      cityId: data['cityId'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );

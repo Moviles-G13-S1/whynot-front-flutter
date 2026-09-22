@@ -25,6 +25,7 @@ class AuthController {
     required String gender,
     required int age,
     required String preferredCategoryId,
+    required String cityId,
   }) async {
     final user = await _authRepository.createUser(
       email: email,
@@ -38,6 +39,7 @@ class AuthController {
         gender: gender,
         age: age,
         preferredCategoryId: preferredCategoryId,
+        cityId: cityId,
       ),
     );
   }

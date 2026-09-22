@@ -5,6 +5,7 @@ import '../../../app/app_routes.dart';
 import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
 import '../../../shared/domain/category_catalog.dart';
+import '../../../shared/domain/city.dart';
 import '../../../shared/widgets/app_bottom_navigation.dart';
 import '../../../shared/widgets/form_controls.dart';
 import 'widgets/profile_controls.dart';
@@ -63,6 +64,32 @@ class ProfileScreen extends StatelessWidget {
                               ProfileValue(label: 'Email', value: email),
                               ProfileValue(label: 'Gender', value: gender),
                               ProfileValue(label: 'Age', value: age),
+                              if (profile.cityId == null)
+                                const ProfileValue(
+                                  label: 'City',
+                                  value: 'Not selected',
+                                )
+                              else
+                                FutureBuilder<List<City>>(
+                                  future: context.dependencies.cityRepository
+                                      .getCities(),
+                                  builder: (context, citiesSnapshot) {
+                                    final city = citiesSnapshot.data
+                                        ?.where(
+                                          (item) => item.id == profile.cityId,
+                                        )
+                                        .firstOrNull;
+                                    return ProfileValue(
+                                      label: 'City',
+                                      value:
+                                          city?.name ??
+                                          (citiesSnapshot.connectionState ==
+                                                  ConnectionState.waiting
+                                              ? 'Loading city...'
+                                              : 'City unavailable'),
+                                    );
+                                  },
+                                ),
                               ProfileValue(
                                 label: 'Password',
                                 value: '********',

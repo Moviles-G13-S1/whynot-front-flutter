@@ -10,6 +10,7 @@ class Product {
     required this.imageUrl,
     required this.productUrl,
     required this.purchased,
+    this.purchasedAt,
     this.createdAt,
     this.updatedAt,
   });
@@ -24,6 +25,7 @@ class Product {
   final String imageUrl;
   final String productUrl;
   final bool purchased;
+  final DateTime? purchasedAt;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 }
