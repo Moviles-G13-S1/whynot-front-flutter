@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../app/whynot_theme.dart';
+import '../../admin/application/admin_access.dart';
 import '../../../shared/widgets/brand_mark.dart';
 import '../../../shared/widgets/form_controls.dart';
 
@@ -47,9 +48,17 @@ class _LoginScreenState extends State<LoginScreen> {
         password: password,
       );
 
+      final access = await AdminAuthorization.resolve();
+
       if (!mounted) return;
 
-      Navigator.pushReplacementNamed(context, AppRoutes.home);
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        access == AdminAccess.admin
+            ? AppRoutes.adminDashboard
+            : AppRoutes.home,
+        (route) => false,
+      );
     } on FirebaseAuthException catch (error) {
       if (!mounted) return;
 
@@ -79,12 +88,6 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _isLoading = false);
       }
     }
-  }
-
-  /// Temporary admin entry point.
-  void _adminLogin() {
-    FocusScope.of(context).unfocus();
-    Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
   }
 
   void _showMessage(String message) {
@@ -142,12 +145,6 @@ class _LoginScreenState extends State<LoginScreen> {
               PillButton(
                 label: _isLoading ? 'Logging in...' : 'Log in',
                 onPressed: _isLoading ? () {} : _login,
-              ),
-              const SizedBox(height: 14),
-              TextButton(
-                onPressed: _adminLogin,
-                style: linkButtonStyle(),
-                child: const Text('Admin login'),
               ),
               const SizedBox(height: 23),
               const Divider(

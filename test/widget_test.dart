@@ -2,65 +2,78 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:whynot_mobile/app/app_routes.dart';
 import 'package:whynot_mobile/app/whynot_app.dart';
+import 'package:whynot_mobile/features/admin/application/admin_access.dart';
+import 'package:whynot_mobile/features/admin/presentation/admin_route_guard.dart';
 
-/// Verifies the main authentication flow using the real route configuration.
 void main() {
-  testWidgets('renders login and navigates through the account flow', (
-    tester,
-  ) async {
+  test('recognizes only an exact admin true claim', () {
+    expect(AdminAuthorization.hasAdminClaim({'admin': true}), isTrue);
+    expect(AdminAuthorization.hasAdminClaim({'admin': false}), isFalse);
+    expect(AdminAuthorization.hasAdminClaim({'admin': 'true'}), isFalse);
+    expect(AdminAuthorization.hasAdminClaim(null), isFalse);
+  });
+
+  testWidgets('login no longer exposes a direct admin bypass', (tester) async {
     await tester.pumpWidget(const WhyNotApp());
     await tester.pumpAndSettle();
 
     expect(find.text('WHYNOT'), findsOneWidget);
-    expect(find.text('Create an account'), findsOneWidget);
-
-    await tester.ensureVisible(find.text('Create an account'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Create an account'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Preferred Category'));
-    await tester.pumpAndSettle();
-    expect(find.text('Preferred Category'), findsOneWidget);
-
-    await tester.binding.handlePopRoute();
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Log in'));
-    await tester.pumpAndSettle();
-    expect(find.text('Good Morning, Juliana'), findsOneWidget);
+    expect(find.text('Admin login'), findsNothing);
   });
 
-  testWidgets('opens the admin dashboard from login', (tester) async {
-    await tester.pumpWidget(const WhyNotApp());
+  testWidgets('admin route renders after an authorized claim check', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      WhyNotApp(adminAccessResolver: () async => AdminAccess.admin),
+    );
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Admin login'));
-    await tester.tap(find.text('Admin login'));
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    navigator.pushNamed(AppRoutes.adminDashboard);
     await tester.pumpAndSettle();
 
     expect(find.text('WHYNOT ADMIN'), findsOneWidget);
     expect(find.text('Saved products'), findsOneWidget);
   });
 
-  testWidgets('opens edit profile before change password', (tester) async {
-    await tester.pumpWidget(const WhyNotApp());
+  testWidgets('guard redirects signed-out users to login', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        initialRoute: '/protected',
+        routes: {
+          AppRoutes.login: (_) => const Scaffold(body: Text('Login route')),
+          AppRoutes.home: (_) => const Scaffold(body: Text('Home route')),
+          '/protected': (_) => AdminRouteGuard(
+            resolveAccess: () async => AdminAccess.signedOut,
+            child: const Text('Protected content'),
+          ),
+        },
+      ),
+    );
     await tester.pumpAndSettle();
 
-    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
-    navigator.pushNamed(AppRoutes.profile);
+    expect(find.text('Login route'), findsOneWidget);
+    expect(find.text('Protected content'), findsNothing);
+  });
+
+  testWidgets('guard redirects regular users to home', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        initialRoute: '/protected',
+        routes: {
+          AppRoutes.login: (_) => const Scaffold(body: Text('Login route')),
+          AppRoutes.home: (_) => const Scaffold(body: Text('Home route')),
+          '/protected': (_) => AdminRouteGuard(
+            resolveAccess: () async => AdminAccess.regularUser,
+            child: const Text('Protected content'),
+          ),
+        },
+      ),
+    );
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Edit Profile'));
-    await tester.tap(find.text('Edit Profile'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Edit Profile'), findsOneWidget);
-    expect(find.text('Preferred Category'), findsOneWidget);
-    expect(find.text('Save changes'), findsOneWidget);
-
-    await tester.ensureVisible(find.text('Change password'));
-    await tester.tap(find.text('Change password'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Change Password'), findsOneWidget);
+    expect(find.text('Home route'), findsOneWidget);
+    expect(find.text('Protected content'), findsNothing);
   });
 }

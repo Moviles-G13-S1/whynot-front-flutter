@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../features/admin/application/admin_access.dart';
+import '../features/admin/presentation/admin_route_guard.dart';
 import '../features/admin/presentation/demographic_profile_screen.dart';
 import '../features/admin/presentation/purchased_products_screen.dart';
 import '../features/admin/presentation/save_methods_screen.dart';
@@ -30,7 +32,12 @@ import 'whynot_theme.dart';
 
 /// Root widget that owns global theme and navigation configuration.
 class WhyNotApp extends StatelessWidget {
-  const WhyNotApp({super.key});
+  const WhyNotApp({
+    this.adminAccessResolver,
+    super.key,
+  });
+
+  final AdminAccessResolver? adminAccessResolver;
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +92,7 @@ class WhyNotApp extends StatelessWidget {
   }
 
   Route<dynamic>? _generateRoute(RouteSettings settings) {
-    final screen = switch (settings.name) {
+    final adminScreen = switch (settings.name) {
       AppRoutes.adminSavedProducts =>
         const SavedProductsScreen(),
 
@@ -101,9 +108,14 @@ class WhyNotApp extends StatelessWidget {
       _ => null,
     };
 
-    if (screen == null) {
+    if (adminScreen == null) {
       return null;
     }
+
+    final screen = AdminRouteGuard(
+      resolveAccess: adminAccessResolver ?? AdminAuthorization.resolve,
+      child: adminScreen,
+    );
 
     return PageRouteBuilder<void>(
       settings: settings,
