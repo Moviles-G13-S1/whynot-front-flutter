@@ -1,6 +1,4 @@
-Siii 💗 acá va TODO dentro de una sola caja de código `.md`, para copiar y pegar directo en tu `README.md`:
 
-````md
 # WhyNot for iOS
 
 A Flutter application with iOS as its production platform and the web as a preview environment for development on Windows and macOS.
