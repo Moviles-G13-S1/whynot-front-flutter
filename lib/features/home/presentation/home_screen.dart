@@ -5,13 +5,27 @@ import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
 import '../../../shared/widgets/app_bottom_navigation.dart';
 import '../../../shared/widgets/brand_mark.dart';
-import 'widgets/home_content.dart';
+import '../../nearby/presentation/nearby_store_section.dart';
 import '../../profile/domain/user_profile.dart';
+import '../../recommendations/presentation/smart_recommendation_section.dart';
+import 'widgets/home_content.dart';
 
-/// Main feed containing wishlists and future product recommendations.
+/// Main feed containing the user's wishlists and personalized features.
+///
+/// The Home screen is responsible only for composing the different sections.
+/// Feature-specific behavior remains inside their respective presentation,
+/// application, domain, and data layers.
+///
+/// Current personalized sections:
+///
+/// - Context-Aware nearby store recommendation.
+/// - Smart demographic product recommendation.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  /// Extracts the first name from the user's full profile name.
+  ///
+  /// An empty string is returned when no valid name is available.
   String _firstName(String? fullName) {
     if (fullName == null || fullName.trim().isEmpty) {
       return '';
@@ -33,20 +47,28 @@ class HomeScreen extends StatelessWidget {
           physics: const BouncingScrollPhysics(),
           slivers: [
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(18, 42, 0, 132),
+              padding: const EdgeInsets.fromLTRB(
+                18,
+                42,
+                0,
+                132,
+              ),
               sliver: SliverList.list(
                 children: [
                   const BrandMark(),
 
                   const SizedBox(height: 46),
 
-                  // Real user name from Firestore.
+                  // --------------------------------------------------
+                  // USER GREETING
+                  // --------------------------------------------------
+                  //
+                  // Uses the real profile stored for the authenticated user.
                   if (profileController.currentUserId != null)
                     StreamBuilder<UserProfile?>(
                       stream: profileController.watchCurrentProfile(),
                       builder: (context, snapshot) {
                         final fullName = snapshot.data?.name;
-
                         final firstName = _firstName(fullName);
 
                         return Text(
@@ -70,16 +92,21 @@ class HomeScreen extends StatelessWidget {
                     style: WhyNotTextStyles.muted(size: 13),
                   ),
 
-                  // Search bar removed.
                   const SizedBox(height: 38),
 
+                  // --------------------------------------------------
+                  // USER WISHLISTS
+                  // --------------------------------------------------
                   Padding(
                     padding: const EdgeInsets.only(right: 18),
                     child: HomeSectionHeader(
                       title: 'Your Wishlists',
                       action: 'View all',
                       onAction: () {
-                        Navigator.pushNamed(context, AppRoutes.wishlists);
+                        Navigator.pushNamed(
+                          context,
+                          AppRoutes.wishlists,
+                        );
                       },
                     ),
                   ),
@@ -90,10 +117,20 @@ class HomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 44),
 
-                  // ------------------------------------
-                  // FUTURE FEATURE: NEARBY RECOMMENDATION
-                  // ------------------------------------
-                  Text('Near you', style: WhyNotTextStyles.muted(size: 13)),
+                  // --------------------------------------------------
+                  // CONTEXT-AWARE FEATURE
+                  // --------------------------------------------------
+                  //
+                  // NearbyStoreSection obtains the current device location
+                  // through NearbyStoreController and displays the nearest
+                  // relevant store returned by the backend.
+                  //
+                  // The user's coordinates are used only for the request and
+                  // are not persisted by WhyNot.
+                  Text(
+                    'Near you',
+                    style: WhyNotTextStyles.muted(size: 13),
+                  ),
 
                   const SizedBox(height: 20),
 
@@ -105,7 +142,7 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 12),
 
                   Text(
-                    'Products and stores near you will appear here.',
+                    'A nearby store based on your preferences.',
                     style: WhyNotTextStyles.muted(size: 13),
                   ),
 
@@ -113,23 +150,27 @@ class HomeScreen extends StatelessWidget {
 
                   const Padding(
                     padding: EdgeInsets.only(right: 30),
-                    child: RecommendationPlaceholder(),
+                    child: NearbyStoreSection(),
                   ),
 
                   const SizedBox(height: 54),
 
-                  // ------------------------------------
-                  // FUTURE FEATURE: PERSONALIZED PICKS
-                  // ------------------------------------
+                  // --------------------------------------------------
+                  // SMART RECOMMENDATION FEATURE
+                  // --------------------------------------------------
+                  //
+                  // SmartRecommendationSection handles its own loading,
+                  // empty, error, and success states while keeping Firebase
+                  // access outside the Home screen.
                   Text(
-                    'Top picks for you',
+                    'Top pick for you',
                     style: WhyNotTextStyles.serif(size: 23),
                   ),
 
                   const SizedBox(height: 10),
 
                   Text(
-                    'Personalized recommendations will appear here.',
+                    'A personalized recommendation based on users like you.',
                     style: WhyNotTextStyles.muted(size: 13),
                   ),
 
@@ -137,14 +178,7 @@ class HomeScreen extends StatelessWidget {
 
                   const Padding(
                     padding: EdgeInsets.only(right: 35),
-                    child: RecommendationPlaceholder(),
-                  ),
-
-                  const SizedBox(height: 17),
-
-                  const Padding(
-                    padding: EdgeInsets.only(right: 35),
-                    child: RecommendationPlaceholder(),
+                    child: SmartRecommendationSection(),
                   ),
                 ],
               ),
@@ -152,7 +186,9 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: const AppBottomNavigation(selectedIndex: 0),
+      bottomNavigationBar: const AppBottomNavigation(
+        selectedIndex: 0,
+      ),
     );
   }
 }
