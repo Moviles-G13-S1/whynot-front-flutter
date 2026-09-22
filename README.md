@@ -103,6 +103,22 @@ All Firebase configuration should continue using:
 lib/firebase_options.dart
 ```
 
+Chrome debug builds connect to the shared Firebase project by default:
+
+```bash
+flutter run -d chrome
+```
+
+To use the local Firebase Emulator Suite instead, start the WhyNot local
+backend and opt in when launching Chrome:
+
+```bash
+flutter run -d chrome --dart-define=USE_FIREBASE_EMULATORS=true
+```
+
+Local emulator accounts are separate from accounts in the shared Firebase
+project. iOS builds continue using the shared Firebase project.
+
 ---
 
 ## First-Time Firebase Setup
