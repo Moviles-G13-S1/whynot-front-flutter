@@ -41,7 +41,10 @@ class _BothMethodsKpi extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('31%', style: WhyNotTextStyles.serif(size: 35, color: adminInk)),
+              Text(
+                '31%',
+                style: WhyNotTextStyles.serif(size: 35, color: adminInk),
+              ),
               const SizedBox(width: 26),
               Padding(
                 padding: const EdgeInsets.only(bottom: 9),
@@ -98,7 +101,10 @@ class _MethodsUsedCard extends StatelessWidget {
           const Spacer(),
           Align(
             alignment: Alignment.centerRight,
-            child: Text('Segments total 100%', style: adminLightStyle(size: 10)),
+            child: Text(
+              'Segments total 100%',
+              style: adminLightStyle(size: 10),
+            ),
           ),
         ],
       ),
@@ -190,7 +196,9 @@ class _MethodLegendRow extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 12),
-        Expanded(child: Text(label, style: adminLightStyle(size: 12, color: adminInk))),
+        Expanded(
+          child: Text(label, style: adminLightStyle(size: 12, color: adminInk)),
+        ),
         Text(value, style: adminBodyStyle(size: 12)),
       ],
     );
@@ -220,10 +228,7 @@ class _ClassificationCard extends StatelessWidget {
             rule: 'Automatic >=1  ·  Manual >=1',
           ),
           _RuleDivider(),
-          _RuleBlock(
-            title: 'Only manual',
-            rule: 'Manual >=1  ·  Automatic 0',
-          ),
+          _RuleBlock(title: 'Only manual', rule: 'Manual >=1  ·  Automatic 0'),
           Spacer(),
           _ExclusionNote(),
         ],

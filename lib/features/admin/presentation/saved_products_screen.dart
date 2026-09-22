@@ -116,7 +116,10 @@ class SavedProductsKpiCard extends StatelessWidget {
               const SizedBox(width: 13),
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
-                child: Text(unit, style: adminLightStyle(size: 9, color: Colors.black)),
+                child: Text(
+                  unit,
+                  style: adminLightStyle(size: 9, color: Colors.black),
+                ),
               ),
             ],
           ),
@@ -176,7 +179,10 @@ class SavedProductsKpiPair extends StatelessWidget {
         const SizedBox(width: 4),
         Padding(
           padding: const EdgeInsets.only(bottom: 4),
-          child: Text('users', style: adminLightStyle(size: 9, color: Colors.black)),
+          child: Text(
+            'users',
+            style: adminLightStyle(size: 9, color: Colors.black),
+          ),
         ),
       ],
     );
@@ -201,7 +207,10 @@ class SavedProductsActivationCard extends StatelessWidget {
               children: [
                 Text('0 products saved', style: adminBodyStyle(size: 11)),
                 const SizedBox(height: 6),
-                Text('Activation opportunity', style: adminLightStyle(size: 10)),
+                Text(
+                  'Activation opportunity',
+                  style: adminLightStyle(size: 10),
+                ),
               ],
             ),
           ),
@@ -247,14 +256,19 @@ class SavedProductsDistributionCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text('Distribution', style: WhyNotTextStyles.serif(size: 20)),
+                child: Text(
+                  'Distribution',
+                  style: WhyNotTextStyles.serif(size: 20),
+                ),
               ),
               SizedBox(
                 width: 155,
                 height: 32,
                 child: AdminSegmentedControl(
                   labels: const ['Users', '% users'],
-                  selectedIndex: selectedMetric == SavedProductsMetric.users ? 0 : 1,
+                  selectedIndex: selectedMetric == SavedProductsMetric.users
+                      ? 0
+                      : 1,
                   height: 32,
                   onSelected: (index) {
                     onMetricSelected(
@@ -319,7 +333,12 @@ class SavedProductsDistributionChartPainter extends CustomPainter {
       ..strokeWidth = 1;
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
 
-    void drawText(String text, Offset offset, TextStyle style, {double? width}) {
+    void drawText(
+      String text,
+      Offset offset,
+      TextStyle style, {
+      double? width,
+    }) {
       textPainter
         ..text = TextSpan(text: text, style: style)
         ..textAlign = TextAlign.left
@@ -343,7 +362,11 @@ class SavedProductsDistributionChartPainter extends CustomPainter {
       final tick = 0.3 - (index * 0.1);
       final y = bottom - (tick / 0.3) * chartHeight;
       drawText(yAxisLabels[index], Offset(0, y - 7), axisStyle, width: 26);
-      canvas.drawLine(Offset(leftAxis, y), Offset(size.width - 8, y), gridPaint);
+      canvas.drawLine(
+        Offset(leftAxis, y),
+        Offset(size.width - 8, y),
+        gridPaint,
+      );
     }
 
     final barPaint = Paint()..color = adminBar;
@@ -380,7 +403,9 @@ class SavedProductsDistributionChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant SavedProductsDistributionChartPainter oldDelegate) {
+  bool shouldRepaint(
+    covariant SavedProductsDistributionChartPainter oldDelegate,
+  ) {
     return oldDelegate.bars != bars || oldDelegate.yAxisLabels != yAxisLabels;
   }
 }

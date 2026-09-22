@@ -5,6 +5,8 @@ import 'package:whynot_mobile/app/whynot_app.dart';
 import 'package:whynot_mobile/features/admin/application/admin_access.dart';
 import 'package:whynot_mobile/features/admin/presentation/admin_route_guard.dart';
 
+import 'fakes/app_dependencies_fixture.dart';
+
 void main() {
   test('recognizes only an exact admin true claim', () {
     expect(AdminAuthorization.hasAdminClaim({'admin': true}), isTrue);
@@ -14,7 +16,7 @@ void main() {
   });
 
   testWidgets('login no longer exposes a direct admin bypass', (tester) async {
-    await tester.pumpWidget(const WhyNotApp());
+    await tester.pumpWidget(WhyNotApp(dependencies: createTestDependencies()));
     await tester.pumpAndSettle();
 
     expect(find.text('WHYNOT'), findsOneWidget);
@@ -25,7 +27,10 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      WhyNotApp(adminAccessResolver: () async => AdminAccess.admin),
+      WhyNotApp(
+        dependencies: createTestDependencies(),
+        adminAccessResolver: () async => AdminAccess.admin,
+      ),
     );
     await tester.pumpAndSettle();
 

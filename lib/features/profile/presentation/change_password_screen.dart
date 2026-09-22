@@ -1,8 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
+import '../../authentication/domain/auth_repository.dart';
 import '../../../shared/widgets/app_bottom_navigation.dart';
 import '../../../shared/widgets/form_controls.dart';
 import 'widgets/profile_controls.dart';
@@ -12,8 +13,7 @@ class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
 
   @override
-  State<ChangePasswordScreen> createState() =>
-      _ChangePasswordScreenState();
+  State<ChangePasswordScreen> createState() => _ChangePasswordScreenState();
 }
 
 class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
@@ -24,10 +24,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   bool _isUpdating = false;
 
   List<TextEditingController> get _controllers => [
-        _currentController,
-        _newController,
-        _confirmController,
-      ];
+    _currentController,
+    _newController,
+    _confirmController,
+  ];
 
   /// Enables submission only when all local password rules are satisfied.
   bool get _isComplete =>
@@ -67,42 +67,24 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
     FocusScope.of(context).unfocus();
 
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
+    if (context.dependencies.authController.currentUser == null) {
       _showMessage('No user is logged in.');
       return;
     }
 
-    final email = user.email;
+    final currentPassword = _currentController.text.trim();
 
-    if (email == null || email.isEmpty) {
-      _showMessage(
-        'Could not verify your account.',
-      );
-      return;
-    }
+    final newPassword = _newController.text.trim();
 
-    final currentPassword =
-        _currentController.text.trim();
-
-    final newPassword =
-        _newController.text.trim();
-
-    final confirmPassword =
-        _confirmController.text.trim();
+    final confirmPassword = _confirmController.text.trim();
 
     if (newPassword.length < 8) {
-      _showMessage(
-        'New password must have at least 8 characters.',
-      );
+      _showMessage('New password must have at least 8 characters.');
       return;
     }
 
     if (newPassword != confirmPassword) {
-      _showMessage(
-        'New passwords do not match.',
-      );
+      _showMessage('New passwords do not match.');
       return;
     }
 
@@ -116,41 +98,23 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     setState(() => _isUpdating = true);
 
     try {
-      // Firebase requires a recent authentication before changing
-      // sensitive account information such as a password.
-      final credential = EmailAuthProvider.credential(
-        email: email,
-        password: currentPassword,
-      );
-
-      // First verify the current password.
-      await user.reauthenticateWithCredential(
-        credential,
-      );
-
-      // Then update the Firebase Authentication password.
-      await user.updatePassword(
-        newPassword,
+      await context.dependencies.authController.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
       );
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Password updated successfully.',
-          ),
-        ),
+        const SnackBar(content: Text('Password updated successfully.')),
       );
 
-      await Future<void>.delayed(
-        const Duration(milliseconds: 700),
-      );
+      await Future<void>.delayed(const Duration(milliseconds: 700));
 
       if (!mounted) return;
 
       Navigator.pop(context);
-    } on FirebaseAuthException catch (error) {
+    } on AuthFailure catch (error) {
       if (!mounted) return;
 
       String message;
@@ -158,42 +122,34 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       switch (error.code) {
         case 'wrong-password':
         case 'invalid-credential':
-          message =
-              'Your current password is incorrect.';
+          message = 'Your current password is incorrect.';
           break;
 
         case 'weak-password':
-          message =
-              'Your new password is too weak.';
+          message = 'Your new password is too weak.';
           break;
 
         case 'requires-recent-login':
-          message =
-              'Please log in again before changing your password.';
+          message = 'Please log in again before changing your password.';
           break;
 
         case 'network-request-failed':
-          message =
-              'Check your internet connection and try again.';
+          message = 'Check your internet connection and try again.';
           break;
 
         case 'too-many-requests':
-          message =
-              'Too many attempts. Please try again later.';
+          message = 'Too many attempts. Please try again later.';
           break;
 
         default:
-          message =
-              'Could not update password. Please try again.';
+          message = 'Could not update password. Please try again.';
       }
 
       _showMessage(message);
     } catch (_) {
       if (!mounted) return;
 
-      _showMessage(
-        'Could not update password. Please try again.',
-      );
+      _showMessage('Could not update password. Please try again.');
     } finally {
       if (mounted) {
         setState(() => _isUpdating = false);
@@ -202,21 +158,15 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// Provides direct access to implemented bottom-navigation destinations.
   void _onNavigationSelected(int index) {
     if (index == 0) {
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        AppRoutes.home,
-        (_) => false,
-      );
+      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
     } else if (index == 1) {
       Navigator.pushNamedAndRemoveUntil(
         context,
@@ -224,10 +174,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         (_) => false,
       );
     } else if (index == 2) {
-      Navigator.pushNamed(
-        context,
-        AppRoutes.newProductManual,
-      );
+      Navigator.pushNamed(context, AppRoutes.newProductManual);
     } else if (index == 3) {
       Navigator.pushNamedAndRemoveUntil(
         context,
@@ -250,26 +197,16 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       body: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-            24,
-            6,
-            24,
-            130,
-          ),
+          padding: const EdgeInsets.fromLTRB(24, 6, 24, 130),
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton(
-                  onPressed: _isUpdating
-                      ? null
-                      : () => Navigator.pop(context),
+                  onPressed: _isUpdating ? null : () => Navigator.pop(context),
                   style: linkButtonStyle(),
-                  child: const Text(
-                    '‹ Edit Profile',
-                  ),
+                  child: const Text('‹ Edit Profile'),
                 ),
               ),
 
@@ -278,30 +215,21 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               Center(
                 child: Text(
                   'Change Password',
-                  style: WhyNotTextStyles.serif(
-                    size: 24,
-                  ),
+                  style: WhyNotTextStyles.serif(size: 24),
                 ),
               ),
 
               const SizedBox(height: 59),
 
               FormSurface(
-                padding: const EdgeInsets.fromLTRB(
-                  9,
-                  25,
-                  9,
-                  41,
-                ),
+                padding: const EdgeInsets.fromLTRB(9, 25, 9, 41),
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     PasswordFieldGroup(
                       label: 'Current password',
                       hint: 'Enter current password',
-                      controller:
-                          _currentController,
+                      controller: _currentController,
                     ),
 
                     PasswordFieldGroup(
@@ -311,12 +239,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     ),
 
                     PasswordFieldGroup(
-                      label:
-                          'Confirm new password',
-                      hint:
-                          'Confirm new password',
-                      controller:
-                          _confirmController,
+                      label: 'Confirm new password',
+                      hint: 'Confirm new password',
+                      controller: _confirmController,
                       isLast: true,
                     ),
 
@@ -324,10 +249,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
                     Text(
                       'Use at least 8 characters.',
-                      style:
-                          WhyNotTextStyles.muted(
-                        size: 11,
-                      ),
+                      style: WhyNotTextStyles.muted(size: 11),
                     ),
                   ],
                 ),
@@ -338,10 +260,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton(
-                  onPressed: _isUpdating
-                      ? null
-                      : () =>
-                          Navigator.pop(context),
+                  onPressed: _isUpdating ? null : () => Navigator.pop(context),
                   style: linkButtonStyle(),
                   child: const Text('Cancel'),
                 ),
@@ -350,13 +269,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               const SizedBox(height: 11),
 
               PillButton(
-                label: _isUpdating
-                    ? 'Updating...'
-                    : 'Update password',
-                onPressed:
-                    _isComplete
-                        ? _updatePassword
-                        : null,
+                label: _isUpdating ? 'Updating...' : 'Update password',
+                onPressed: _isComplete ? _updatePassword : null,
               ),
 
               const SizedBox(height: 10),
@@ -365,10 +279,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 child: Text(
                   _statusText,
                   textAlign: TextAlign.center,
-                  style:
-                      WhyNotTextStyles.muted(
-                    size: 11,
-                  ),
+                  style: WhyNotTextStyles.muted(size: 11),
                 ),
               ),
             ],
@@ -387,14 +298,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       return 'Updating your password...';
     }
 
-    if (_newController.text.isNotEmpty &&
-        _newController.text.length < 8) {
+    if (_newController.text.isNotEmpty && _newController.text.length < 8) {
       return 'Password must have at least 8 characters';
     }
 
     if (_confirmController.text.isNotEmpty &&
-        _confirmController.text !=
-            _newController.text) {
+        _confirmController.text != _newController.text) {
       return 'Passwords do not match';
     }
 

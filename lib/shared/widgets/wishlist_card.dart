@@ -49,22 +49,14 @@ class WishlistCard extends StatelessWidget {
                         );
                       },
                     )
-                  : Container(
-                      color: WhyNotColors.card,
-                    ),
+                  : Container(color: WhyNotColors.card),
             ),
           ),
           const SizedBox(height: 12),
-          Text(
-            label,
-            style: WhyNotTextStyles.serif(size: 17),
-          ),
+          Text(label, style: WhyNotTextStyles.serif(size: 17)),
           if (itemCount != null) ...[
             const SizedBox(height: 5),
-            Text(
-              '$itemCount items',
-              style: WhyNotTextStyles.muted(size: 12),
-            ),
+            Text('$itemCount items', style: WhyNotTextStyles.muted(size: 12)),
           ],
         ],
       ),

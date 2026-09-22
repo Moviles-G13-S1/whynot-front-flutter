@@ -1,67 +1,39 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
 import '../../../shared/widgets/app_bottom_navigation.dart';
+import '../../products/domain/product.dart';
 
-enum _ProductSort {
-  none,
-  lowToHigh,
-  highToLow,
-}
+enum _ProductSort { none, lowToHigh, highToLow }
 
 class WishlistDetailScreen extends StatefulWidget {
   const WishlistDetailScreen({super.key});
 
   @override
-  State<WishlistDetailScreen> createState() =>
-      _WishlistDetailScreenState();
+  State<WishlistDetailScreen> createState() => _WishlistDetailScreenState();
 }
 
-class _WishlistDetailScreenState
-    extends State<WishlistDetailScreen> {
+class _WishlistDetailScreenState extends State<WishlistDetailScreen> {
   _ProductSort _sort = _ProductSort.none;
   bool _showOnlyUnpurchased = false;
 
-  String _formatPrice(dynamic price) {
-    if (price == null) return '';
-
-    if (price is num) {
-      if (price % 1 == 0) {
-        return '\$${price.toInt()}';
-      }
-
-      return '\$${price.toStringAsFixed(2)}';
-    }
-
-    return '\$$price';
+  String _formatPrice(double price) {
+    return price % 1 == 0
+        ? '\$${price.toInt()}'
+        : '\$${price.toStringAsFixed(2)}';
   }
 
-  double _numericPrice(
-    QueryDocumentSnapshot<Map<String, dynamic>> product,
-  ) {
-    final price = product.data()['price'];
+  double _numericPrice(Product product) => product.price;
 
-    if (price is num) {
-      return price.toDouble();
-    }
-
-    return double.tryParse(price?.toString() ?? '') ?? 0;
-  }
-
-  List<QueryDocumentSnapshot<Map<String, dynamic>>> _applyFilters(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> products,
-  ) {
+  List<Product> _applyFilters(List<Product> products) {
     var filteredProducts = [...products];
 
     // Show only products that have NOT been purchased.
     if (_showOnlyUnpurchased) {
       filteredProducts = filteredProducts.where((product) {
-        final purchased =
-            product.data()['purchased'] as bool? ?? false;
-
-        return !purchased;
+        return !product.purchased;
       }).toList();
     }
 
@@ -69,15 +41,13 @@ class _WishlistDetailScreenState
     switch (_sort) {
       case _ProductSort.lowToHigh:
         filteredProducts.sort(
-          (a, b) =>
-              _numericPrice(a).compareTo(_numericPrice(b)),
+          (a, b) => _numericPrice(a).compareTo(_numericPrice(b)),
         );
         break;
 
       case _ProductSort.highToLow:
         filteredProducts.sort(
-          (a, b) =>
-              _numericPrice(b).compareTo(_numericPrice(a)),
+          (a, b) => _numericPrice(b).compareTo(_numericPrice(a)),
         );
         break;
 
@@ -113,18 +83,14 @@ class _WishlistDetailScreenState
   @override
   Widget build(BuildContext context) {
     final arguments =
-        ModalRoute.of(context)?.settings.arguments
-            as Map<String, dynamic>?;
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
-    final wishlistId =
-        arguments?['wishlistId'] as String?;
+    final wishlistId = arguments?['wishlistId'] as String?;
 
-    final categoryId =
-        arguments?['categoryId'] as String?;
+    final categoryId = arguments?['categoryId'] as String?;
 
     final categoryName =
-        arguments?['categoryName'] as String? ??
-            'Wishlist Category';
+        arguments?['categoryName'] as String? ?? 'Wishlist Category';
 
     return Scaffold(
       backgroundColor: WhyNotColors.background,
@@ -138,67 +104,42 @@ class _WishlistDetailScreenState
                   style: WhyNotTextStyles.muted(size: 14),
                 ),
               )
-            : StreamBuilder<
-                QuerySnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .collection('products')
-                    .where(
-                      'wishlistId',
-                      isEqualTo: wishlistId,
-                    )
-                    .snapshots(),
+            : StreamBuilder<List<Product>>(
+                stream: context.dependencies.productController.watchByWishlist(
+                  wishlistId,
+                ),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState ==
-                      ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
                   }
 
                   if (snapshot.hasError) {
                     return Center(
                       child: Text(
                         'Could not load products.',
-                        style:
-                            WhyNotTextStyles.muted(size: 14),
+                        style: WhyNotTextStyles.muted(size: 14),
                       ),
                     );
                   }
 
-                  final allProducts =
-                      snapshot.data?.docs ?? [];
+                  final allProducts = snapshot.data ?? const [];
 
-                  final visibleProducts =
-                      _applyFilters(allProducts);
+                  final visibleProducts = _applyFilters(allProducts);
 
                   return SingleChildScrollView(
-                    physics:
-                        const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(
-                      0,
-                      47,
-                      0,
-                      135,
-                    ),
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(0, 47, 0, 135),
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Padding(
-                          padding:
-                              const EdgeInsets.symmetric(
-                            horizontal: 25,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 25),
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 categoryName,
-                                style:
-                                    WhyNotTextStyles.serif(
-                                  size: 30,
-                                ),
+                                style: WhyNotTextStyles.serif(size: 30),
                               ),
 
                               const SizedBox(height: 8),
@@ -207,10 +148,7 @@ class _WishlistDetailScreenState
                                 children: [
                                   Text(
                                     '${allProducts.length} items',
-                                    style:
-                                        WhyNotTextStyles.muted(
-                                      size: 15,
-                                    ),
+                                    style: WhyNotTextStyles.muted(size: 15),
                                   ),
 
                                   const Spacer(),
@@ -219,42 +157,32 @@ class _WishlistDetailScreenState
                                     onPressed: () {
                                       Navigator.pushNamed(
                                         context,
-                                        AppRoutes
-                                            .newProductManual,
+                                        AppRoutes.newProductManual,
                                         arguments: {
-                                          'wishlistId':
-                                              wishlistId,
-                                          'categoryId':
-                                              categoryId,
-                                          'categoryName':
-                                              categoryName,
+                                          'wishlistId': wishlistId,
+                                          'categoryId': categoryId,
+                                          'categoryName': categoryName,
                                         },
                                       );
                                     },
-                                    style:
-                                        TextButton.styleFrom(
-                                      foregroundColor:
-                                          WhyNotColors.muted,
-                                      padding:
-                                          EdgeInsets.zero,
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: WhyNotColors.muted,
+                                      padding: EdgeInsets.zero,
                                       minimumSize: Size.zero,
                                       tapTargetSize:
-                                          MaterialTapTargetSize
-                                              .shrinkWrap,
+                                          MaterialTapTargetSize.shrinkWrap,
                                     ),
                                     icon: const Icon(
                                       Icons.add,
                                       size: 18,
-                                      color:
-                                          WhyNotColors.muted,
+                                      color: WhyNotColors.muted,
                                     ),
                                     label: const Text(
                                       'Add item',
                                       style: TextStyle(
                                         fontFamily: 'Poppins',
                                         fontSize: 15,
-                                        fontWeight:
-                                            FontWeight.w300,
+                                        fontWeight: FontWeight.w300,
                                       ),
                                     ),
                                   ),
@@ -268,118 +196,62 @@ class _WishlistDetailScreenState
 
                         _WishlistFilters(
                           sort: _sort,
-                          showOnlyUnpurchased:
-                              _showOnlyUnpurchased,
-                          onLowToHigh:
-                              _toggleLowToHigh,
-                          onHighToLow:
-                              _toggleHighToLow,
-                          onUnpurchased:
-                              _toggleUnpurchased,
+                          showOnlyUnpurchased: _showOnlyUnpurchased,
+                          onLowToHigh: _toggleLowToHigh,
+                          onHighToLow: _toggleHighToLow,
+                          onUnpurchased: _toggleUnpurchased,
                         ),
 
                         const SizedBox(height: 32),
 
                         if (allProducts.isEmpty)
                           Padding(
-                            padding:
-                                const EdgeInsets.symmetric(
-                              horizontal: 25,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 25),
                             child: Center(
                               child: Text(
                                 'No items in this wishlist yet.',
-                                style:
-                                    WhyNotTextStyles.muted(
-                                  size: 14,
-                                ),
+                                style: WhyNotTextStyles.muted(size: 14),
                               ),
                             ),
                           )
                         else if (visibleProducts.isEmpty)
                           Padding(
-                            padding:
-                                const EdgeInsets.symmetric(
-                              horizontal: 25,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 25),
                             child: Center(
                               child: Text(
                                 'No items match these filters.',
-                                style:
-                                    WhyNotTextStyles.muted(
-                                  size: 14,
-                                ),
+                                style: WhyNotTextStyles.muted(size: 14),
                               ),
                             ),
                           )
                         else
                           Padding(
-                            padding:
-                                const EdgeInsets.symmetric(
-                              horizontal: 25,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 25),
                             child: LayoutBuilder(
-                              builder: (
-                                context,
-                                constraints,
-                              ) {
+                              builder: (context, constraints) {
                                 const spacing = 20.0;
 
                                 final cardWidth =
-                                    (constraints.maxWidth -
-                                            spacing) /
-                                        2;
+                                    (constraints.maxWidth - spacing) / 2;
 
                                 return Wrap(
                                   spacing: spacing,
                                   runSpacing: 30,
-                                  children:
-                                      visibleProducts.map(
-                                    (product) {
-                                      final data =
-                                          product.data();
-
-                                      final name =
-                                          data['name']
-                                                  as String? ??
-                                              'Product';
-
-                                      final brand =
-                                          data['brand']
-                                                  as String? ??
-                                              '';
-
-                                      final imageUrl =
-                                          data['imageUrl']
-                                              as String?;
-
-                                      final price =
-                                          _formatPrice(
-                                        data['price'],
-                                      );
-
-                                      final purchased =
-                                          data['purchased']
-                                                  as bool? ??
-                                              false;
-
-                                      return SizedBox(
-                                        width: cardWidth,
-                                        child:
-                                            _WishlistProductCard(
-                                          productId:
-                                              product.id,
-                                          name: name,
-                                          brand: brand,
-                                          price: price,
-                                          imageUrl:
-                                              imageUrl,
-                                          purchased:
-                                              purchased,
-                                        ),
-                                      );
-                                    },
-                                  ).toList(),
+                                  children: visibleProducts.map((product) {
+                                    return SizedBox(
+                                      width: cardWidth,
+                                      child: _WishlistProductCard(
+                                        productId: product.id,
+                                        name: product.name.isEmpty
+                                            ? 'Product'
+                                            : product.name,
+                                        brand: product.brand,
+                                        price: _formatPrice(product.price),
+                                        imageUrl: product.imageUrl,
+                                        purchased: product.purchased,
+                                      ),
+                                    );
+                                  }).toList(),
                                 );
                               },
                             ),
@@ -390,10 +262,7 @@ class _WishlistDetailScreenState
                 },
               ),
       ),
-      bottomNavigationBar:
-          const AppBottomNavigation(
-        selectedIndex: 1,
-      ),
+      bottomNavigationBar: const AppBottomNavigation(selectedIndex: 1),
     );
   }
 }
@@ -426,8 +295,7 @@ class _WishlistFilters extends StatelessWidget {
             child: _FilterItem(
               icon: Icons.arrow_upward,
               label: 'Low to high',
-              selected:
-                  sort == _ProductSort.lowToHigh,
+              selected: sort == _ProductSort.lowToHigh,
               onTap: onLowToHigh,
             ),
           ),
@@ -435,8 +303,7 @@ class _WishlistFilters extends StatelessWidget {
             child: _FilterItem(
               icon: Icons.arrow_downward,
               label: 'High to low',
-              selected:
-                  sort == _ProductSort.highToLow,
+              selected: sort == _ProductSort.highToLow,
               onTap: onHighToLow,
             ),
           ),
@@ -474,15 +341,12 @@ class _FilterItem extends StatelessWidget {
       child: SizedBox(
         height: 55,
         child: Row(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               icon,
               size: 18,
-              color: selected
-                  ? Colors.black
-                  : WhyNotColors.muted,
+              color: selected ? Colors.black : WhyNotColors.muted,
             ),
 
             const SizedBox(width: 5),
@@ -494,12 +358,8 @@ class _FilterItem extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 10,
-                  fontWeight: selected
-                      ? FontWeight.w500
-                      : FontWeight.w300,
-                  color: selected
-                      ? Colors.black
-                      : WhyNotColors.muted,
+                  fontWeight: selected ? FontWeight.w500 : FontWeight.w300,
+                  color: selected ? Colors.black : WhyNotColors.muted,
                 ),
               ),
             ),
@@ -529,60 +389,43 @@ class _WishlistProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasImage =
-        imageUrl != null &&
-        imageUrl!.trim().isNotEmpty;
+    final hasImage = imageUrl != null && imageUrl!.trim().isNotEmpty;
 
     return InkWell(
       onTap: () {
         Navigator.pushNamed(
           context,
           AppRoutes.productDetail,
-          arguments: {
-            'productId': productId,
-            'sourceTab': 1,
-          },
+          arguments: {'productId': productId, 'sourceTab': 1},
         );
       },
       borderRadius: BorderRadius.circular(18),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Stack(
             children: [
               AspectRatio(
                 aspectRatio: 0.68,
                 child: ClipRRect(
-                  borderRadius:
-                      BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(18),
                   child: hasImage
                       ? Image.network(
                           imageUrl!,
                           fit: BoxFit.cover,
-                          errorBuilder: (
-                            context,
-                            error,
-                            stackTrace,
-                          ) {
+                          errorBuilder: (context, error, stackTrace) {
                             return Container(
-                              color:
-                                  WhyNotColors.card,
-                              child:
-                                  const Center(
+                              color: WhyNotColors.card,
+                              child: const Center(
                                 child: Icon(
-                                  Icons
-                                      .image_not_supported_outlined,
-                                  color:
-                                      WhyNotColors.muted,
+                                  Icons.image_not_supported_outlined,
+                                  color: WhyNotColors.muted,
                                 ),
                               ),
                             );
                           },
                         )
-                      : Container(
-                          color: WhyNotColors.card,
-                        ),
+                      : Container(color: WhyNotColors.card),
                 ),
               ),
 
@@ -592,13 +435,8 @@ class _WishlistProductCard extends StatelessWidget {
                   right: 10,
                   child: CircleAvatar(
                     radius: 12,
-                    backgroundColor:
-                        Colors.white,
-                    child: Icon(
-                      Icons.check,
-                      size: 15,
-                      color: Colors.black,
-                    ),
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.check, size: 15, color: Colors.black),
                   ),
                 ),
             ],
@@ -607,38 +445,23 @@ class _WishlistProductCard extends StatelessWidget {
           const SizedBox(height: 12),
 
           Padding(
-            padding:
-                const EdgeInsets.only(left: 4),
-            child: Text(
-              name,
-              style:
-                  WhyNotTextStyles.serif(size: 20),
-            ),
+            padding: const EdgeInsets.only(left: 4),
+            child: Text(name, style: WhyNotTextStyles.serif(size: 20)),
           ),
 
           if (brand.isNotEmpty) ...[
             const SizedBox(height: 3),
             Padding(
-              padding:
-                  const EdgeInsets.only(left: 5),
-              child: Text(
-                brand,
-                style:
-                    WhyNotTextStyles.muted(size: 11),
-              ),
+              padding: const EdgeInsets.only(left: 5),
+              child: Text(brand, style: WhyNotTextStyles.muted(size: 11)),
             ),
           ],
 
           const SizedBox(height: 3),
 
           Padding(
-            padding:
-                const EdgeInsets.only(left: 5),
-            child: Text(
-              price,
-              style:
-                  WhyNotTextStyles.muted(size: 12),
-            ),
+            padding: const EdgeInsets.only(left: 5),
+            child: Text(price, style: WhyNotTextStyles.muted(size: 12)),
           ),
         ],
       ),

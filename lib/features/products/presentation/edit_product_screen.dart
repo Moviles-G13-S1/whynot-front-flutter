@@ -1,9 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
 import '../../../shared/widgets/app_bottom_navigation.dart';
+import '../domain/product.dart';
 
 class EditProductScreen extends StatefulWidget {
   const EditProductScreen({super.key});
@@ -25,8 +25,6 @@ class _EditProductScreenState extends State<EditProductScreen> {
 
   String? _selectedWishlistId;
   String? _selectedCategoryId;
-  String? _selectedWishlistName;
-
   bool _initialized = false;
   bool _isLoading = true;
   bool _isSaving = false;
@@ -91,9 +89,8 @@ class _EditProductScreenState extends State<EditProductScreen> {
   }
 
   Future<void> _loadData() async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null || _productId == null) {
+    if (context.dependencies.productController.currentUserId == null ||
+        _productId == null) {
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -101,15 +98,9 @@ class _EditProductScreenState extends State<EditProductScreen> {
     }
 
     try {
-      // Load the product.
-      final productDocument = await FirebaseFirestore.instance
-          .collection('products')
-          .doc(_productId)
-          .get();
-
-      final productData = productDocument.data();
-
-      if (productData == null) {
+      final productController = context.dependencies.productController;
+      final product = await productController.get(_productId!);
+      if (product == null) {
         if (!mounted) return;
 
         setState(() => _isLoading = false);
@@ -117,78 +108,24 @@ class _EditProductScreenState extends State<EditProductScreen> {
         return;
       }
 
-      _nameController.text =
-          productData['name'] as String? ?? '';
+      _nameController.text = product.name;
+      _brandController.text = product.brand;
+      _priceController.text = product.price % 1 == 0
+          ? product.price.toInt().toString()
+          : product.price.toString();
+      _imageUrlController.text = product.imageUrl;
+      _productUrlController.text = product.productUrl;
+      _selectedWishlistId = product.wishlistId;
+      _selectedCategoryId = product.categoryId;
 
-      _brandController.text =
-          productData['brand'] as String? ?? '';
-
-      final price = productData['price'];
-
-      if (price != null) {
-        if (price is num && price % 1 == 0) {
-          _priceController.text = price.toInt().toString();
-        } else {
-          _priceController.text = price.toString();
-        }
-      }
-
-      _imageUrlController.text =
-          productData['imageUrl'] as String? ?? '';
-
-      _productUrlController.text =
-          productData['productUrl'] as String? ?? '';
-
-      _selectedWishlistId =
-          productData['wishlistId'] as String?;
-
-      _selectedCategoryId =
-          productData['categoryId'] as String?;
-
-      // Load approved category names.
-      final categoriesSnapshot =
-          await FirebaseFirestore.instance
-              .collection('categories')
-              .get();
-
-      final categoryNames = {
-        for (final document in categoriesSnapshot.docs)
-          document.id:
-              document.data()['name'] as String? ?? document.id,
-      };
-
-      // Load this user's wishlists.
-      final wishlistSnapshot = await FirebaseFirestore.instance
-          .collection('wishlists')
-          .where('ownerId', isEqualTo: user.uid)
-          .get();
-
-      final loadedWishlists = <Map<String, String>>[];
-
-      for (final document in wishlistSnapshot.docs) {
-        final data = document.data();
-        final categoryId = data['categoryId'] as String?;
-
-        if (categoryId == null) continue;
-
-        final name =
-            categoryNames[categoryId] ?? categoryId;
-
-        loadedWishlists.add({
-          'wishlistId': document.id,
-          'categoryId': categoryId,
-          'name': name,
-        });
-
-        if (document.id == _selectedWishlistId) {
-          _selectedWishlistName = name;
-        }
-      }
-
-      loadedWishlists.sort(
-        (a, b) =>
-            (a['name'] ?? '').compareTo(b['name'] ?? ''),
-      );
+      final summaries = await productController.getCurrentWishlists();
+      final loadedWishlists = summaries.map((summary) {
+        return {
+          'wishlistId': summary.wishlist.id,
+          'categoryId': summary.wishlist.categoryId,
+          'name': summary.categoryName,
+        };
+      }).toList();
 
       if (!mounted) return;
 
@@ -215,8 +152,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
 
     FocusScope.of(context).unfocus();
 
-    final normalizedPrice =
-        _priceController.text.trim().replaceAll(',', '.');
+    final normalizedPrice = _priceController.text.trim().replaceAll(',', '.');
 
     final price = double.tryParse(normalizedPrice);
 
@@ -228,35 +164,30 @@ class _EditProductScreenState extends State<EditProductScreen> {
     setState(() => _isSaving = true);
 
     try {
-      await FirebaseFirestore.instance
-          .collection('products')
-          .doc(_productId)
-          .update({
-        'name': _nameController.text.trim(),
-        'brand': _brandController.text.trim(),
-        'price': price,
-        'imageUrl': _imageUrlController.text.trim(),
-        'productUrl': _productUrlController.text.trim(),
-        'wishlistId': _selectedWishlistId,
-        'categoryId': _selectedCategoryId,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await context.dependencies.productController.update(
+        _productId!,
+        ProductDraft(
+          wishlistId: _selectedWishlistId!,
+          categoryId: _selectedCategoryId!,
+          name: _nameController.text.trim(),
+          brand: _brandController.text.trim(),
+          price: price,
+          imageUrl: _imageUrlController.text.trim(),
+          productUrl: _productUrlController.text.trim(),
+        ),
+      );
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Product updated'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Product updated')));
 
       Navigator.pop(context);
     } catch (_) {
       if (!mounted) return;
 
-      _showMessage(
-        'Could not update product. Please try again.',
-      );
+      _showMessage('Could not update product. Please try again.');
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -269,18 +200,13 @@ class _EditProductScreenState extends State<EditProductScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Widget _label(String text) {
-    return Text(
-      text,
-      style: WhyNotTextStyles.serif(size: 20),
-    );
+    return Text(text, style: WhyNotTextStyles.serif(size: 20));
   }
 
   Widget _textField({
@@ -303,20 +229,14 @@ class _EditProductScreenState extends State<EditProductScreen> {
           hintStyle: WhyNotTextStyles.muted(size: 14),
           filled: true,
           fillColor: WhyNotColors.field,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(
-              color: WhyNotColors.border,
-            ),
+            borderSide: const BorderSide(color: WhyNotColors.border),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(
-              color: WhyNotColors.muted,
-            ),
+            borderSide: const BorderSide(color: WhyNotColors.muted),
           ),
         ),
       ),
@@ -326,11 +246,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_productId == null) {
@@ -351,19 +267,11 @@ class _EditProductScreenState extends State<EditProductScreen> {
         bottom: false,
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(
-            24,
-            40,
-            24,
-            130,
-          ),
+          padding: const EdgeInsets.fromLTRB(24, 40, 24, 130),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Edit Item',
-                style: WhyNotTextStyles.serif(size: 30),
-              ),
+              Text('Edit Item', style: WhyNotTextStyles.serif(size: 30)),
 
               const SizedBox(height: 42),
 
@@ -372,10 +280,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
 
               const SizedBox(height: 14),
 
-              _textField(
-                controller: _nameController,
-                hint: 'Product name',
-              ),
+              _textField(controller: _nameController, hint: 'Product name'),
 
               const SizedBox(height: 30),
 
@@ -384,10 +289,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
 
               const SizedBox(height: 14),
 
-              _textField(
-                controller: _brandController,
-                hint: 'Brand name',
-              ),
+              _textField(controller: _brandController, hint: 'Brand name'),
 
               const SizedBox(height: 30),
 
@@ -399,8 +301,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
               _textField(
                 controller: _priceController,
                 hint: 'Product price',
-                keyboardType:
-                    const TextInputType.numberWithOptions(
+                keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
               ),
@@ -433,10 +334,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
 
               const SizedBox(height: 36),
 
-              Text(
-                'Save to:',
-                style: WhyNotTextStyles.muted(size: 15),
-              ),
+              Text('Save to:', style: WhyNotTextStyles.muted(size: 15)),
 
               const SizedBox(height: 18),
 
@@ -448,23 +346,19 @@ class _EditProductScreenState extends State<EditProductScreen> {
               else
                 Column(
                   children: _wishlists.map((wishlist) {
-                    final wishlistId =
-                        wishlist['wishlistId'];
+                    final wishlistId = wishlist['wishlistId'];
 
-                    final categoryId =
-                        wishlist['categoryId'];
+                    final categoryId = wishlist['categoryId'];
 
                     final name = wishlist['name'];
 
-                    final selected =
-                        _selectedWishlistId == wishlistId;
+                    final selected = _selectedWishlistId == wishlistId;
 
                     return InkWell(
                       onTap: () {
                         setState(() {
                           _selectedWishlistId = wishlistId;
                           _selectedCategoryId = categoryId;
-                          _selectedWishlistName = name;
                         });
                       },
                       borderRadius: BorderRadius.circular(18),
@@ -487,10 +381,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                             const SizedBox(width: 8),
                             Text(
                               name ?? 'Wishlist',
-                              style:
-                                  WhyNotTextStyles.muted(
-                                size: 15,
-                              ),
+                              style: WhyNotTextStyles.muted(size: 15),
                             ),
                           ],
                         ),
@@ -505,26 +396,19 @@ class _EditProductScreenState extends State<EditProductScreen> {
                 width: double.infinity,
                 height: 44,
                 child: FilledButton(
-                  onPressed:
-                      _canSave && !_isSaving
-                          ? _saveChanges
-                          : null,
+                  onPressed: _canSave && !_isSaving ? _saveChanges : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.black,
-                    disabledBackgroundColor:
-                        Colors.black.withValues(
+                    disabledBackgroundColor: Colors.black.withValues(
                       alpha: 0.25,
                     ),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(24),
                     ),
                   ),
                   child: Text(
-                    _isSaving
-                        ? 'Saving...'
-                        : 'Save Changes',
+                    _isSaving ? 'Saving...' : 'Save Changes',
                     style: const TextStyle(
                       fontFamily: 'Poppins',
                       fontSize: 15,
@@ -541,8 +425,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                   onPressed: _cancel,
                   child: Text(
                     'Cancel',
-                    style:
-                        WhyNotTextStyles.muted(size: 15),
+                    style: WhyNotTextStyles.muted(size: 15),
                   ),
                 ),
               ),
@@ -550,9 +433,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: AppBottomNavigation(
-        selectedIndex: _sourceTab,
-      ),
+      bottomNavigationBar: AppBottomNavigation(selectedIndex: _sourceTab),
     );
   }
 }

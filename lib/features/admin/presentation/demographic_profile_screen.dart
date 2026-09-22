@@ -117,7 +117,10 @@ class _AgeCard extends StatelessWidget {
               const Spacer(),
               Text('Median age', style: adminLightStyle(size: 10)),
               const SizedBox(width: 14),
-              Text('29', style: WhyNotTextStyles.serif(size: 22, color: adminInk)),
+              Text(
+                '29',
+                style: WhyNotTextStyles.serif(size: 22, color: adminInk),
+              ),
               const SizedBox(width: 8),
             ],
           ),
@@ -154,9 +157,18 @@ class _GenderCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: const [
-                  Expanded(flex: 48, child: ColoredBox(color: Color(0xFFB99875))),
-                  Expanded(flex: 44, child: ColoredBox(color: Color(0xFF89847E))),
-                  Expanded(flex: 8, child: ColoredBox(color: Color(0xFFE8DBC9))),
+                  Expanded(
+                    flex: 48,
+                    child: ColoredBox(color: Color(0xFFB99875)),
+                  ),
+                  Expanded(
+                    flex: 44,
+                    child: ColoredBox(color: Color(0xFF89847E)),
+                  ),
+                  Expanded(
+                    flex: 8,
+                    child: ColoredBox(color: Color(0xFFE8DBC9)),
+                  ),
                 ],
               ),
             ),
@@ -167,14 +179,8 @@ class _GenderCard extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _GenderLegendItem(
-                  color: Color(0xFFB99875),
-                  label: 'Women 48%',
-                ),
-                _GenderLegendItem(
-                  color: Color(0xFF89847E),
-                  label: 'Men 44%',
-                ),
+                _GenderLegendItem(color: Color(0xFFB99875), label: 'Women 48%'),
+                _GenderLegendItem(color: Color(0xFF89847E), label: 'Men 44%'),
                 _GenderLegendItem(
                   color: Color(0xFFE8DBC9),
                   label: 'Other / N.A. 8%',
@@ -202,10 +208,7 @@ class _GenderLegendItem extends StatelessWidget {
         Container(
           width: 9,
           height: 9,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
         Flexible(
@@ -276,7 +279,10 @@ class _CityShareRow extends StatelessWidget {
       children: [
         SizedBox(
           width: 86,
-          child: Text(city.name, style: adminLightStyle(size: 9, color: adminInk)),
+          child: Text(
+            city.name,
+            style: adminLightStyle(size: 9, color: adminInk),
+          ),
         ),
         Expanded(
           child: ClipRRect(
@@ -356,7 +362,12 @@ class _AgeChartPainter extends CustomPainter {
       final centerX = (step * index) + (step / 2);
       final height = (item.value / 0.41) * (usableHeight - 20);
       final rect = RRect.fromRectAndCorners(
-        Rect.fromLTWH(centerX - (barWidth / 2), baseline - height, barWidth, height),
+        Rect.fromLTWH(
+          centerX - (barWidth / 2),
+          baseline - height,
+          barWidth,
+          height,
+        ),
         topLeft: const Radius.circular(6),
         topRight: const Radius.circular(6),
         bottomLeft: const Radius.circular(4),
@@ -365,10 +376,20 @@ class _AgeChartPainter extends CustomPainter {
       canvas.drawRRect(
         rect,
         Paint()
-          ..color = index == 1 ? const Color(0xFF988B7B) : const Color(0xFFB9B0A5),
+          ..color = index == 1
+              ? const Color(0xFF988B7B)
+              : const Color(0xFFB9B0A5),
       );
-      drawCentered(item.percent, Offset(centerX, baseline - height - 14), adminBodyStyle(size: 9));
-      drawCentered(item.label, Offset(centerX, baseline + 9), adminLightStyle(size: 8));
+      drawCentered(
+        item.percent,
+        Offset(centerX, baseline - height - 14),
+        adminBodyStyle(size: 9),
+      );
+      drawCentered(
+        item.label,
+        Offset(centerX, baseline + 9),
+        adminLightStyle(size: 8),
+      );
     }
   }
 

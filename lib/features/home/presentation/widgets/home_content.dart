@@ -1,10 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../app/app_routes.dart';
+import '../../../../app/dependencies_scope.dart';
 import '../../../../app/whynot_theme.dart';
 import '../../../../shared/widgets/wishlist_card.dart';
+import '../../../products/domain/product.dart';
+import '../../../wishlists/domain/wishlist.dart';
 
 /// Heading row with an optional action on its trailing edge.
 class HomeSectionHeader extends StatelessWidget {
@@ -23,25 +24,14 @@ class HomeSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(
-          child: Text(
-            title,
-            style: WhyNotTextStyles.serif(
-              size: 23,
-            ),
-          ),
-        ),
+        Expanded(child: Text(title, style: WhyNotTextStyles.serif(size: 23))),
         TextButton(
           onPressed: onAction,
           style: TextButton.styleFrom(
-            foregroundColor:
-                WhyNotColors.muted,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 4,
-            ),
+            foregroundColor: WhyNotColors.muted,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             minimumSize: Size.zero,
-            tapTargetSize:
-                MaterialTapTargetSize.shrinkWrap,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             textStyle: const TextStyle(
               fontFamily: 'Poppins',
               fontSize: 13,
@@ -61,167 +51,79 @@ class WishlistRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final wishlistController = context.dependencies.wishlistController;
 
-    if (user == null) {
+    if (wishlistController.currentUserId == null) {
       return SizedBox(
         height: 230,
         child: Center(
           child: Text(
             'Log in to see your wishlists.',
-            style:
-                WhyNotTextStyles.muted(size: 13),
+            style: WhyNotTextStyles.muted(size: 13),
           ),
         ),
       );
     }
 
-    return FutureBuilder<
-        QuerySnapshot<Map<String, dynamic>>>(
-      future: FirebaseFirestore.instance
-          .collection('categories')
-          .get(),
-      builder: (
-        context,
-        categorySnapshot,
-      ) {
-        if (categorySnapshot.connectionState ==
-            ConnectionState.waiting) {
+    return StreamBuilder<List<WishlistSummary>>(
+      stream: wishlistController.watchCurrentSummaries(),
+      builder: (context, wishlistSnapshot) {
+        if (wishlistSnapshot.connectionState == ConnectionState.waiting) {
           return const SizedBox(
             height: 230,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (wishlistSnapshot.hasError) {
+          return SizedBox(
+            height: 230,
             child: Center(
-              child:
-                  CircularProgressIndicator(),
+              child: Text(
+                'Could not load wishlists.',
+                style: WhyNotTextStyles.muted(size: 13),
+              ),
             ),
           );
         }
 
-        final categoryNames = <String, String>{};
+        final wishlists = wishlistSnapshot.data ?? const [];
 
-        for (final document
-            in categorySnapshot.data?.docs ??
-                []) {
-          categoryNames[document.id] =
-              document.data()['name']
-                      as String? ??
-                  document.id;
+        if (wishlists.isEmpty) {
+          return SizedBox(
+            height: 230,
+            child: Center(
+              child: Text(
+                'Create your first wishlist.',
+                style: WhyNotTextStyles.muted(size: 13),
+              ),
+            ),
+          );
         }
 
-        return StreamBuilder<
-            QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .collection('wishlists')
-              .where(
-                'ownerId',
-                isEqualTo: user.uid,
-              )
-              .snapshots(),
-          builder: (
-            context,
-            wishlistSnapshot,
-          ) {
-            if (wishlistSnapshot
-                    .connectionState ==
-                ConnectionState.waiting) {
-              return const SizedBox(
-                height: 230,
-                child: Center(
-                  child:
-                      CircularProgressIndicator(),
-                ),
-              );
-            }
+        return SizedBox(
+          height: 230,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.only(right: 18),
+            itemCount: wishlists.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 17),
+            itemBuilder: (context, index) {
+              final summary = wishlists[index];
+              final wishlist = summary.wishlist;
 
-            if (wishlistSnapshot.hasError) {
               return SizedBox(
-                height: 230,
-                child: Center(
-                  child: Text(
-                    'Could not load wishlists.',
-                    style:
-                        WhyNotTextStyles.muted(
-                      size: 13,
-                    ),
-                  ),
+                width: 131,
+                child: _HomeWishlistCard(
+                  wishlistId: wishlist.id,
+                  categoryId: wishlist.categoryId,
+                  categoryName: summary.categoryName,
+                  imageUrl: wishlist.imageUrl,
                 ),
               );
-            }
-
-            final wishlists =
-                wishlistSnapshot.data?.docs ??
-                    [];
-
-            if (wishlists.isEmpty) {
-              return SizedBox(
-                height: 230,
-                child: Center(
-                  child: Text(
-                    'Create your first wishlist.',
-                    style:
-                        WhyNotTextStyles.muted(
-                      size: 13,
-                    ),
-                  ),
-                ),
-              );
-            }
-
-            return SizedBox(
-              height: 230,
-              child: ListView.separated(
-                scrollDirection:
-                    Axis.horizontal,
-                physics:
-                    const BouncingScrollPhysics(),
-                padding: const EdgeInsets.only(
-                  right: 18,
-                ),
-                itemCount: wishlists.length,
-                separatorBuilder:
-                    (context, index) =>
-                        const SizedBox(
-                  width: 17,
-                ),
-                itemBuilder:
-                    (context, index) {
-                  final wishlist =
-                      wishlists[index];
-
-                  final data =
-                      wishlist.data();
-
-                  final categoryId =
-                      data['categoryId']
-                          as String?;
-
-                  final categoryName =
-                      categoryNames[
-                              categoryId] ??
-                          categoryId ??
-                          'Wishlist';
-
-                  final imageUrl =
-                      data['imageUrl']
-                          as String?;
-
-                  return SizedBox(
-                    width: 131,
-                    child:
-                        _HomeWishlistCard(
-                      wishlistId:
-                          wishlist.id,
-                      categoryId:
-                          categoryId,
-                      categoryName:
-                          categoryName,
-                      imageUrl:
-                          imageUrl,
-                    ),
-                  );
-                },
-              ),
-            );
-          },
+            },
+          ),
         );
       },
     );
@@ -230,8 +132,7 @@ class WishlistRail extends StatelessWidget {
 
 /// Wrapper around WishlistCard that keeps its item count synchronized
 /// with Firestore.
-class _HomeWishlistCard
-    extends StatelessWidget {
+class _HomeWishlistCard extends StatelessWidget {
   const _HomeWishlistCard({
     required this.wishlistId,
     required this.categoryName,
@@ -246,38 +147,27 @@ class _HomeWishlistCard
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<
-        QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('products')
-          .where(
-            'wishlistId',
-            isEqualTo: wishlistId,
-          )
-          .snapshots(),
+    return StreamBuilder<List<Product>>(
+      stream: context.dependencies.productController.watchByWishlist(
+        wishlistId,
+      ),
       builder: (context, snapshot) {
-        final itemCount =
-            snapshot.data?.docs.length ?? 0;
+        final itemCount = snapshot.data?.length ?? 0;
 
         return WishlistCard(
           label: categoryName,
           itemCount: itemCount,
           imageUrl: imageUrl,
-          contentAlignment:
-              CrossAxisAlignment.center,
+          contentAlignment: CrossAxisAlignment.center,
           onTap: () {
             Navigator.pushNamed(
               context,
               AppRoutes.wishlistDetail,
               arguments: {
-                'wishlistId':
-                    wishlistId,
-                'categoryId':
-                    categoryId,
-                'categoryName':
-                    categoryName,
-                'itemCount':
-                    itemCount,
+                'wishlistId': wishlistId,
+                'categoryId': categoryId,
+                'categoryName': categoryName,
+                'itemCount': itemCount,
               },
             );
           },
@@ -288,11 +178,8 @@ class _HomeWishlistCard
 }
 
 /// Placeholder for recommendation features that will be implemented later.
-class RecommendationPlaceholder
-    extends StatelessWidget {
-  const RecommendationPlaceholder({
-    super.key,
-  });
+class RecommendationPlaceholder extends StatelessWidget {
+  const RecommendationPlaceholder({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -301,15 +188,13 @@ class RecommendationPlaceholder
       width: double.infinity,
       decoration: BoxDecoration(
         color: WhyNotColors.card,
-        borderRadius:
-            BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Center(
         child: Icon(
           Icons.auto_awesome_outlined,
           size: 24,
-          color: WhyNotColors.muted
-              .withValues(alpha: 0.55),
+          color: WhyNotColors.muted.withValues(alpha: 0.55),
         ),
       ),
     );

@@ -1,7 +1,7 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../app/app_routes.dart';
+import '../../../../app/dependencies_scope.dart';
 import '../../../../app/whynot_theme.dart';
 
 const adminInk = Color(0xFF252320);
@@ -259,10 +259,10 @@ void showAdminNavigation(BuildContext context, String currentRoute) {
     },
     transitionBuilder: (context, animation, secondaryAnimation, child) {
       return SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(-1, 0),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+        position: Tween<Offset>(begin: const Offset(-1, 0), end: Offset.zero)
+            .animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+            ),
         child: child,
       );
     },
@@ -298,7 +298,7 @@ class AdminNavigationPanel extends StatelessWidget {
   ];
 
   Future<void> _signOut(BuildContext context) async {
-    await FirebaseAuth.instance.signOut();
+    await context.dependencies.authController.signOut();
 
     if (!context.mounted) return;
 

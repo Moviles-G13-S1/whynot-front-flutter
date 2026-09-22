@@ -1,9 +1,10 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
 import '../../admin/application/admin_access.dart';
+import '../domain/auth_repository.dart';
 import '../../../shared/widgets/brand_mark.dart';
 import '../../../shared/widgets/form_controls.dart';
 
@@ -28,7 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  /// Authenticates the user with Firebase Authentication.
+  /// Sends the login intent through the authentication controller.
   Future<void> _login() async {
     FocusScope.of(context).unfocus();
 
@@ -43,23 +44,22 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final dependencies = context.dependencies;
+      await dependencies.authController.signIn(
         email: email,
         password: password,
       );
 
-      final access = await AdminAuthorization.resolve();
+      final access = await dependencies.adminAccessController.resolve();
 
       if (!mounted) return;
 
       Navigator.pushNamedAndRemoveUntil(
         context,
-        access == AdminAccess.admin
-            ? AppRoutes.adminDashboard
-            : AppRoutes.home,
+        access == AdminAccess.admin ? AppRoutes.adminDashboard : AppRoutes.home,
         (route) => false,
       );
-    } on FirebaseAuthException catch (error) {
+    } on AuthFailure catch (error) {
       if (!mounted) return;
 
       switch (error.code) {
@@ -91,9 +91,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -112,10 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const Center(child: BrandMark()),
               const SizedBox(height: 43),
               Center(
-                child: Text(
-                  'Log in',
-                  style: WhyNotTextStyles.muted(size: 15),
-                ),
+                child: Text('Log in', style: WhyNotTextStyles.muted(size: 15)),
               ),
               const SizedBox(height: 20),
               FormSurface(
@@ -147,10 +144,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 onPressed: _isLoading ? () {} : _login,
               ),
               const SizedBox(height: 23),
-              const Divider(
-                color: Color(0xFFC9C3BE),
-                height: 1,
-              ),
+              const Divider(color: Color(0xFFC9C3BE), height: 1),
               const SizedBox(height: 19),
               Align(
                 alignment: Alignment.centerLeft,

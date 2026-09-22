@@ -1,12 +1,13 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
+import '../../../shared/domain/category_catalog.dart';
 import '../../../shared/widgets/app_bottom_navigation.dart';
 import '../../../shared/widgets/form_controls.dart';
 import 'widgets/profile_controls.dart';
+import '../domain/user_profile.dart';
 
 /// Form for editing the fields displayed in the profile summary.
 class EditProfileScreen extends StatefulWidget {
@@ -25,7 +26,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String? _category;
 
   String _initialName = '';
-  String _initialEmail = '';
   String _initialAge = '';
   String? _initialGender;
   String? _initialCategory;
@@ -33,33 +33,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
 
-  static const Map<String, String> _categoryIds = {
-    'Fashion': 'fashion',
-    'Beauty': 'beauty',
-    'Technology': 'technology',
-    'Home': 'home',
-    'Accessories': 'accessories',
-    'Travel': 'travel',
-    'Gifts': 'gifts',
-    'Other': 'other',
-  };
-
-  static const Map<String, String> _categoryLabels = {
-    'fashion': 'Fashion',
-    'beauty': 'Beauty',
-    'technology': 'Technology',
-    'home': 'Home',
-    'accessories': 'Accessories',
-    'travel': 'Travel',
-    'gifts': 'Gifts',
-    'other': 'Other',
-  };
-
   List<TextEditingController> get _controllers => [
-        _nameController,
-        _emailController,
-        _ageController,
-      ];
+    _nameController,
+    _emailController,
+    _ageController,
+  ];
 
   bool get _hasChanges {
     if (_isLoading) return false;
@@ -82,9 +60,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _loadProfile() async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
+    final profileController = context.dependencies.profileController;
+    if (profileController.currentUserId == null) {
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -92,29 +69,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
 
     try {
-      final document = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-
-      final data = document.data();
-
-      if (data == null) {
+      final profile = await profileController.getCurrentProfile();
+      if (profile == null) {
         if (mounted) {
           setState(() => _isLoading = false);
         }
         return;
       }
 
-      final name = data['name'] as String? ?? '';
-      final email = data['email'] as String? ?? user.email ?? '';
-      final age = data['age']?.toString() ?? '';
-      final gender = data['gender'] as String?;
-      final categoryId = data['preferredCategoryId'] as String?;
-      final category = _categoryLabels[categoryId];
+      final name = profile.name;
+      final email = profile.email;
+      final age = profile.age.toString();
+      final gender = profile.gender;
+      final category = CategoryCatalog.labelsById[profile.preferredCategoryId];
 
       _initialName = name;
-      _initialEmail = email;
       _initialAge = age;
       _initialGender = gender;
       _initialCategory = category;
@@ -133,11 +102,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       setState(() => _isLoading = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not load profile.'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not load profile.')));
     }
   }
 
@@ -160,10 +127,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     FocusScope.of(context).unfocus();
 
-    final user = FirebaseAuth.instance.currentUser;
     final age = int.tryParse(_ageController.text.trim());
 
-    if (user == null) {
+    if (context.dependencies.profileController.currentUserId == null) {
       _showMessage('No user logged in.');
       return;
     }
@@ -179,24 +145,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _isSaving = true);
 
     try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update({
-        'name': _nameController.text.trim(),
-        'gender': _gender,
-        'age': age,
-        'preferredCategoryId': _categoryIds[_category],
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await context.dependencies.profileController.updateCurrentProfile(
+        UserProfileUpdate(
+          name: _nameController.text.trim(),
+          gender: _gender!,
+          age: age,
+          preferredCategoryId: CategoryCatalog.idsByLabel[_category]!,
+        ),
+      );
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile updated'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profile updated')));
 
       Navigator.pop(context);
     } catch (_) {
@@ -211,19 +173,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// Keeps bottom navigation consistent with the other profile screens.
   void _onNavigationSelected(int index) {
     if (index == 0) {
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        AppRoutes.home,
-        (_) => false,
-      );
+      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
     } else if (index == 4) {
       Navigator.pushNamedAndRemoveUntil(
         context,
@@ -236,11 +194,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
@@ -267,17 +221,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
               ),
               const SizedBox(height: 18),
-              const Center(
-                child: ProfileAvatar(size: 72),
-              ),
+              const Center(child: ProfileAvatar(size: 72)),
               const SizedBox(height: 8),
               Center(
                 child: TextButton(
-                  onPressed: () =>
-                      ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Photo picker coming soon'),
-                    ),
+                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Photo picker coming soon')),
                   ),
                   style: linkButtonStyle(),
                   child: const Text('Change photo'),
@@ -289,12 +238,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _field(
-                      'Name',
-                      DesignField(
-                        controller: _nameController,
-                      ),
-                    ),
+                    _field('Name', DesignField(controller: _nameController)),
 
                     // Email is displayed but not updated yet.
                     _field(
@@ -309,13 +253,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       'Gender',
                       DesignDropdown(
                         value: _gender,
-                        items: const [
-                          'Female',
-                          'Male',
-                          'Other',
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _gender = value),
+                        items: const ['Female', 'Male', 'Other'],
+                        onChanged: (value) => setState(() => _gender = value),
                       ),
                     ),
                     Row(
@@ -377,10 +316,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 style: WhyNotTextStyles.muted(size: 15),
                               ),
                             ),
-                            Text(
-                              '›',
-                              style: WhyNotTextStyles.muted(size: 20),
-                            ),
+                            Text('›', style: WhyNotTextStyles.muted(size: 20)),
                           ],
                         ),
                       ),
@@ -406,9 +342,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               const SizedBox(height: 8),
               Center(
                 child: Text(
-                  _hasChanges
-                      ? 'Changes ready to save'
-                      : 'No changes to save',
+                  _hasChanges ? 'Changes ready to save' : 'No changes to save',
                   style: WhyNotTextStyles.muted(size: 11),
                 ),
               ),
@@ -423,11 +357,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _field(
-    String label,
-    Widget child, {
-    double bottom = 12,
-  }) {
+  Widget _field(String label, Widget child, {double bottom = 12}) {
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: Column(
