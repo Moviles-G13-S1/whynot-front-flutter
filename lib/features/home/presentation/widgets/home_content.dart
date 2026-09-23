@@ -4,6 +4,7 @@ import '../../../../app/app_routes.dart';
 import '../../../../app/dependencies_scope.dart';
 import '../../../../app/whynot_theme.dart';
 import '../../../../shared/widgets/wishlist_card.dart';
+import '../../../../shared/widgets/form_controls.dart';
 import '../../../products/domain/product.dart';
 import '../../../wishlists/domain/wishlist.dart';
 
@@ -93,9 +94,23 @@ class WishlistRail extends StatelessWidget {
           return SizedBox(
             height: 230,
             child: Center(
-              child: Text(
-                'Create your first wishlist.',
-                style: WhyNotTextStyles.muted(size: 13),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Create your first wishlist.',
+                    style: WhyNotTextStyles.muted(size: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: 190,
+                    child: PillButton(
+                      label: 'Create a wishlist',
+                      onPressed: () =>
+                          Navigator.pushNamed(context, AppRoutes.newWishlist),
+                    ),
+                  ),
+                ],
               ),
             ),
           );

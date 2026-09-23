@@ -50,6 +50,9 @@ class InMemoryAuthRepository implements AuthRepository {
   }) => signIn(email: email, password: password);
 
   @override
+  Future<void> deleteCurrentUser() async => user = null;
+
+  @override
   Future<void> signOut() async => user = null;
 
   @override
@@ -63,6 +66,9 @@ class InMemoryAuthRepository implements AuthRepository {
 }
 
 class InMemoryUserRepository implements UserRepository {
+  InMemoryUserRepository({this.failOnCreate = false});
+
+  final bool failOnCreate;
   final profiles = <String, UserProfile>{};
 
   @override
@@ -77,6 +83,7 @@ class InMemoryUserRepository implements UserRepository {
 
   @override
   Future<void> create(UserProfile profile) async {
+    if (failOnCreate) throw StateError('Profile creation failed.');
     profiles[profile.id] = profile;
   }
 

@@ -1,3 +1,9 @@
+abstract final class UserProfileConstraints {
+  static const int minimumAge = 13;
+  static const int maximumAge = 120;
+  static const int maximumNameLength = 15;
+}
+
 class UserProfile {
   const UserProfile({
     required this.id,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../app/dependencies_scope.dart';
@@ -8,6 +9,7 @@ import '../../../shared/domain/city.dart';
 import '../../../shared/widgets/brand_mark.dart';
 import '../../../shared/widgets/city_selector.dart';
 import '../../../shared/widgets/form_controls.dart';
+import '../../profile/domain/user_profile.dart';
 import 'widgets/account_field.dart';
 import '../domain/auth_repository.dart';
 
@@ -95,6 +97,15 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       return;
     }
 
+    if (age < UserProfileConstraints.minimumAge ||
+        age > UserProfileConstraints.maximumAge) {
+      _showMessage(
+        'Age must be between ${UserProfileConstraints.minimumAge} and '
+        '${UserProfileConstraints.maximumAge}.',
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -115,6 +126,18 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       if (!mounted) return;
 
       switch (error.code) {
+        case 'invalid-name':
+          _showMessage(
+            'Name must have at most '
+            '${UserProfileConstraints.maximumNameLength} characters.',
+          );
+          break;
+        case 'invalid-age':
+          _showMessage(
+            'Age must be between ${UserProfileConstraints.minimumAge} and '
+            '${UserProfileConstraints.maximumAge}.',
+          );
+          break;
         case 'weak-password':
           _showMessage('The password is too weak.');
           break;
@@ -143,6 +166,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _goBack() async {
+    if (await Navigator.maybePop(context)) return;
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, AppRoutes.login);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final safeTop = MediaQuery.paddingOf(context).top;
@@ -156,6 +186,14 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  tooltip: 'Back',
+                  onPressed: _goBack,
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                ),
+              ),
               SizedBox(height: topSpace),
               const Center(child: BrandMark()),
               const SizedBox(height: 27),
@@ -176,6 +214,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       child: DesignField(
                         controller: _nameController,
                         autofillHints: const [AutofillHints.name],
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(
+                            UserProfileConstraints.maximumNameLength,
+                          ),
+                        ],
                       ),
                     ),
                     AccountField(
@@ -199,6 +242,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       child: DesignField(
                         controller: _ageController,
                         keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
                       ),
                     ),
                     AccountField(
