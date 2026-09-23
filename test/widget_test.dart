@@ -127,7 +127,35 @@ void main() {
 
     await tester.pumpWidget(
       WhyNotApp(
-        dependencies: createTestDependencies(products: products),
+        dependencies: createTestDependencies(
+          products: products,
+          profiles: const [
+            UserProfile(
+              id: 'alice',
+              name: 'Alice',
+              email: 'a@example.com',
+              gender: 'Female',
+              age: 22,
+              preferredCategoryId: 'fashion',
+            ),
+            UserProfile(
+              id: 'bob',
+              name: 'Bob',
+              email: 'b@example.com',
+              gender: 'Male',
+              age: 25,
+              preferredCategoryId: 'beauty',
+            ),
+            UserProfile(
+              id: 'carol',
+              name: 'Carol',
+              email: 'c@example.com',
+              gender: 'Female',
+              age: 30,
+              preferredCategoryId: 'fashion',
+            ),
+          ],
+        ),
         adminAccessResolver: () async => AdminAccess.admin,
       ),
     );
@@ -138,6 +166,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('3'), findsOneWidget);
     expect(find.text('2 active users'), findsOneWidget);
+    expect(find.text('Users with 0 products'), findsOneWidget);
+    expect(
+      tester
+          .widget<SavedProductsZeroUsersCard>(
+            find.byType(SavedProductsZeroUsersCard),
+          )
+          .count,
+      1,
+    );
     expect(find.text('1.5'), findsOneWidget);
     expect(find.text('Distribution'), findsOneWidget);
     final distribution = tester.widget<SavedProductsDistributionCard>(

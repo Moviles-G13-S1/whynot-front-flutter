@@ -4,6 +4,7 @@ import '../../../app/app_routes.dart';
 import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
 import '../../products/domain/product.dart';
+import '../../profile/domain/user_profile.dart';
 import 'widgets/admin_components.dart';
 
 class SavedProductsScreen extends StatefulWidget {
@@ -28,73 +29,94 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
           return _page(const Center(child: CircularProgressIndicator()));
         }
 
-        final byOwner = <String, int>{};
-        for (final product in snapshot.data!) {
-          byOwner[product.ownerId] = (byOwner[product.ownerId] ?? 0) + 1;
-        }
-        final activeUsers = byOwner.length;
-        final totalProducts = snapshot.data!.length;
-        final singleUsers = byOwner.values.where((count) => count == 1).length;
-        final multipleUsers = activeUsers - singleUsers;
-        final average = activeUsers == 0 ? 0.0 : totalProducts / activeUsers;
-        final groupCounts = [0, 0, 0, 0, 0];
-        for (final count in byOwner.values) {
-          final index = count <= 5
-              ? 0
-              : count <= 10
-              ? 1
-              : count <= 20
-              ? 2
-              : count <= 50
-              ? 3
-              : 4;
-          groupCounts[index] += 1;
-        }
+        return StreamBuilder<List<UserProfile>>(
+          stream: context.dependencies.profileController.watchAllProfiles(),
+          builder: (context, profileSnapshot) {
+            if (profileSnapshot.hasError) {
+              return _page(const Text('Could not load profiles.'));
+            }
+            if (!profileSnapshot.hasData) {
+              return _page(const Center(child: CircularProgressIndicator()));
+            }
 
-        final usersSelected = _selectedMetric == SavedProductsMetric.users;
-        const labels = ['1–5', '6–10', '11–20', '21–50', '51+'];
-        final bars = List.generate(5, (index) {
-          final count = groupCounts[index];
-          final share = activeUsers == 0 ? 0.0 : count / activeUsers;
-          return SavedProductsDistributionBar(
-            labels[index],
-            usersSelected ? '$count' : '${(share * 100).round()}%',
-            usersSelected ? count.toDouble() : share,
-          );
-        });
-        final maxValue = usersSelected
-            ? ((activeUsers + 2) ~/ 3 * 3).clamp(3, 1000000).toDouble()
-            : 1.0;
-        final yAxisLabels = usersSelected
-            ? [for (var i = 3; i >= 0; i--) '${(maxValue * i / 3).round()}']
-            : const ['100%', '67%', '33%', '0%'];
+            final byOwner = <String, int>{};
+            for (final product in snapshot.data!) {
+              byOwner[product.ownerId] = (byOwner[product.ownerId] ?? 0) + 1;
+            }
+            final activeUsers = byOwner.length;
+            final zeroProductUsers = profileSnapshot.data!
+                .where((profile) => !byOwner.containsKey(profile.id))
+                .length;
+            final totalProducts = snapshot.data!.length;
+            final singleUsers = byOwner.values
+                .where((count) => count == 1)
+                .length;
+            final multipleUsers = activeUsers - singleUsers;
+            final average = activeUsers == 0
+                ? 0.0
+                : totalProducts / activeUsers;
+            final groupCounts = [0, 0, 0, 0, 0];
+            for (final count in byOwner.values) {
+              final index = count <= 5
+                  ? 0
+                  : count <= 10
+                  ? 1
+                  : count <= 20
+                  ? 2
+                  : count <= 50
+                  ? 3
+                  : 4;
+              groupCounts[index] += 1;
+            }
 
-        return _page(
-          Column(
-            children: [
-              SavedProductsKpis(
-                average: average.toStringAsFixed(1),
-                singleUsers: singleUsers,
-                multipleUsers: multipleUsers,
+            final usersSelected = _selectedMetric == SavedProductsMetric.users;
+            const labels = ['1–5', '6–10', '11–20', '21–50', '51+'];
+            final bars = List.generate(5, (index) {
+              final count = groupCounts[index];
+              final share = activeUsers == 0 ? 0.0 : count / activeUsers;
+              return SavedProductsDistributionBar(
+                labels[index],
+                usersSelected ? '$count' : '${(share * 100).round()}%',
+                usersSelected ? count.toDouble() : share,
+              );
+            });
+            final maxValue = usersSelected
+                ? ((activeUsers + 2) ~/ 3 * 3).clamp(3, 1000000).toDouble()
+                : 1.0;
+            final yAxisLabels = usersSelected
+                ? [for (var i = 3; i >= 0; i--) '${(maxValue * i / 3).round()}']
+                : const ['100%', '67%', '33%', '0%'];
+
+            return _page(
+              Column(
+                children: [
+                  SavedProductsKpis(
+                    average: average.toStringAsFixed(1),
+                    singleUsers: singleUsers,
+                    multipleUsers: multipleUsers,
+                  ),
+                  const SizedBox(height: 25),
+                  SavedProductsActivationCard(
+                    activeUsers: activeUsers,
+                    totalProducts: totalProducts,
+                  ),
+                  const SizedBox(height: 16),
+                  SavedProductsZeroUsersCard(count: zeroProductUsers),
+                  const SizedBox(height: 23),
+                  SavedProductsDistributionCard(
+                    bars: bars,
+                    maxValue: maxValue,
+                    selectedMetric: _selectedMetric,
+                    yAxisLabels: yAxisLabels,
+                    note: '$activeUsers active users  •  Current products',
+                    insight: 'The distribution includes active users only.',
+                    onMetricSelected: (metric) =>
+                        setState(() => _selectedMetric = metric),
+                  ),
+                ],
               ),
-              const SizedBox(height: 25),
-              SavedProductsActivationCard(
-                activeUsers: activeUsers,
-                totalProducts: totalProducts,
-              ),
-              const SizedBox(height: 23),
-              SavedProductsDistributionCard(
-                bars: bars,
-                maxValue: maxValue,
-                selectedMetric: _selectedMetric,
-                yAxisLabels: yAxisLabels,
-                note: '$activeUsers active users  •  Current products',
-                insight: 'Users with no products are not included.',
-                onMetricSelected: (metric) =>
-                    setState(() => _selectedMetric = metric),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -286,6 +308,39 @@ class SavedProductsActivationCard extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class SavedProductsZeroUsersCard extends StatelessWidget {
+  const SavedProductsZeroUsersCard({required this.count, super.key});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return AdminSurface(
+      height: 76,
+      padding: const EdgeInsets.fromLTRB(16, 12, 20, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('Users with 0 products', style: adminBodyStyle(size: 11)),
+                const SizedBox(height: 5),
+                Text(
+                  'Activation opportunity',
+                  style: adminLightStyle(size: 9),
+                ),
+              ],
+            ),
+          ),
+          Text('$count', style: WhyNotTextStyles.serif(size: 28)),
         ],
       ),
     );
