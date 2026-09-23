@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../app/dependencies_scope.dart';
@@ -171,6 +172,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       return;
     }
 
+    if (age < UserProfileConstraints.minimumAge ||
+        age > UserProfileConstraints.maximumAge) {
+      _showMessage(
+        'Age must be between ${UserProfileConstraints.minimumAge} and '
+        '${UserProfileConstraints.maximumAge}.',
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {
@@ -268,7 +278,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _field('Name', DesignField(controller: _nameController)),
+                    _field(
+                      'Name',
+                      DesignField(
+                        controller: _nameController,
+                        inputFormatters: [
+                          LengthLimitingTextInputFormatter(
+                            UserProfileConstraints.maximumNameLength,
+                          ),
+                        ],
+                      ),
+                    ),
 
                     // Email is displayed but not updated yet.
                     _field(
@@ -306,6 +326,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             DesignField(
                               controller: _ageController,
                               keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
                             ),
                             bottom: 0,
                           ),

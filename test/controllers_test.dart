@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:whynot_mobile/features/authentication/application/auth_controller.dart';
+import 'package:whynot_mobile/features/authentication/domain/auth_repository.dart';
 import 'package:whynot_mobile/features/authentication/domain/auth_user.dart';
 import 'package:whynot_mobile/features/products/application/product_controller.dart';
 import 'package:whynot_mobile/features/products/domain/product.dart';
@@ -35,6 +36,56 @@ void main() {
       expect(profile?.cityId, 'bogota');
     },
   );
+
+  test('invalid age is rejected before creating an auth account', () async {
+    final auth = InMemoryAuthRepository();
+    final controller = AuthController(
+      authRepository: auth,
+      userRepository: InMemoryUserRepository(),
+    );
+
+    await expectLater(
+      controller.createAccount(
+        name: 'Ada',
+        email: 'ada@example.com',
+        password: 'password123',
+        gender: 'Female',
+        age: 2000,
+        preferredCategoryId: 'technology',
+        cityId: 'bogota',
+      ),
+      throwsA(
+        isA<AuthFailure>().having(
+          (failure) => failure.code,
+          'code',
+          'invalid-age',
+        ),
+      ),
+    );
+    expect(auth.currentUser, isNull);
+  });
+
+  test('failed profile creation rolls back the auth account', () async {
+    final auth = InMemoryAuthRepository();
+    final controller = AuthController(
+      authRepository: auth,
+      userRepository: InMemoryUserRepository(failOnCreate: true),
+    );
+
+    await expectLater(
+      controller.createAccount(
+        name: 'Ada',
+        email: 'ada@example.com',
+        password: 'password123',
+        gender: 'Female',
+        age: 28,
+        preferredCategoryId: 'technology',
+        cityId: 'bogota',
+      ),
+      throwsStateError,
+    );
+    expect(auth.currentUser, isNull);
+  });
 
   test('wishlist controller excludes categories already in use', () async {
     final auth = InMemoryAuthRepository(

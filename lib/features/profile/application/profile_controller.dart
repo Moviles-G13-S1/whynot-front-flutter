@@ -31,6 +31,14 @@ class ProfileController {
   Future<void> updateCurrentProfile(UserProfileUpdate update) {
     final id = currentUserId;
     if (id == null) throw StateError('No user logged in.');
+    if (update.name.trim().isEmpty ||
+        update.name.trim().length > UserProfileConstraints.maximumNameLength) {
+      throw ArgumentError.value(update.name, 'name', 'Invalid profile name.');
+    }
+    if (update.age < UserProfileConstraints.minimumAge ||
+        update.age > UserProfileConstraints.maximumAge) {
+      throw ArgumentError.value(update.age, 'age', 'Invalid profile age.');
+    }
     return _userRepository.update(id, update);
   }
 }

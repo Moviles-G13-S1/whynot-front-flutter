@@ -27,21 +27,41 @@ class AuthController {
     required String preferredCategoryId,
     required String cityId,
   }) async {
+    if (name.trim().isEmpty ||
+        name.trim().length > UserProfileConstraints.maximumNameLength) {
+      throw const AuthFailure('invalid-name');
+    }
+    if (age < UserProfileConstraints.minimumAge ||
+        age > UserProfileConstraints.maximumAge) {
+      throw const AuthFailure('invalid-age');
+    }
+
     final user = await _authRepository.createUser(
       email: email,
       password: password,
     );
-    await _userRepository.create(
-      UserProfile(
-        id: user.id,
-        name: name,
-        email: email,
-        gender: gender,
-        age: age,
-        preferredCategoryId: preferredCategoryId,
-        cityId: cityId,
-      ),
-    );
+    try {
+      await _userRepository.create(
+        UserProfile(
+          id: user.id,
+          name: name,
+          email: email,
+          gender: gender,
+          age: age,
+          preferredCategoryId: preferredCategoryId,
+          cityId: cityId,
+        ),
+      );
+    } catch (error, stackTrace) {
+      // Avoid leaving an Authentication-only account when profile creation
+      // is rejected by Firestore or interrupted by another failure.
+      try {
+        await _authRepository.deleteCurrentUser();
+      } catch (_) {
+        // Preserve the profile-creation error shown to the user.
+      }
+      Error.throwWithStackTrace(error, stackTrace);
+    }
   }
 
   Future<void> signOut() => _authRepository.signOut();

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../app/whynot_theme.dart';
 
@@ -47,6 +48,7 @@ class DesignField extends StatelessWidget {
     this.obscureText = false,
     this.autofillHints,
     this.onSubmitted,
+    this.inputFormatters,
     super.key,
   });
 
@@ -56,6 +58,7 @@ class DesignField extends StatelessWidget {
   final bool obscureText;
   final Iterable<String>? autofillHints;
   final ValueChanged<String>? onSubmitted;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +70,7 @@ class DesignField extends StatelessWidget {
         obscureText: obscureText,
         autofillHints: autofillHints,
         onSubmitted: onSubmitted,
+        inputFormatters: inputFormatters,
         style: const TextStyle(
           fontFamily: 'Poppins',
           fontSize: 14,

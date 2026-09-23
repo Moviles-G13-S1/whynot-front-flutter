@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../app/app_routes.dart';
 import '../../../app/dependencies_scope.dart';
@@ -193,12 +194,14 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
     required TextEditingController controller,
     required String hint,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return SizedBox(
       height: 42,
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
         style: const TextStyle(
           fontFamily: 'Poppins',
           fontSize: 14,
@@ -260,6 +263,14 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
+                inputFormatters: [
+                  TextInputFormatter.withFunction((oldValue, newValue) {
+                    final isValid = RegExp(
+                      r'^\d*(?:[.,]\d*)?$',
+                    ).hasMatch(newValue.text);
+                    return isValid ? newValue : oldValue;
+                  }),
+                ],
               ),
 
               const SizedBox(height: 30),
