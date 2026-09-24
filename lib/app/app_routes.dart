@@ -6,7 +6,8 @@ abstract final class AppRoutes {
   static const login = '/login';
   static const adminDashboard = adminSavedProducts;
   static const adminSavedProducts = '/admin/saved-products';
-  static const adminSaveMethods = '/admin/save-methods';
+  static const adminRecommendedProducts = '/admin/recommended-products';
+  static const adminSaveMethods = adminRecommendedProducts;
   static const adminPurchasedProducts = '/admin/purchased-products';
   static const adminDemographicProfile = '/admin/demographic-profile';
   static const createAccount = '/create-account';
