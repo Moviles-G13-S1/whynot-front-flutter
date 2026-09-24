@@ -7,7 +7,7 @@ import '../features/admin/application/admin_access.dart';
 import '../features/admin/presentation/admin_route_guard.dart';
 import '../features/admin/presentation/demographic_profile_screen.dart';
 import '../features/admin/presentation/purchased_products_screen.dart';
-import '../features/admin/presentation/save_methods_screen.dart';
+import '../features/admin/presentation/recommended_products_screen.dart';
 import '../features/admin/presentation/saved_products_screen.dart';
 
 import '../features/authentication/presentation/create_account_screen.dart';
@@ -108,7 +108,7 @@ class _WhyNotAppState extends State<WhyNotApp> {
     final adminScreen = switch (settings.name) {
       AppRoutes.adminSavedProducts => const SavedProductsScreen(),
 
-      AppRoutes.adminSaveMethods => const SaveMethodsScreen(),
+      AppRoutes.adminRecommendedProducts => const RecommendedProductsScreen(),
 
       AppRoutes.adminPurchasedProducts => const PurchasedProductsScreen(),
 
@@ -167,7 +167,9 @@ class _WhyNotAppState extends State<WhyNotApp> {
 
       'admin-saved-products' => AppRoutes.adminSavedProducts,
 
-      'admin-save-methods' => AppRoutes.adminSaveMethods,
+      'admin-save-methods' => AppRoutes.adminRecommendedProducts,
+
+      'admin-recommended-products' => AppRoutes.adminRecommendedProducts,
 
       'admin-purchased-products' => AppRoutes.adminPurchasedProducts,
 

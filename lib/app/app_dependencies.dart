@@ -1,4 +1,7 @@
 import '../features/admin/application/admin_access.dart';
+import '../features/admin/application/admin_metrics_controller.dart';
+import '../features/admin/data/firebase_admin_metrics_repository.dart';
+import '../features/admin/domain/admin_metrics_repository.dart';
 import '../features/authentication/application/auth_controller.dart';
 import '../features/authentication/data/firebase_auth_repository.dart';
 import '../features/authentication/domain/auth_repository.dart';
@@ -35,6 +38,7 @@ class AppDependencies {
     required this.wishlistController,
     required this.productController,
     required this.adminAccessController,
+    required this.adminMetricsController,
     required this.cityRepository,
     required this.recommendationController,
     required this.nearbyStoreController,
@@ -50,6 +54,8 @@ class AppDependencies {
     final UserRepository userRepository = FirebaseUserRepository();
     final WishlistRepository wishlistRepository = FirebaseWishlistRepository();
     final ProductRepository productRepository = FirebaseProductRepository();
+    final AdminMetricsRepository adminMetricsRepository =
+        FirebaseAdminMetricsRepository();
 
     final RecommendationRepository recommendationRepository =
         FirebaseRecommendationRepository();
@@ -81,6 +87,7 @@ class AppDependencies {
         wishlistController: wishlistController,
       ),
       adminAccessController: AdminAccessController(authRepository),
+      adminMetricsController: AdminMetricsController(adminMetricsRepository),
       cityRepository: FirebaseCityRepository(),
       recommendationController: RecommendationController(
         recommendationRepository: recommendationRepository,
@@ -97,6 +104,7 @@ class AppDependencies {
   final WishlistController wishlistController;
   final ProductController productController;
   final AdminAccessController adminAccessController;
+  final AdminMetricsController adminMetricsController;
   final CityRepository cityRepository;
 
   /// Controller for the demographic Smart Recommendation feature.

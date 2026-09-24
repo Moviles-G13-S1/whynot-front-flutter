@@ -90,6 +90,19 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
             return _page(
               Column(
                 children: [
+                  AdminSegmentedControl(
+                    labels: const ['Saved products', 'Recommended'],
+                    selectedIndex: 0,
+                    onSelected: (index) {
+                      if (index == 1) {
+                        Navigator.pushReplacementNamed(
+                          context,
+                          AppRoutes.adminRecommendedProducts,
+                        );
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 18),
                   SavedProductsKpis(
                     average: average.toStringAsFixed(1),
                     singleUsers: singleUsers,
@@ -333,10 +346,7 @@ class SavedProductsZeroUsersCard extends StatelessWidget {
               children: [
                 Text('Users with 0 products', style: adminBodyStyle(size: 11)),
                 const SizedBox(height: 5),
-                Text(
-                  'Activation opportunity',
-                  style: adminLightStyle(size: 9),
-                ),
+                Text('Activation opportunity', style: adminLightStyle(size: 9)),
               ],
             ),
           ),

@@ -4,6 +4,7 @@ import 'package:whynot_mobile/app/app_routes.dart';
 import 'package:whynot_mobile/app/whynot_app.dart';
 import 'package:whynot_mobile/features/admin/application/admin_access.dart';
 import 'package:whynot_mobile/features/admin/presentation/admin_route_guard.dart';
+import 'package:whynot_mobile/features/admin/presentation/recommended_products_screen.dart';
 import 'package:whynot_mobile/features/admin/presentation/saved_products_screen.dart';
 import 'package:whynot_mobile/features/admin/presentation/widgets/admin_components.dart';
 import 'package:whynot_mobile/features/products/domain/product.dart';
@@ -76,7 +77,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('WHYNOT ADMIN'), findsOneWidget);
-    expect(find.text('Saved products'), findsOneWidget);
+    expect(find.text('Saved products'), findsNWidgets(2));
   });
 
   testWidgets('admin screens count existing products', (tester) async {
@@ -269,6 +270,36 @@ void main() {
     expect(
       find.text('0 users with a current product in Beauty'),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('recommended products displays the backend aggregate', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      WhyNotApp(
+        dependencies: createTestDependencies(recommendedProductSaves: 12),
+        adminAccessResolver: () async => AdminAccess.admin,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    tester
+        .state<NavigatorState>(find.byType(Navigator))
+        .pushNamed(AppRoutes.adminRecommendedProducts);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recommended products'), findsOneWidget);
+    expect(find.text('RECOMMENDED PRODUCTS SAVED'), findsOneWidget);
+    expect(find.text('12'), findsOneWidget);
+    expect(find.text('total successful saves'), findsOneWidget);
+    expect(
+      tester
+          .widget<RecommendedProductsMetricCard>(
+            find.byType(RecommendedProductsMetricCard),
+          )
+          .total,
+      12,
     );
   });
 

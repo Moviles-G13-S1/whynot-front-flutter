@@ -281,9 +281,9 @@ class AdminNavigationPanel extends StatelessWidget {
       route: AppRoutes.adminSavedProducts,
     ),
     _AdminNavItem(
-      title: 'Save methods',
-      subtitle: 'Automatic vs. manual',
-      route: AppRoutes.adminSaveMethods,
+      title: 'Recommended products',
+      subtitle: 'Successful recommendation saves',
+      route: AppRoutes.adminRecommendedProducts,
     ),
     _AdminNavItem(
       title: 'Purchased products',
