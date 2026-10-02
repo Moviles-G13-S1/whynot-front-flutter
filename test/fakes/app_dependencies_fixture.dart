@@ -9,19 +9,22 @@ import 'package:whynot_mobile/features/products/domain/product.dart';
 import 'package:whynot_mobile/features/profile/application/profile_controller.dart';
 import 'package:whynot_mobile/features/profile/domain/user_profile.dart';
 import 'package:whynot_mobile/features/recommendations/application/recommendation_controller.dart';
+import 'package:whynot_mobile/features/speech/application/speech_controller.dart';
 import 'package:whynot_mobile/features/wishlists/application/wishlist_controller.dart';
 import 'package:whynot_mobile/shared/domain/category.dart';
 
-import 'in_memory_location_repository.dart';
 import 'in_memory_admin_metrics_repository.dart';
+import 'in_memory_location_repository.dart';
 import 'in_memory_nearby_store_repository.dart';
 import 'in_memory_recommendation_repository.dart';
 import 'in_memory_repositories.dart';
+import 'in_memory_speech_recognition_repository.dart';
 
 /// Creates an isolated dependency graph for widget and application tests.
 ///
-/// Firebase, Cloud Functions, and device location services are replaced by
-/// in-memory implementations so tests do not depend on external services.
+/// Firebase, Cloud Functions, device location, and speech recognition services
+/// are replaced by in-memory implementations so tests do not depend on
+/// external services.
 AppDependencies createTestDependencies({
   bool signedIn = false,
   List<Product> products = const [],
@@ -37,6 +40,7 @@ AppDependencies createTestDependencies({
 
   final users = InMemoryUserRepository();
   users.profiles.addAll({for (final profile in profiles) profile.id: profile});
+
   final wishlists = InMemoryWishlistRepository(categories: categories);
   final productRepository = InMemoryProductRepository(products: products);
 
@@ -45,13 +49,18 @@ AppDependencies createTestDependencies({
   final location = InMemoryLocationRepository();
   final nearbyStores = InMemoryNearbyStoreRepository();
 
+  final speech = InMemorySpeechRecognitionRepository();
+
   final wishlistController = WishlistController(
     authRepository: auth,
     wishlistRepository: wishlists,
   );
 
   return AppDependencies(
-    authController: AuthController(authRepository: auth, userRepository: users),
+    authController: AuthController(
+      authRepository: auth,
+      userRepository: users,
+    ),
     profileController: ProfileController(
       authRepository: auth,
       userRepository: users,
@@ -73,6 +82,9 @@ AppDependencies createTestDependencies({
     nearbyStoreController: NearbyStoreController(
       locationRepository: location,
       nearbyStoreRepository: nearbyStores,
+    ),
+    speechController: SpeechController(
+      speechRecognitionRepository: speech,
     ),
   );
 }
