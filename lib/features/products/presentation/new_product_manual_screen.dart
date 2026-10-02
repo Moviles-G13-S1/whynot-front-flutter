@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -5,7 +7,12 @@ import '../../../app/app_routes.dart';
 import '../../../app/dependencies_scope.dart';
 import '../../../app/whynot_theme.dart';
 import '../../../shared/widgets/app_bottom_navigation.dart';
+import '../../speech/application/speech_controller.dart';
+import '../../speech/domain/speech_state.dart';
+import '../../speech/presentation/voice_input_button.dart';
 import '../domain/product.dart';
+
+enum _VoiceField { name, brand }
 
 class NewProductManualScreen extends StatefulWidget {
   const NewProductManualScreen({super.key});
@@ -23,9 +30,14 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
 
   final List<Map<String, String>> _wishlists = [];
 
+  SpeechController? _speechController;
+
   String? _selectedWishlistId;
   String? _selectedCategoryId;
   String? _selectedWishlistName;
+
+  _VoiceField? _voiceTarget;
+  String? _voiceError;
 
   bool _initialized = false;
   bool _isLoadingWishlists = false;
@@ -46,6 +58,8 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
+    _speechController ??= context.dependencies.speechController;
+
     if (_initialized) return;
     _initialized = true;
 
@@ -63,11 +77,18 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
 
   @override
   void dispose() {
+    final speechController = _speechController;
+
+    if (speechController != null && speechController.isListening) {
+      unawaited(speechController.cancelListening());
+    }
+
     _nameController.dispose();
     _brandController.dispose();
     _priceController.dispose();
     _imageUrlController.dispose();
     _productUrlController.dispose();
+
     super.dispose();
   }
 
@@ -90,6 +111,69 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
         _selectedCategoryId != null;
   }
 
+  Future<void> _startVoiceInput(_VoiceField field) async {
+    final speechController = _speechController;
+
+    if (speechController == null ||
+        speechController.isListening ||
+        _isSaving) {
+      return;
+    }
+
+    setState(() {
+      _voiceTarget = field;
+      _voiceError = null;
+    });
+
+    final recognition = speechController.startListening();
+
+    // startListening changes the controller to Listening synchronously before
+    // awaiting the platform recognizer. Rebuild so the microphone and helper
+    // text immediately reflect that state.
+    if (mounted) {
+      setState(() {});
+    }
+
+    await recognition;
+
+    if (!mounted) return;
+
+    final state = speechController.state;
+
+    if (state is SpeechResult) {
+      final text = _capitalizeFirst(state.text.trim());
+
+      if (text.isNotEmpty) {
+        switch (field) {
+          case _VoiceField.name:
+            _nameController.text = text;
+          case _VoiceField.brand:
+            _brandController.text = text;
+        }
+      }
+    } else if (state is SpeechFailure) {
+      _voiceError = state.message;
+    }
+
+    speechController.reset();
+
+    setState(() {
+      _voiceTarget = null;
+    });
+  }
+
+  String _capitalizeFirst(String value) {
+    if (value.isEmpty) {
+      return value;
+    }
+
+    if (value.length == 1) {
+      return value.toUpperCase();
+    }
+
+    return '${value[0].toUpperCase()}${value.substring(1)}';
+  }
+
   Future<void> _loadWishlists() async {
     if (context.dependencies.productController.currentUserId == null) return;
 
@@ -98,6 +182,7 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
     try {
       final summaries = await context.dependencies.productController
           .getCurrentWishlists();
+
       final loadedWishlists = summaries
           .map(
             (summary) => {
@@ -187,7 +272,10 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
   }
 
   Widget _label(String text) {
-    return Text(text, style: WhyNotTextStyles.serif(size: 20));
+    return Text(
+      text,
+      style: WhyNotTextStyles.serif(size: 20),
+    );
   }
 
   Widget _textField({
@@ -195,6 +283,7 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
     required String hint,
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
+    Widget? suffixIcon,
   }) {
     return SizedBox(
       height: 42,
@@ -213,21 +302,67 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
           filled: true,
           fillColor: WhyNotColors.field,
           contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+          suffixIcon: suffixIcon,
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 42,
+            minHeight: 42,
+          ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(color: WhyNotColors.border),
+            borderSide: const BorderSide(
+              color: WhyNotColors.border,
+            ),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(color: WhyNotColors.muted),
+            borderSide: const BorderSide(
+              color: WhyNotColors.muted,
+            ),
           ),
         ),
       ),
     );
   }
 
+  Widget _listeningMessage(_VoiceField field) {
+    final speechController = _speechController;
+
+    if (speechController == null ||
+        !speechController.isListening ||
+        _voiceTarget != field) {
+      return const SizedBox.shrink();
+    }
+
+    final fieldName = switch (field) {
+      _VoiceField.name => 'name',
+      _VoiceField.brand => 'brand',
+    };
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.graphic_eq,
+            size: 16,
+            color: WhyNotColors.muted,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            'Listening… say the product $fieldName',
+            style: WhyNotTextStyles.muted(size: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final speechController = _speechController;
+
+    final listening = speechController?.isListening ?? false;
+
     return Scaffold(
       backgroundColor: WhyNotColors.background,
       extendBody: true,
@@ -239,24 +374,72 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('New Product', style: WhyNotTextStyles.serif(size: 30)),
+              Text(
+                'New Product',
+                style: WhyNotTextStyles.serif(size: 30),
+              ),
 
               const SizedBox(height: 42),
 
               _label('Name'),
+
               const SizedBox(height: 14),
-              _textField(controller: _nameController, hint: 'Product name'),
+
+              _textField(
+                controller: _nameController,
+                hint: 'Product name',
+                suffixIcon: VoiceInputButton(
+                  enabled: !_isSaving,
+                  isListening:
+                      listening && _voiceTarget == _VoiceField.name,
+                  onPressed: () {
+                    _startVoiceInput(_VoiceField.name);
+                  },
+                ),
+              ),
+
+              _listeningMessage(_VoiceField.name),
 
               const SizedBox(height: 30),
 
               _label('Brand'),
+
               const SizedBox(height: 14),
-              _textField(controller: _brandController, hint: 'Brand name'),
+
+              _textField(
+                controller: _brandController,
+                hint: 'Brand name',
+                suffixIcon: VoiceInputButton(
+                  enabled: !_isSaving,
+                  isListening:
+                      listening && _voiceTarget == _VoiceField.brand,
+                  onPressed: () {
+                    _startVoiceInput(_VoiceField.brand);
+                  },
+                ),
+              ),
+
+              _listeningMessage(_VoiceField.brand),
+
+              if (_voiceError != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _voiceError!,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w300,
+                    color: Colors.redAccent,
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 30),
 
               _label('Price'),
+
               const SizedBox(height: 14),
+
               _textField(
                 controller: _priceController,
                 hint: 'Product price',
@@ -264,19 +447,24 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
                   decimal: true,
                 ),
                 inputFormatters: [
-                  TextInputFormatter.withFunction((oldValue, newValue) {
-                    final isValid = RegExp(
-                      r'^\d*(?:[.,]\d*)?$',
-                    ).hasMatch(newValue.text);
-                    return isValid ? newValue : oldValue;
-                  }),
+                  TextInputFormatter.withFunction(
+                    (oldValue, newValue) {
+                      final isValid = RegExp(
+                        r'^\d*(?:[.,]\d*)?$',
+                      ).hasMatch(newValue.text);
+
+                      return isValid ? newValue : oldValue;
+                    },
+                  ),
                 ],
               ),
 
               const SizedBox(height: 30),
 
               _label('Picture link'),
+
               const SizedBox(height: 14),
+
               _textField(
                 controller: _imageUrlController,
                 hint: 'https://...',
@@ -286,7 +474,9 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
               const SizedBox(height: 30),
 
               _label('Product link'),
+
               const SizedBox(height: 14),
+
               _textField(
                 controller: _productUrlController,
                 hint: 'https://...',
@@ -295,7 +485,10 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
 
               const SizedBox(height: 36),
 
-              Text('Save to:', style: WhyNotTextStyles.muted(size: 15)),
+              Text(
+                'Save to:',
+                style: WhyNotTextStyles.muted(size: 15),
+              ),
 
               const SizedBox(height: 18),
 
@@ -309,7 +502,9 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
                   decoration: BoxDecoration(
                     color: WhyNotColors.field,
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: WhyNotColors.border),
+                    border: Border.all(
+                      color: WhyNotColors.border,
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -327,7 +522,9 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
                   ),
                 )
               else if (_isLoadingWishlists)
-                const Center(child: CircularProgressIndicator())
+                const Center(
+                  child: CircularProgressIndicator(),
+                )
               else if (_wishlists.isEmpty)
                 Text(
                   'Create a wishlist before adding a product.',
@@ -340,7 +537,8 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
                     final categoryId = wishlist['categoryId'];
                     final name = wishlist['name'];
 
-                    final selected = _selectedWishlistId == wishlistId;
+                    final selected =
+                        _selectedWishlistId == wishlistId;
 
                     return InkWell(
                       onTap: () {
@@ -370,7 +568,9 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
                             const SizedBox(width: 8),
                             Text(
                               name ?? 'Wishlist',
-                              style: WhyNotTextStyles.muted(size: 15),
+                              style: WhyNotTextStyles.muted(
+                                size: 15,
+                              ),
                             ),
                           ],
                         ),
@@ -385,12 +585,14 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
                 width: double.infinity,
                 height: 44,
                 child: FilledButton(
-                  onPressed: _canSave && !_isSaving ? _saveItem : null,
+                  onPressed:
+                      _canSave && !_isSaving && !listening
+                      ? _saveItem
+                      : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.black,
-                    disabledBackgroundColor: Colors.black.withValues(
-                      alpha: 0.25,
-                    ),
+                    disabledBackgroundColor:
+                        Colors.black.withValues(alpha: 0.25),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(24),
@@ -410,7 +612,9 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: const AppBottomNavigation(selectedIndex: 2),
+      bottomNavigationBar: const AppBottomNavigation(
+        selectedIndex: 2,
+      ),
     );
   }
 }

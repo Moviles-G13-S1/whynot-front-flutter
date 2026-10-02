@@ -19,6 +19,9 @@ import '../features/profile/domain/user_repository.dart';
 import '../features/recommendations/application/recommendation_controller.dart';
 import '../features/recommendations/data/firebase_recommendation_repository.dart';
 import '../features/recommendations/domain/recommendation_repository.dart';
+import '../features/speech/application/speech_controller.dart';
+import '../features/speech/data/device_speech_recognition_repository.dart';
+import '../features/speech/domain/speech_recognition_repository.dart';
 import '../features/wishlists/application/wishlist_controller.dart';
 import '../features/wishlists/data/firebase_wishlist_repository.dart';
 import '../features/wishlists/domain/wishlist_repository.dart';
@@ -42,6 +45,7 @@ class AppDependencies {
     required this.cityRepository,
     required this.recommendationController,
     required this.nearbyStoreController,
+    required this.speechController,
   });
 
   /// Creates the production/default dependency graph.
@@ -65,6 +69,9 @@ class AppDependencies {
 
     final NearbyStoreRepository nearbyStoreRepository =
         FirebaseNearbyStoreRepository();
+
+    final SpeechRecognitionRepository speechRecognitionRepository =
+        DeviceSpeechRecognitionRepository();
 
     final wishlistController = WishlistController(
       authRepository: authRepository,
@@ -96,6 +103,9 @@ class AppDependencies {
         locationRepository: locationRepository,
         nearbyStoreRepository: nearbyStoreRepository,
       ),
+      speechController: SpeechController(
+        speechRecognitionRepository: speechRecognitionRepository,
+      ),
     );
   }
 
@@ -112,4 +122,7 @@ class AppDependencies {
 
   /// Controller for the location-based Context-Aware feature.
   final NearbyStoreController nearbyStoreController;
+
+  /// Controller for microphone-based product field input.
+  final SpeechController speechController;
 }
