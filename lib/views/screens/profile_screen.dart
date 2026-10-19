@@ -70,26 +70,7 @@ class ProfileScreen extends StatelessWidget {
                                   value: 'Not selected',
                                 )
                               else
-                                FutureBuilder<List<City>>(
-                                  future: context.dependencies.cityRepository
-                                      .getCities(),
-                                  builder: (context, citiesSnapshot) {
-                                    final city = citiesSnapshot.data
-                                        ?.where(
-                                          (item) => item.id == profile.cityId,
-                                        )
-                                        .firstOrNull;
-                                    return ProfileValue(
-                                      label: 'City',
-                                      value:
-                                          city?.name ??
-                                          (citiesSnapshot.connectionState ==
-                                                  ConnectionState.waiting
-                                              ? 'Loading city...'
-                                              : 'City unavailable'),
-                                    );
-                                  },
-                                ),
+                                _ProfileCityValue(cityId: profile.cityId!),
                               ProfileValue(
                                 label: 'Password',
                                 value: '********',
@@ -132,4 +113,41 @@ class ProfileScreen extends StatelessWidget {
       bottomNavigationBar: const AppBottomNavigation(selectedIndex: 4),
     );
   }
+}
+
+class _ProfileCityValue extends StatefulWidget {
+  const _ProfileCityValue({required this.cityId});
+
+  final String cityId;
+
+  @override
+  State<_ProfileCityValue> createState() => _ProfileCityValueState();
+}
+
+class _ProfileCityValueState extends State<_ProfileCityValue> {
+  late Future<List<City>> _cities;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _cities = context.dependencies.cityController.getCities();
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<City>>(
+    future: _cities,
+    builder: (context, snapshot) {
+      final city = snapshot.data
+          ?.where((item) => item.id == widget.cityId)
+          .firstOrNull;
+      return ProfileValue(
+        label: 'City',
+        value:
+            city?.name ??
+            (snapshot.connectionState == ConnectionState.waiting
+                ? 'Loading city...'
+                : 'City unavailable'),
+      );
+    },
+  );
 }

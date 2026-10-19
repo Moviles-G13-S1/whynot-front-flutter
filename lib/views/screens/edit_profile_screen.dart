@@ -86,7 +86,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
 
     try {
-      final cities = await context.dependencies.cityRepository.getCities();
+      final cities = await context.dependencies.cityController.getCities();
       final profile = await profileController.getCurrentProfile();
       if (profile == null) {
         if (mounted) {

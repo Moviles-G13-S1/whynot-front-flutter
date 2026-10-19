@@ -4,6 +4,7 @@ import '../../app/app_routes.dart';
 import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../models/product.dart';
+import '../../models/saved_products_summary.dart';
 import '../../models/user_profile.dart';
 import '../widgets/admin_components.dart';
 
@@ -39,41 +40,16 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
               return _page(const Center(child: CircularProgressIndicator()));
             }
 
-            final byOwner = <String, int>{};
-            for (final product in snapshot.data!) {
-              byOwner[product.ownerId] = (byOwner[product.ownerId] ?? 0) + 1;
-            }
-            final activeUsers = byOwner.length;
-            final zeroProductUsers = profileSnapshot.data!
-                .where((profile) => !byOwner.containsKey(profile.id))
-                .length;
-            final totalProducts = snapshot.data!.length;
-            final singleUsers = byOwner.values
-                .where((count) => count == 1)
-                .length;
-            final multipleUsers = activeUsers - singleUsers;
-            final average = activeUsers == 0
-                ? 0.0
-                : totalProducts / activeUsers;
-            final groupCounts = [0, 0, 0, 0, 0];
-            for (final count in byOwner.values) {
-              final index = count <= 5
-                  ? 0
-                  : count <= 10
-                  ? 1
-                  : count <= 20
-                  ? 2
-                  : count <= 50
-                  ? 3
-                  : 4;
-              groupCounts[index] += 1;
-            }
+            final summary = SavedProductsSummary.fromData(
+              products: snapshot.data!,
+              profiles: profileSnapshot.data!,
+            );
 
             final usersSelected = _selectedMetric == SavedProductsMetric.users;
             const labels = ['1–5', '6–10', '11–20', '21–50', '51+'];
             final bars = List.generate(5, (index) {
-              final count = groupCounts[index];
-              final share = activeUsers == 0 ? 0.0 : count / activeUsers;
+              final count = summary.distributionCounts[index];
+              final share = summary.shareForGroup(index);
               return SavedProductsDistributionBar(
                 labels[index],
                 usersSelected ? '$count' : '${(share * 100).round()}%',
@@ -81,7 +57,7 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
               );
             });
             final maxValue = usersSelected
-                ? ((activeUsers + 2) ~/ 3 * 3).clamp(3, 1000000).toDouble()
+                ? summary.userCountChartMaximum
                 : 1.0;
             final yAxisLabels = usersSelected
                 ? [for (var i = 3; i >= 0; i--) '${(maxValue * i / 3).round()}']
@@ -104,24 +80,25 @@ class _SavedProductsScreenState extends State<SavedProductsScreen> {
                   ),
                   const SizedBox(height: 18),
                   SavedProductsKpis(
-                    average: average.toStringAsFixed(1),
-                    singleUsers: singleUsers,
-                    multipleUsers: multipleUsers,
+                    average: summary.averagePerActiveUser.toStringAsFixed(1),
+                    singleUsers: summary.singleProductUsers,
+                    multipleUsers: summary.multipleProductUsers,
                   ),
                   const SizedBox(height: 25),
                   SavedProductsActivationCard(
-                    activeUsers: activeUsers,
-                    totalProducts: totalProducts,
+                    activeUsers: summary.activeUsers,
+                    totalProducts: summary.totalProducts,
                   ),
                   const SizedBox(height: 16),
-                  SavedProductsZeroUsersCard(count: zeroProductUsers),
+                  SavedProductsZeroUsersCard(count: summary.zeroProductUsers),
                   const SizedBox(height: 23),
                   SavedProductsDistributionCard(
                     bars: bars,
                     maxValue: maxValue,
                     selectedMetric: _selectedMetric,
                     yAxisLabels: yAxisLabels,
-                    note: '$activeUsers active users  •  Current products',
+                    note:
+                        '${summary.activeUsers} active users  •  Current products',
                     insight: 'The distribution includes active users only.',
                     onMetricSelected: (metric) =>
                         setState(() => _selectedMetric = metric),

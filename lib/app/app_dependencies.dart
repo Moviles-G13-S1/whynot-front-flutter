@@ -3,6 +3,7 @@ import '../controllers/admin_metrics_controller.dart';
 import '../models/repositories/firebase_admin_metrics_repository.dart';
 import '../models/repositories/admin_metrics_repository.dart';
 import '../controllers/auth_controller.dart';
+import '../controllers/city_controller.dart';
 import '../models/repositories/firebase_auth_repository.dart';
 import '../models/repositories/auth_repository.dart';
 import '../controllers/nearby_store_controller.dart';
@@ -26,7 +27,6 @@ import '../controllers/wishlist_controller.dart';
 import '../models/repositories/firebase_wishlist_repository.dart';
 import '../models/repositories/wishlist_repository.dart';
 import '../models/repositories/firebase_city_repository.dart';
-import '../models/repositories/city_repository.dart';
 
 /// Composition root for application dependencies.
 ///
@@ -42,7 +42,7 @@ class AppDependencies {
     required this.productController,
     required this.adminAccessController,
     required this.adminMetricsController,
-    required this.cityRepository,
+    required this.cityController,
     required this.recommendationController,
     required this.nearbyStoreController,
     required this.speechController,
@@ -95,7 +95,7 @@ class AppDependencies {
       ),
       adminAccessController: AdminAccessController(authRepository),
       adminMetricsController: AdminMetricsController(adminMetricsRepository),
-      cityRepository: FirebaseCityRepository(),
+      cityController: CityController(cityRepository: FirebaseCityRepository()),
       recommendationController: RecommendationController(
         recommendationRepository: recommendationRepository,
       ),
@@ -115,7 +115,7 @@ class AppDependencies {
   final ProductController productController;
   final AdminAccessController adminAccessController;
   final AdminMetricsController adminMetricsController;
-  final CityRepository cityRepository;
+  final CityController cityController;
 
   /// Controller for the demographic Smart Recommendation feature.
   final RecommendationController recommendationController;

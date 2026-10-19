@@ -5,6 +5,7 @@ import '../../app/app_routes.dart';
 import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../models/product.dart';
+import '../../models/purchased_products_summary.dart';
 import '../widgets/admin_components.dart';
 
 class PurchasedProductsScreen extends StatefulWidget {
@@ -56,62 +57,30 @@ class _PurchasedProductsScreenState extends State<PurchasedProductsScreen> {
         }
 
         final now = DateTime.now();
-        final months = List.generate(
-          _windowMonths,
-          (index) => DateTime(now.year, now.month - _windowMonths + index + 1),
+        final summary = PurchasedProductsSummary.fromProducts(
+          products: snapshot.data!,
+          now: now,
+          windowMonths: _windowMonths,
         );
-        final counts = <String, List<double>>{};
-        for (final product in snapshot.data!) {
-          final date = product.purchasedAt;
-          if (!product.purchased || date == null) continue;
-          final monthIndex = months.indexWhere(
-            (month) => month.year == date.year && month.month == date.month,
-          );
-          if (monthIndex < 0) continue;
-          final values = counts.putIfAbsent(
-            product.categoryId,
-            () => List.filled(_windowMonths, 0),
-          );
-          values[monthIndex] += 1;
-        }
-        final categories = counts.keys.toList()..sort();
         final segments = [
-          for (var index = 0; index < categories.length; index++)
+          for (var index = 0; index < summary.categories.length; index++)
             _StackSegment(
-              categories[index],
+              summary.categories[index].categoryId,
               _colors[index % _colors.length],
-              counts[categories[index]]!,
+              summary.categories[index].monthlyCounts,
             ),
         ];
         final monthLabels = [
-          for (final month in months) _monthNames[month.month - 1],
+          for (final month in summary.months) _monthNames[month.month - 1],
         ];
-        final currentCount = segments.fold<int>(
-          0,
-          (sum, segment) => sum + segment.values.last.round(),
-        );
-        final previousCount = segments.fold<int>(
-          0,
-          (sum, segment) => sum + segment.values[_windowMonths - 2].round(),
-        );
-        final peak = List.generate(
-          _windowMonths,
-          (index) => segments.fold<double>(
-            0,
-            (sum, segment) => sum + segment.values[index],
-          ),
-        ).fold<double>(0, (max, value) => value > max ? value : max);
-        final maxValue = ((peak.ceil() + 2) ~/ 3 * 3)
-            .clamp(3, 1000000)
-            .toDouble();
 
         return _page(
           Column(
             children: [
               _LatestMonthCard(
                 month: _monthNames[now.month - 1],
-                count: currentCount,
-                previousCount: previousCount,
+                count: summary.currentMonthCount,
+                previousCount: summary.previousMonthCount,
               ),
               const SizedBox(height: 16),
               AdminSegmentedControl(
@@ -124,9 +93,9 @@ class _PurchasedProductsScreenState extends State<PurchasedProductsScreen> {
               _PurchasedChartCard(
                 key: ValueKey(_windowMonths),
                 monthLabels: monthLabels,
-                months: months,
+                months: summary.months,
                 segments: segments,
-                maxValue: maxValue,
+                maxValue: summary.chartMaximum,
               ),
             ],
           ),
@@ -383,7 +352,7 @@ class _PurchasedChartCardState extends State<_PurchasedChartCard> {
             month:
                 '${widget.monthLabels[monthIndex]} ${widget.months[monthIndex].year}',
             category: segment.label,
-            value: value,
+            value: value.toDouble(),
             monthTotal: monthTotal,
           );
         }
@@ -635,5 +604,5 @@ class _StackSegment {
 
   final String label;
   final Color color;
-  final List<double> values;
+  final List<int> values;
 }

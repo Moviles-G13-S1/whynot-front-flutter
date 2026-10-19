@@ -616,6 +616,11 @@ Firebase-free; Firebase and device implementations live alongside them in
 operations. `views/screens/` contains routes, while `views/widgets/` contains
 UI components shared by screens or extracted from them.
 
+Views call controllers for data and actions; they do not access repositories
+directly. Controllers depend on repository contracts, and model summaries own
+reusable calculations such as admin metrics. Concrete Firebase and device
+repositories are assembled only in `AppDependencies`.
+
 Firebase provides the shared backend and authenticated user session, while
 screen-specific UI state remains local to each view.
 
