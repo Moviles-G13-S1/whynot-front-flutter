@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:whynot_mobile/app/app_routes.dart';
 import 'package:whynot_mobile/app/whynot_app.dart';
-import 'package:whynot_mobile/features/admin/application/admin_access.dart';
-import 'package:whynot_mobile/features/admin/presentation/admin_route_guard.dart';
-import 'package:whynot_mobile/features/admin/presentation/recommended_products_screen.dart';
-import 'package:whynot_mobile/features/admin/presentation/saved_products_screen.dart';
-import 'package:whynot_mobile/features/admin/presentation/widgets/admin_components.dart';
-import 'package:whynot_mobile/features/products/domain/product.dart';
-import 'package:whynot_mobile/features/profile/domain/user_profile.dart';
-import 'package:whynot_mobile/shared/domain/category.dart';
-import 'package:whynot_mobile/shared/domain/city.dart';
-import 'package:whynot_mobile/shared/widgets/city_selector.dart';
+import 'package:whynot_mobile/controllers/admin_access_controller.dart';
+import 'package:whynot_mobile/views/widgets/admin_route_guard.dart';
+import 'package:whynot_mobile/views/screens/recommended_products_screen.dart';
+import 'package:whynot_mobile/views/screens/saved_products_screen.dart';
+import 'package:whynot_mobile/views/widgets/admin_components.dart';
+import 'package:whynot_mobile/models/product.dart';
+import 'package:whynot_mobile/models/user_profile.dart';
+import 'package:whynot_mobile/models/category.dart';
+import 'package:whynot_mobile/models/city.dart';
+import 'package:whynot_mobile/views/widgets/city_selector.dart';
 
 import 'fakes/app_dependencies_fixture.dart';
 

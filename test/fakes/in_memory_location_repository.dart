@@ -1,5 +1,5 @@
-import 'package:whynot_mobile/features/nearby/domain/device_location.dart';
-import 'package:whynot_mobile/features/nearby/domain/location_repository.dart';
+import 'package:whynot_mobile/models/device_location.dart';
+import 'package:whynot_mobile/models/repositories/location_repository.dart';
 
 /// In-memory implementation of [LocationRepository] used by tests.
 ///
@@ -7,10 +7,7 @@ import 'package:whynot_mobile/features/nearby/domain/location_repository.dart';
 /// or accessing platform location services.
 class InMemoryLocationRepository implements LocationRepository {
   InMemoryLocationRepository({
-    this.location = const DeviceLocation(
-      latitude: 4.6669,
-      longitude: -74.0531,
-    ),
+    this.location = const DeviceLocation(latitude: 4.6669, longitude: -74.0531),
   });
 
   /// Location returned whenever the application requests the current
