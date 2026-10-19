@@ -1,32 +1,34 @@
 import '../controllers/admin_access_controller.dart';
 import '../controllers/admin_metrics_controller.dart';
-import '../models/repositories/firebase_admin_metrics_repository.dart';
-import '../models/repositories/admin_metrics_repository.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/city_controller.dart';
-import '../models/repositories/firebase_auth_repository.dart';
-import '../models/repositories/auth_repository.dart';
 import '../controllers/nearby_store_controller.dart';
-import '../models/repositories/firebase_nearby_store_repository.dart';
-import '../models/repositories/geolocator_location_repository.dart';
+import '../controllers/product_controller.dart';
+import '../controllers/profile_controller.dart';
+import '../controllers/recommendation_controller.dart';
+import '../controllers/speech_controller.dart';
+import '../controllers/wishlist_controller.dart';
+
+import '../models/repositories/admin_metrics_repository.dart';
+import '../models/repositories/auth_repository.dart';
 import '../models/repositories/location_repository.dart';
 import '../models/repositories/nearby_store_repository.dart';
-import '../controllers/product_controller.dart';
-import '../models/repositories/firebase_product_repository.dart';
 import '../models/repositories/product_repository.dart';
-import '../controllers/profile_controller.dart';
-import '../models/repositories/firebase_user_repository.dart';
-import '../models/repositories/user_repository.dart';
-import '../controllers/recommendation_controller.dart';
-import '../models/repositories/firebase_recommendation_repository.dart';
 import '../models/repositories/recommendation_repository.dart';
-import '../controllers/speech_controller.dart';
-import '../models/repositories/device_speech_recognition_repository.dart';
 import '../models/repositories/speech_recognition_repository.dart';
-import '../controllers/wishlist_controller.dart';
-import '../models/repositories/firebase_wishlist_repository.dart';
+import '../models/repositories/user_repository.dart';
 import '../models/repositories/wishlist_repository.dart';
-import '../models/repositories/firebase_city_repository.dart';
+
+import '../infrastructure/repositories/device_speech_recognition_repository.dart';
+import '../infrastructure/repositories/firebase_admin_metrics_repository.dart';
+import '../infrastructure/repositories/firebase_auth_repository.dart';
+import '../infrastructure/repositories/firebase_city_repository.dart';
+import '../infrastructure/repositories/firebase_nearby_store_repository.dart';
+import '../infrastructure/repositories/firebase_product_repository.dart';
+import '../infrastructure/repositories/firebase_recommendation_repository.dart';
+import '../infrastructure/repositories/firebase_user_repository.dart';
+import '../infrastructure/repositories/firebase_wishlist_repository.dart';
+import '../infrastructure/repositories/geolocator_location_repository.dart';
 
 /// Composition root for application dependencies.
 ///

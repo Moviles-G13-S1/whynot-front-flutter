@@ -1,7 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
-import '../product_recommendation.dart';
-import 'recommendation_repository.dart';
+import '../../models/product_recommendation.dart';
+import '../../models/repositories/recommendation_repository.dart';
 
 /// Firebase implementation of [RecommendationRepository].
 ///
@@ -9,7 +9,7 @@ import 'recommendation_repository.dart';
 /// `get_recommendation` Firebase Cloud Function and translating the raw
 /// response into a domain-level [ProductRecommendation].
 ///
-/// Firebase-specific details remain in the data layer so widgets and
+/// Firebase-specific details remain in the infrastructure layer so widgets and
 /// controllers do not need to know how the backend request is performed.
 ///
 /// The Firebase emulator configuration is intentionally not handled here.
