@@ -1,4 +1,4 @@
-import 'package:whynot_mobile/features/speech/domain/speech_recognition_repository.dart';
+import 'package:whynot_mobile/models/repositories/speech_recognition_repository.dart';
 
 class InMemorySpeechRecognitionRepository
     implements SpeechRecognitionRepository {

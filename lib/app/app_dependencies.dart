@@ -1,37 +1,37 @@
-import '../features/admin/application/admin_access.dart';
-import '../features/admin/application/admin_metrics_controller.dart';
-import '../features/admin/data/firebase_admin_metrics_repository.dart';
-import '../features/admin/domain/admin_metrics_repository.dart';
-import '../features/authentication/application/auth_controller.dart';
-import '../features/authentication/data/firebase_auth_repository.dart';
-import '../features/authentication/domain/auth_repository.dart';
-import '../features/nearby/application/nearby_store_controller.dart';
-import '../features/nearby/data/firebase_nearby_store_repository.dart';
-import '../features/nearby/data/geolocator_location_repository.dart';
-import '../features/nearby/domain/location_repository.dart';
-import '../features/nearby/domain/nearby_store_repository.dart';
-import '../features/products/application/product_controller.dart';
-import '../features/products/data/firebase_product_repository.dart';
-import '../features/products/domain/product_repository.dart';
-import '../features/profile/application/profile_controller.dart';
-import '../features/profile/data/firebase_user_repository.dart';
-import '../features/profile/domain/user_repository.dart';
-import '../features/recommendations/application/recommendation_controller.dart';
-import '../features/recommendations/data/firebase_recommendation_repository.dart';
-import '../features/recommendations/domain/recommendation_repository.dart';
-import '../features/speech/application/speech_controller.dart';
-import '../features/speech/data/device_speech_recognition_repository.dart';
-import '../features/speech/domain/speech_recognition_repository.dart';
-import '../features/wishlists/application/wishlist_controller.dart';
-import '../features/wishlists/data/firebase_wishlist_repository.dart';
-import '../features/wishlists/domain/wishlist_repository.dart';
-import '../shared/data/firebase_city_repository.dart';
-import '../shared/domain/city_repository.dart';
+import '../controllers/admin_access_controller.dart';
+import '../controllers/admin_metrics_controller.dart';
+import '../models/repositories/firebase_admin_metrics_repository.dart';
+import '../models/repositories/admin_metrics_repository.dart';
+import '../controllers/auth_controller.dart';
+import '../models/repositories/firebase_auth_repository.dart';
+import '../models/repositories/auth_repository.dart';
+import '../controllers/nearby_store_controller.dart';
+import '../models/repositories/firebase_nearby_store_repository.dart';
+import '../models/repositories/geolocator_location_repository.dart';
+import '../models/repositories/location_repository.dart';
+import '../models/repositories/nearby_store_repository.dart';
+import '../controllers/product_controller.dart';
+import '../models/repositories/firebase_product_repository.dart';
+import '../models/repositories/product_repository.dart';
+import '../controllers/profile_controller.dart';
+import '../models/repositories/firebase_user_repository.dart';
+import '../models/repositories/user_repository.dart';
+import '../controllers/recommendation_controller.dart';
+import '../models/repositories/firebase_recommendation_repository.dart';
+import '../models/repositories/recommendation_repository.dart';
+import '../controllers/speech_controller.dart';
+import '../models/repositories/device_speech_recognition_repository.dart';
+import '../models/repositories/speech_recognition_repository.dart';
+import '../controllers/wishlist_controller.dart';
+import '../models/repositories/firebase_wishlist_repository.dart';
+import '../models/repositories/wishlist_repository.dart';
+import '../models/repositories/firebase_city_repository.dart';
+import '../models/repositories/city_repository.dart';
 
 /// Composition root for application dependencies.
 ///
 /// Concrete repository implementations are created here and injected into
-/// controllers. Presentation widgets access these controllers through
+/// controllers. View widgets access these controllers through
 /// [DependenciesScope] instead of constructing Firebase or platform services
 /// directly.
 class AppDependencies {

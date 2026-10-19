@@ -3,31 +3,31 @@ import 'package:flutter/material.dart';
 
 import 'app_dependencies.dart';
 import 'dependencies_scope.dart';
-import '../features/admin/application/admin_access.dart';
-import '../features/admin/presentation/admin_route_guard.dart';
-import '../features/admin/presentation/demographic_profile_screen.dart';
-import '../features/admin/presentation/purchased_products_screen.dart';
-import '../features/admin/presentation/recommended_products_screen.dart';
-import '../features/admin/presentation/saved_products_screen.dart';
+import '../controllers/admin_access_controller.dart';
+import '../views/widgets/admin_route_guard.dart';
+import '../views/screens/demographic_profile_screen.dart';
+import '../views/screens/purchased_products_screen.dart';
+import '../views/screens/recommended_products_screen.dart';
+import '../views/screens/saved_products_screen.dart';
 
-import '../features/authentication/presentation/create_account_screen.dart';
-import '../features/authentication/presentation/login_screen.dart';
+import '../views/screens/create_account_screen.dart';
+import '../views/screens/login_screen.dart';
 
-import '../features/home/presentation/home_screen.dart';
+import '../views/screens/home_screen.dart';
 
-import '../features/profile/presentation/change_password_screen.dart';
-import '../features/profile/presentation/edit_profile_screen.dart';
-import '../features/profile/presentation/profile_screen.dart';
+import '../views/screens/change_password_screen.dart';
+import '../views/screens/edit_profile_screen.dart';
+import '../views/screens/profile_screen.dart';
 
-import '../features/wishlists/presentation/wishlists_screen.dart';
-import '../features/wishlists/presentation/wishlist_detail_screen.dart';
-import '../features/wishlists/presentation/new_wishlist_screen.dart';
+import '../views/screens/wishlists_screen.dart';
+import '../views/screens/wishlist_detail_screen.dart';
+import '../views/screens/new_wishlist_screen.dart';
 
-import '../features/products/presentation/product_detail_screen.dart';
-import '../features/products/presentation/new_product_manual_screen.dart';
-import '../features/products/presentation/edit_product_screen.dart';
+import '../views/screens/product_detail_screen.dart';
+import '../views/screens/new_product_manual_screen.dart';
+import '../views/screens/edit_product_screen.dart';
 
-import '../features/purchases/presentation/purchases_screen.dart';
+import '../views/screens/purchases_screen.dart';
 
 import 'app_routes.dart';
 import 'whynot_theme.dart';

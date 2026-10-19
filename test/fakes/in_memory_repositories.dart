@@ -1,14 +1,14 @@
-import 'package:whynot_mobile/features/authentication/domain/auth_repository.dart';
-import 'package:whynot_mobile/features/authentication/domain/auth_user.dart';
-import 'package:whynot_mobile/features/products/domain/product.dart';
-import 'package:whynot_mobile/features/products/domain/product_repository.dart';
-import 'package:whynot_mobile/features/profile/domain/user_profile.dart';
-import 'package:whynot_mobile/features/profile/domain/user_repository.dart';
-import 'package:whynot_mobile/features/wishlists/domain/wishlist.dart';
-import 'package:whynot_mobile/features/wishlists/domain/wishlist_repository.dart';
-import 'package:whynot_mobile/shared/domain/category.dart';
-import 'package:whynot_mobile/shared/domain/city.dart';
-import 'package:whynot_mobile/shared/domain/city_repository.dart';
+import 'package:whynot_mobile/models/repositories/auth_repository.dart';
+import 'package:whynot_mobile/models/auth_user.dart';
+import 'package:whynot_mobile/models/product.dart';
+import 'package:whynot_mobile/models/repositories/product_repository.dart';
+import 'package:whynot_mobile/models/user_profile.dart';
+import 'package:whynot_mobile/models/repositories/user_repository.dart';
+import 'package:whynot_mobile/models/wishlist.dart';
+import 'package:whynot_mobile/models/repositories/wishlist_repository.dart';
+import 'package:whynot_mobile/models/category.dart';
+import 'package:whynot_mobile/models/city.dart';
+import 'package:whynot_mobile/models/repositories/city_repository.dart';
 
 class InMemoryCityRepository implements CityRepository {
   InMemoryCityRepository({

@@ -1,17 +1,17 @@
 import 'package:whynot_mobile/app/app_dependencies.dart';
-import 'package:whynot_mobile/features/admin/application/admin_access.dart';
-import 'package:whynot_mobile/features/admin/application/admin_metrics_controller.dart';
-import 'package:whynot_mobile/features/authentication/application/auth_controller.dart';
-import 'package:whynot_mobile/features/authentication/domain/auth_user.dart';
-import 'package:whynot_mobile/features/nearby/application/nearby_store_controller.dart';
-import 'package:whynot_mobile/features/products/application/product_controller.dart';
-import 'package:whynot_mobile/features/products/domain/product.dart';
-import 'package:whynot_mobile/features/profile/application/profile_controller.dart';
-import 'package:whynot_mobile/features/profile/domain/user_profile.dart';
-import 'package:whynot_mobile/features/recommendations/application/recommendation_controller.dart';
-import 'package:whynot_mobile/features/speech/application/speech_controller.dart';
-import 'package:whynot_mobile/features/wishlists/application/wishlist_controller.dart';
-import 'package:whynot_mobile/shared/domain/category.dart';
+import 'package:whynot_mobile/controllers/admin_access_controller.dart';
+import 'package:whynot_mobile/controllers/admin_metrics_controller.dart';
+import 'package:whynot_mobile/controllers/auth_controller.dart';
+import 'package:whynot_mobile/models/auth_user.dart';
+import 'package:whynot_mobile/controllers/nearby_store_controller.dart';
+import 'package:whynot_mobile/controllers/product_controller.dart';
+import 'package:whynot_mobile/models/product.dart';
+import 'package:whynot_mobile/controllers/profile_controller.dart';
+import 'package:whynot_mobile/models/user_profile.dart';
+import 'package:whynot_mobile/controllers/recommendation_controller.dart';
+import 'package:whynot_mobile/controllers/speech_controller.dart';
+import 'package:whynot_mobile/controllers/wishlist_controller.dart';
+import 'package:whynot_mobile/models/category.dart';
 
 import 'in_memory_admin_metrics_repository.dart';
 import 'in_memory_location_repository.dart';
@@ -57,10 +57,7 @@ AppDependencies createTestDependencies({
   );
 
   return AppDependencies(
-    authController: AuthController(
-      authRepository: auth,
-      userRepository: users,
-    ),
+    authController: AuthController(authRepository: auth, userRepository: users),
     profileController: ProfileController(
       authRepository: auth,
       userRepository: users,
@@ -83,8 +80,6 @@ AppDependencies createTestDependencies({
       locationRepository: location,
       nearbyStoreRepository: nearbyStores,
     ),
-    speechController: SpeechController(
-      speechRecognitionRepository: speech,
-    ),
+    speechController: SpeechController(speechRecognitionRepository: speech),
   );
 }

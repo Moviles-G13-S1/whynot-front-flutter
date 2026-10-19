@@ -573,7 +573,7 @@ assets/figma/
 
 ## Architecture
 
-The code uses a deliberately lightweight **feature-first** organization:
+The Flutter code uses a lightweight **Model–View–Controller (MVC)** organization:
 
 ```text
 lib/
@@ -582,40 +582,50 @@ lib/
 │
 ├── app/
 │   ├── app_routes.dart
+│   ├── app_navigation.dart
 │   ├── app_dependencies.dart
 │   ├── dependencies_scope.dart
 │   ├── whynot_app.dart
 │   └── whynot_theme.dart
 │
-├── features/
-│   ├── authentication/
-│   ├── home/
-│   ├── wishlists/
-│   ├── products/
-│   ├── purchases/
-│   ├── profile/
-│   └── admin/
-│
-└── shared/
-    ├── domain/
+├── models/
+│   ├── product.dart
+│   ├── user_profile.dart
+│   ├── wishlist.dart
+│   ├── ...other application models
+│   └── repositories/
+│       ├── product_repository.dart
+│       ├── firebase_product_repository.dart
+│       └── ...other repository contracts and implementations
+├── controllers/
+│   ├── auth_controller.dart
+│   ├── product_controller.dart
+│   └── ...other controllers
+└── views/
+    ├── screens/
+    │   ├── home_screen.dart
+    │   └── ...other screens
     └── widgets/
+        ├── app_bottom_navigation.dart
+        └── ...other reusable widgets
 ```
 
-Data-backed features own `domain/`, `data/`, `application/`, and
-`presentation/` layers. Domain models and repository contracts are typed and
-Firebase-free. Firebase implementations live under `data/`; controllers in
-`application/` translate screen intents into repository operations.
-
-A widget is moved to `shared` only when more than one feature uses it.
+`models/` contains data types and repository contracts. The contracts are
+Firebase-free; Firebase and device implementations live alongside them in
+`models/repositories/`. `controllers/` translates view actions into repository
+operations. `views/screens/` contains routes, while `views/widgets/` contains
+UI components shared by screens or extracted from them.
 
 Firebase provides the shared backend and authenticated user session, while
-screen-specific UI state remains local to each feature.
+screen-specific UI state remains local to each view.
 
 Screens do not call Firebase directly. `AppDependencies` wires the Firebase
 repositories and controllers once at the application boundary, and
 `DependenciesScope` makes them available to routes. Tests replace those
 repositories with in-memory fakes.
 
+`app/` holds startup-independent application wiring, routes, navigation, and
+theme. `main.dart` initializes Firebase before starting the app.
+
 No Provider/Riverpod/Bloc dependency is used; widgets continue to own local UI
 state with `StatefulWidget` and `setState`.
-````

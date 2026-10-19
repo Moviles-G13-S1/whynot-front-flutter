@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:whynot_mobile/features/admin/domain/demographic_summary.dart';
-import 'package:whynot_mobile/features/products/domain/product.dart';
-import 'package:whynot_mobile/features/profile/domain/user_profile.dart';
-import 'package:whynot_mobile/shared/domain/city.dart';
+import 'package:whynot_mobile/models/demographic_summary.dart';
+import 'package:whynot_mobile/models/product.dart';
+import 'package:whynot_mobile/models/user_profile.dart';
+import 'package:whynot_mobile/models/city.dart';
 
 void main() {
   test('counts unique owners with an existing product in the category', () {

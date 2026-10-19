@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:whynot_mobile/features/authentication/application/auth_controller.dart';
-import 'package:whynot_mobile/features/authentication/domain/auth_repository.dart';
-import 'package:whynot_mobile/features/authentication/domain/auth_user.dart';
-import 'package:whynot_mobile/features/products/application/product_controller.dart';
-import 'package:whynot_mobile/features/products/domain/product.dart';
-import 'package:whynot_mobile/features/wishlists/application/wishlist_controller.dart';
-import 'package:whynot_mobile/shared/domain/category.dart';
+import 'package:whynot_mobile/controllers/auth_controller.dart';
+import 'package:whynot_mobile/models/repositories/auth_repository.dart';
+import 'package:whynot_mobile/models/auth_user.dart';
+import 'package:whynot_mobile/controllers/product_controller.dart';
+import 'package:whynot_mobile/models/product.dart';
+import 'package:whynot_mobile/controllers/wishlist_controller.dart';
+import 'package:whynot_mobile/models/category.dart';
 
 import 'fakes/in_memory_repositories.dart';
 
