@@ -495,10 +495,15 @@ Wishlist Detail
 Home
 ├── Show authenticated user's name
 ├── Show real wishlists
-└── Show real wishlist item counts
+├── Show real wishlist item counts
+└── Show a personalized product recommendation and save it to a wishlist
 ```
 
-Location-based recommendations and personalized product recommendations are planned features and are not currently connected to backend logic.
+The Home screen loads a personalized product through `get_recommendation`.
+Saving it calls `save_recommended_product` with the returned
+`recommendationEventId` and a wishlist in the same category. If the user has no
+matching wishlist, the save dialog can create one first. The backend records
+successful saves in `productEvents`, which is the source for the web BQ3 metric.
 
 ---
 
