@@ -52,6 +52,7 @@ class FirebaseRecommendationRepository implements RecommendationRepository {
     final recommendation = Map<String, dynamic>.from(rawRecommendation as Map);
 
     return ProductRecommendation(
+      recommendationEventId: recommendation['recommendationEventId'] as String,
       name: recommendation['name'] as String,
       brand: recommendation['brand'] as String,
       price: (recommendation['price'] as num).toDouble(),
@@ -60,5 +61,16 @@ class FirebaseRecommendationRepository implements RecommendationRepository {
       categoryId: recommendation['categoryId'] as String,
       reason: recommendation['reason'] as String,
     );
+  }
+
+  @override
+  Future<void> saveRecommendation({
+    required String recommendationEventId,
+    required String wishlistId,
+  }) async {
+    await _functions.httpsCallable('save_recommended_product').call({
+      'recommendationEventId': recommendationEventId,
+      'wishlistId': wishlistId,
+    });
   }
 }

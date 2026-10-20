@@ -32,4 +32,14 @@ class RecommendationController {
   Future<ProductRecommendation?> getRecommendation() {
     return _recommendationRepository.getRecommendation();
   }
+
+  Future<void> saveRecommendation({
+    required ProductRecommendation recommendation,
+    required String wishlistId,
+  }) {
+    return _recommendationRepository.saveRecommendation(
+      recommendationEventId: recommendation.recommendationEventId,
+      wishlistId: wishlistId,
+    );
+  }
 }

@@ -11,4 +11,10 @@ abstract interface class RecommendationRepository {
   /// A null result is valid and indicates that no eligible recommendation
   /// was available.
   Future<ProductRecommendation?> getRecommendation();
+
+  /// Saves a shown recommendation into a wishlist of the same category.
+  Future<void> saveRecommendation({
+    required String recommendationEventId,
+    required String wishlistId,
+  });
 }

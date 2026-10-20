@@ -14,6 +14,8 @@ import 'package:whynot_mobile/controllers/speech_controller.dart';
 import 'package:whynot_mobile/controllers/wishlist_controller.dart';
 import 'package:whynot_mobile/models/category.dart';
 import 'package:whynot_mobile/models/repositories/city_repository.dart';
+import 'package:whynot_mobile/models/repositories/recommendation_repository.dart';
+import 'package:whynot_mobile/models/wishlist.dart';
 
 import 'in_memory_admin_metrics_repository.dart';
 import 'in_memory_location_repository.dart';
@@ -34,6 +36,8 @@ AppDependencies createTestDependencies({
   List<Category> categories = const [],
   int recommendedProductSaves = 0,
   CityRepository? cityRepository,
+  RecommendationRepository? recommendationRepository,
+  List<Wishlist> wishlists = const [],
 }) {
   final auth = InMemoryAuthRepository(
     user: signedIn
@@ -44,10 +48,14 @@ AppDependencies createTestDependencies({
   final users = InMemoryUserRepository();
   users.profiles.addAll({for (final profile in profiles) profile.id: profile});
 
-  final wishlists = InMemoryWishlistRepository(categories: categories);
+  final wishlistRepository = InMemoryWishlistRepository(
+    categories: categories,
+    wishlists: wishlists,
+  );
   final productRepository = InMemoryProductRepository(products: products);
 
-  final recommendations = InMemoryRecommendationRepository();
+  final recommendations =
+      recommendationRepository ?? InMemoryRecommendationRepository();
 
   final location = InMemoryLocationRepository();
   final nearbyStores = InMemoryNearbyStoreRepository();
@@ -56,7 +64,7 @@ AppDependencies createTestDependencies({
 
   final wishlistController = WishlistController(
     authRepository: auth,
-    wishlistRepository: wishlists,
+    wishlistRepository: wishlistRepository,
   );
 
   return AppDependencies(
