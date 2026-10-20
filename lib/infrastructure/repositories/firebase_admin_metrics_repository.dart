@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../../models/repositories/admin_metrics_repository.dart';
 import '../../models/recommended_product_saves.dart';
+import '../../models/repositories/admin_metrics_repository.dart';
 
 class FirebaseAdminMetricsRepository implements AdminMetricsRepository {
   FirebaseAdminMetricsRepository({FirebaseFirestore? firestore})
@@ -11,17 +11,12 @@ class FirebaseAdminMetricsRepository implements AdminMetricsRepository {
 
   @override
   Stream<RecommendedProductSaves> watchRecommendedProductSaves() => _firestore
-      .collection('adminMetrics')
-      .doc('recommendedProductSaves')
+      .collection('productEvents')
+      .where('eventType', isEqualTo: 'recommendation_shown')
       .snapshots()
-      .map((document) {
-        final data = document.data();
-        final rawTotal = data?['total'];
-        final total = rawTotal is num && rawTotal >= 0 ? rawTotal.toInt() : 0;
-
-        return RecommendedProductSaves(
-          total: total,
-          updatedAt: (data?['updatedAt'] as Timestamp?)?.toDate(),
+      .map((snapshot) {
+        return RecommendedProductSaves.fromEvents(
+          snapshot.docs.map((document) => document.data()),
         );
       });
 }
