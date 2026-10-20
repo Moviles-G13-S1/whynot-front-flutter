@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'admin_metrics_repository.dart';
-import '../recommended_product_saves.dart';
+import '../../models/repositories/admin_metrics_repository.dart';
+import '../../models/recommended_product_saves.dart';
 
 class FirebaseAdminMetricsRepository implements AdminMetricsRepository {
   FirebaseAdminMetricsRepository({FirebaseFirestore? firestore})

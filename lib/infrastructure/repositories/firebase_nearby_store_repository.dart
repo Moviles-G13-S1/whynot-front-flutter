@@ -1,7 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
-import '../nearby_store.dart';
-import 'nearby_store_repository.dart';
+import '../../models/nearby_store.dart';
+import '../../models/repositories/nearby_store_repository.dart';
 
 /// Firebase implementation of [NearbyStoreRepository].
 ///
@@ -15,7 +15,7 @@ import 'nearby_store_repository.dart';
 /// 3. Calculating the distance to each candidate.
 /// 4. Returning exactly one nearest store.
 ///
-/// Firebase-specific details remain in the data layer and are not exposed to
+/// Firebase-specific details remain in the infrastructure layer and are not exposed to
 /// controllers or presentation widgets.
 class FirebaseNearbyStoreRepository implements NearbyStoreRepository {
   FirebaseNearbyStoreRepository({FirebaseFunctions? functions})

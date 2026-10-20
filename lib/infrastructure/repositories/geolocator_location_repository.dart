@@ -1,7 +1,7 @@
 import 'package:geolocator/geolocator.dart';
 
-import '../device_location.dart';
-import 'location_repository.dart';
+import '../../models/device_location.dart';
+import '../../models/repositories/location_repository.dart';
 
 /// Geolocator implementation of [LocationRepository].
 ///

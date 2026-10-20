@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../category.dart';
-import '../wishlist.dart';
-import 'wishlist_repository.dart';
+import '../../models/category.dart';
+import '../../models/wishlist.dart';
+import '../../models/repositories/wishlist_repository.dart';
 
 class FirebaseWishlistRepository implements WishlistRepository {
   FirebaseWishlistRepository({FirebaseFirestore? firestore})

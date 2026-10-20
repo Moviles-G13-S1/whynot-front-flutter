@@ -4,7 +4,7 @@ import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
-import 'speech_recognition_repository.dart';
+import '../../models/repositories/speech_recognition_repository.dart';
 
 /// Device implementation of WhyNot's speech-recognition contract.
 ///

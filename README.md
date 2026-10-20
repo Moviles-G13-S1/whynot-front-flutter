@@ -595,26 +595,36 @@ lib/
 │   ├── ...other application models
 │   └── repositories/
 │       ├── product_repository.dart
-│       ├── firebase_product_repository.dart
-│       └── ...other repository contracts and implementations
+│       └── ...other repository contracts
 ├── controllers/
 │   ├── auth_controller.dart
 │   ├── product_controller.dart
 │   └── ...other controllers
-└── views/
-    ├── screens/
-    │   ├── home_screen.dart
-    │   └── ...other screens
-    └── widgets/
-        ├── app_bottom_navigation.dart
-        └── ...other reusable widgets
+├── views/
+│   ├── screens/
+│   │   ├── home_screen.dart
+│   │   └── ...other screens
+│   └── widgets/
+│       ├── app_bottom_navigation.dart
+│       └── ...other reusable widgets
+└── infrastructure/
+    └── repositories/
+        ├── firebase_product_repository.dart
+        ├── geolocator_location_repository.dart
+        └── ...other Firebase and device implementations
 ```
 
-`models/` contains data types and repository contracts. The contracts are
-Firebase-free; Firebase and device implementations live alongside them in
-`models/repositories/`. `controllers/` translates view actions into repository
-operations. `views/screens/` contains routes, while `views/widgets/` contains
-UI components shared by screens or extracted from them.
+`models/` contains data types and repository contracts. They have no Firebase
+or device SDK dependency. Concrete Firebase and device adapters live in
+`infrastructure/repositories/` and implement those contracts. `controllers/`
+translates view actions into repository operations. `views/screens/` contains
+routes, while `views/widgets/` contains UI components shared by screens or
+extracted from them.
+
+Views call controllers for data and actions; they do not access repositories
+directly. Controllers depend on repository contracts, and model summaries own
+reusable calculations such as admin metrics. Concrete Firebase and device
+repositories are assembled only in `AppDependencies`.
 
 Firebase provides the shared backend and authenticated user session, while
 screen-specific UI state remains local to each view.

@@ -2,6 +2,7 @@ import 'package:whynot_mobile/app/app_dependencies.dart';
 import 'package:whynot_mobile/controllers/admin_access_controller.dart';
 import 'package:whynot_mobile/controllers/admin_metrics_controller.dart';
 import 'package:whynot_mobile/controllers/auth_controller.dart';
+import 'package:whynot_mobile/controllers/city_controller.dart';
 import 'package:whynot_mobile/models/auth_user.dart';
 import 'package:whynot_mobile/controllers/nearby_store_controller.dart';
 import 'package:whynot_mobile/controllers/product_controller.dart';
@@ -12,6 +13,7 @@ import 'package:whynot_mobile/controllers/recommendation_controller.dart';
 import 'package:whynot_mobile/controllers/speech_controller.dart';
 import 'package:whynot_mobile/controllers/wishlist_controller.dart';
 import 'package:whynot_mobile/models/category.dart';
+import 'package:whynot_mobile/models/repositories/city_repository.dart';
 
 import 'in_memory_admin_metrics_repository.dart';
 import 'in_memory_location_repository.dart';
@@ -31,6 +33,7 @@ AppDependencies createTestDependencies({
   List<UserProfile> profiles = const [],
   List<Category> categories = const [],
   int recommendedProductSaves = 0,
+  CityRepository? cityRepository,
 }) {
   final auth = InMemoryAuthRepository(
     user: signedIn
@@ -72,7 +75,9 @@ AppDependencies createTestDependencies({
     adminMetricsController: AdminMetricsController(
       InMemoryAdminMetricsRepository(total: recommendedProductSaves),
     ),
-    cityRepository: InMemoryCityRepository(),
+    cityController: CityController(
+      cityRepository: cityRepository ?? InMemoryCityRepository(),
+    ),
     recommendationController: RecommendationController(
       recommendationRepository: recommendations,
     ),

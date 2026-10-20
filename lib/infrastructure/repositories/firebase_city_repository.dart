@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../city.dart';
-import 'city_repository.dart';
+import '../../models/city.dart';
+import '../../models/repositories/city_repository.dart';
 
 class FirebaseCityRepository implements CityRepository {
   FirebaseCityRepository({FirebaseFirestore? firestore})

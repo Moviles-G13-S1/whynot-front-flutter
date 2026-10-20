@@ -48,7 +48,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
   Future<void> _loadCities() async {
     try {
-      final cities = await context.dependencies.cityRepository.getCities();
+      final cities = await context.dependencies.cityController.getCities();
       if (!mounted) return;
       setState(() {
         _cities = cities;

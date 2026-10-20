@@ -27,7 +27,7 @@ class _DemographicProfileScreenState extends State<DemographicProfileScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _categories ??= context.dependencies.wishlistController.getCategories();
-    _cities ??= context.dependencies.cityRepository.getCities();
+    _cities ??= context.dependencies.cityController.getCities();
   }
 
   @override

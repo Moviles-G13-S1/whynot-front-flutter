@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../views/widgets/add_item_sheet.dart';
 import 'app_routes.dart';
 import 'whynot_theme.dart';
 
@@ -38,40 +39,11 @@ abstract final class AppNavigation {
       context: context,
       backgroundColor: WhyNotColors.background,
       showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Add a new item', style: WhyNotTextStyles.serif(size: 26)),
-              const SizedBox(height: 8),
-              const Text(
-                'Save something you love to one of your wishlists.',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  color: WhyNotColors.muted,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w300,
-                ),
-              ),
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: () {
-                  Navigator.pop(sheetContext);
-
-                  Navigator.pushNamed(context, AppRoutes.newProduct);
-                },
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  minimumSize: const Size.fromHeight(48),
-                ),
-                child: const Text('Continue'),
-              ),
-            ],
-          ),
-        ),
+      builder: (sheetContext) => AddItemSheet(
+        onContinue: () {
+          Navigator.pop(sheetContext);
+          Navigator.pushNamed(context, AppRoutes.newProduct);
+        },
       ),
     );
   }
