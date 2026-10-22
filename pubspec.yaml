@@ -16,8 +16,6 @@ dependencies:
   cloud_firestore: ^6.10.0
   cloud_functions: ^6.5.0
   geolocator: ^14.0.3
-  speech_to_text: ^7.4.0
-
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -6,7 +6,6 @@ import '../controllers/nearby_store_controller.dart';
 import '../controllers/product_controller.dart';
 import '../controllers/profile_controller.dart';
 import '../controllers/recommendation_controller.dart';
-import '../controllers/speech_controller.dart';
 import '../controllers/wishlist_controller.dart';
 
 import '../models/repositories/admin_metrics_repository.dart';
@@ -15,11 +14,9 @@ import '../models/repositories/location_repository.dart';
 import '../models/repositories/nearby_store_repository.dart';
 import '../models/repositories/product_repository.dart';
 import '../models/repositories/recommendation_repository.dart';
-import '../models/repositories/speech_recognition_repository.dart';
 import '../models/repositories/user_repository.dart';
 import '../models/repositories/wishlist_repository.dart';
 
-import '../infrastructure/repositories/device_speech_recognition_repository.dart';
 import '../infrastructure/repositories/firebase_admin_metrics_repository.dart';
 import '../infrastructure/repositories/firebase_auth_repository.dart';
 import '../infrastructure/repositories/firebase_city_repository.dart';
@@ -47,7 +44,6 @@ class AppDependencies {
     required this.cityController,
     required this.recommendationController,
     required this.nearbyStoreController,
-    required this.speechController,
   });
 
   /// Creates the production/default dependency graph.
@@ -71,9 +67,6 @@ class AppDependencies {
 
     final NearbyStoreRepository nearbyStoreRepository =
         FirebaseNearbyStoreRepository();
-
-    final SpeechRecognitionRepository speechRecognitionRepository =
-        DeviceSpeechRecognitionRepository();
 
     final wishlistController = WishlistController(
       authRepository: authRepository,
@@ -105,9 +98,6 @@ class AppDependencies {
         locationRepository: locationRepository,
         nearbyStoreRepository: nearbyStoreRepository,
       ),
-      speechController: SpeechController(
-        speechRecognitionRepository: speechRecognitionRepository,
-      ),
     );
   }
 
@@ -124,7 +114,4 @@ class AppDependencies {
 
   /// Controller for the location-based Context-Aware feature.
   final NearbyStoreController nearbyStoreController;
-
-  /// Controller for microphone-based product field input.
-  final SpeechController speechController;
 }

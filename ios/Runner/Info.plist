@@ -30,12 +30,6 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>WhyNot uses your location to find stores near you.</string>
 
-	<key>NSMicrophoneUsageDescription</key>
-	<string>WhyNot uses your microphone so you can enter product information using your voice.</string>
-
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>WhyNot uses speech recognition to convert your voice into product information.</string>
-
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

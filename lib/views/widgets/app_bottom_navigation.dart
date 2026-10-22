@@ -1,7 +1,9 @@
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../app/app_routes.dart';
+import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../app/app_navigation.dart';
 
@@ -54,15 +56,9 @@ class AppBottomNavigation extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: List.generate(_items.length, (index) {
-          // Central Add button.
-          // Goes directly to the manual product creation screen.
           if (index == 2) {
-            return Expanded(
-              child: _AddItem(
-                onTap: () {
-                  Navigator.pushNamed(context, AppRoutes.newProductManual);
-                },
-              ),
+            return const Expanded(
+              child: _AddItem(),
             );
           }
 
@@ -140,11 +136,105 @@ class _NavigationItem extends StatelessWidget {
   }
 }
 
-/// Central add action, which has a different visual treatment.
-class _AddItem extends StatelessWidget {
-  const _AddItem({required this.onTap});
+/// Central button for adding a new product.
+class _AddItem extends StatefulWidget {
+  const _AddItem();
 
-  final VoidCallback onTap;
+  @override
+  State<_AddItem> createState() => _AddItemState();
+}
+
+class _AddItemState extends State<_AddItem> {
+  bool _isCheckingWishlists = false;
+
+  Future<void> _handleAdd() async {
+    if (_isCheckingWishlists) return;
+
+    setState(() => _isCheckingWishlists = true);
+
+    try {
+      final wishlistController = context.dependencies.wishlistController;
+
+      if (wishlistController.currentUserId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please log in before adding products.'),
+          ),
+        );
+        return;
+      }
+
+      final wishlists = await wishlistController.getCurrentSummaries();
+
+      if (!mounted) return;
+
+      // User already has a wishlist: open the product form.
+      if (wishlists.isNotEmpty) {
+        Navigator.pushNamed(context, AppRoutes.newProductManual);
+        return;
+      }
+
+      // User has no wishlists: show a message first.
+            
+      final createWishlist = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            backgroundColor: WhyNotColors.background,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: const BorderSide(color: WhyNotColors.border),
+            ),
+            title: Text(
+              'Create a wishlist first',
+              style: WhyNotTextStyles.serif(size: 24),
+            ),
+            content: Text(
+              'You need at least one wishlist before adding products.',
+              style: WhyNotTextStyles.muted(size: 14),
+            ),
+            actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext, false);
+                },
+                style: linkButtonStyle(),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext, true);
+                },
+                style: linkButtonStyle(),
+                child: const Text('Create Wishlist'),
+              ),
+            ],
+          );
+        },
+      );
+
+
+      if (!mounted) return;
+
+      if (createWishlist == true) {
+        Navigator.pushNamed(context, AppRoutes.newWishlist);
+      }
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not load your wishlists. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isCheckingWishlists = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +242,7 @@ class _AddItem extends StatelessWidget {
       button: true,
       label: 'Add',
       child: InkResponse(
-        onTap: onTap,
+        onTap: _isCheckingWishlists ? null : _handleAdd,
         radius: 34,
         child: SizedBox(
           width: double.infinity,

@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -14,6 +15,28 @@ import '../../models/user_profile.dart';
 /// Read-only summary of the current user's account data.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
+
+  Future<void> _logOut(BuildContext context) async {
+    try {
+      await context.dependencies.authController.signOut();
+
+      if (!context.mounted) return;
+
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.login,
+        (route) => false,
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not log out. Please try again.'),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,16 +77,31 @@ class ProfileScreen extends StatelessWidget {
                       children: [
                         const ProfileAvatar(),
                         const SizedBox(height: 31),
-                        Text(name, style: WhyNotTextStyles.serif(size: 30)),
+
+                        Text(
+                          name,
+                          style: WhyNotTextStyles.serif(size: 30),
+                        ),
+
                         const SizedBox(height: 45),
+
                         FormSurface(
                           padding: const EdgeInsets.fromLTRB(27, 24, 27, 24),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              ProfileValue(label: 'Email', value: email),
-                              ProfileValue(label: 'Gender', value: gender),
-                              ProfileValue(label: 'Age', value: age),
+                              ProfileValue(
+                                label: 'Email',
+                                value: email,
+                              ),
+                              ProfileValue(
+                                label: 'Gender',
+                                value: gender,
+                              ),
+                              ProfileValue(
+                                label: 'Age',
+                                value: age,
+                              ),
                               if (profile.cityId == null)
                                 const ProfileValue(
                                   label: 'City',
@@ -87,7 +125,9 @@ class ProfileScreen extends StatelessWidget {
                             ],
                           ),
                         ),
+
                         const SizedBox(height: 30),
+
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton.icon(
@@ -102,6 +142,16 @@ class ProfileScreen extends StatelessWidget {
                               height: 13,
                             ),
                             label: const Text('Edit Profile'),
+                          ),
+                        ),
+
+                        const SizedBox(height: 38),
+
+                        SizedBox(
+                          width: 190,
+                          child: PillButton(
+                            label: 'Log Out',
+                            onPressed: () => _logOut(context),
                           ),
                         ),
                       ],
@@ -140,6 +190,7 @@ class _ProfileCityValueState extends State<_ProfileCityValue> {
       final city = snapshot.data
           ?.where((item) => item.id == widget.cityId)
           .firstOrNull;
+
       return ProfileValue(
         label: 'City',
         value:
