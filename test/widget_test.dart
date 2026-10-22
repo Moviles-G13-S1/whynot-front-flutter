@@ -273,7 +273,7 @@ void main() {
     );
   });
 
-  testWidgets('recommended products displays the backend aggregate', (
+  testWidgets('recommended products displays successful event saves', (
     tester,
   ) async {
     await tester.pumpWidget(

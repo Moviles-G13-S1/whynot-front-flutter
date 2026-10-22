@@ -4,6 +4,7 @@
 /// current user.
 class ProductRecommendation {
   const ProductRecommendation({
+    required this.recommendationEventId,
     required this.name,
     required this.brand,
     required this.price,
@@ -12,6 +13,10 @@ class ProductRecommendation {
     required this.categoryId,
     required this.reason,
   });
+
+  /// Event created when this recommendation was shown. The save callable
+  /// uses it to attribute the save to the recommendation.
+  final String recommendationEventId;
 
   /// Product name displayed to the user.
   final String name;
