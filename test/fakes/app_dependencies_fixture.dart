@@ -10,7 +10,6 @@ import 'package:whynot_mobile/models/product.dart';
 import 'package:whynot_mobile/controllers/profile_controller.dart';
 import 'package:whynot_mobile/models/user_profile.dart';
 import 'package:whynot_mobile/controllers/recommendation_controller.dart';
-import 'package:whynot_mobile/controllers/speech_controller.dart';
 import 'package:whynot_mobile/controllers/wishlist_controller.dart';
 import 'package:whynot_mobile/models/category.dart';
 import 'package:whynot_mobile/models/repositories/city_repository.dart';
@@ -22,13 +21,11 @@ import 'in_memory_location_repository.dart';
 import 'in_memory_nearby_store_repository.dart';
 import 'in_memory_recommendation_repository.dart';
 import 'in_memory_repositories.dart';
-import 'in_memory_speech_recognition_repository.dart';
 
 /// Creates an isolated dependency graph for widget and application tests.
 ///
-/// Firebase, Cloud Functions, device location, and speech recognition services
-/// are replaced by in-memory implementations so tests do not depend on
-/// external services.
+/// Firebase, Cloud Functions, and device location services are replaced
+/// by in-memory implementations so tests do not depend on external services.
 AppDependencies createTestDependencies({
   bool signedIn = false,
   List<Product> products = const [],
@@ -59,8 +56,6 @@ AppDependencies createTestDependencies({
 
   final location = InMemoryLocationRepository();
   final nearbyStores = InMemoryNearbyStoreRepository();
-
-  final speech = InMemorySpeechRecognitionRepository();
 
   final wishlistController = WishlistController(
     authRepository: auth,
@@ -93,6 +88,5 @@ AppDependencies createTestDependencies({
       locationRepository: location,
       nearbyStoreRepository: nearbyStores,
     ),
-    speechController: SpeechController(speechRecognitionRepository: speech),
   );
 }
