@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../models/repositories/auth_repository.dart';
 import 'wishlist_controller.dart';
 import '../models/wishlist.dart';
@@ -18,9 +20,12 @@ class ProductController {
   final WishlistController _wishlistController;
 
   String? get currentUserId => _authRepository.currentUser?.id;
+
   Stream<List<Product>> watchAllProducts() => _productRepository.watchAll();
+
   Stream<List<Product>> watchByWishlist(String wishlistId) =>
       _productRepository.watchByWishlist(wishlistId);
+
   Stream<List<Product>> watchCurrentProducts() {
     final ownerId = currentUserId;
     return ownerId == null
@@ -30,19 +35,54 @@ class ProductController {
 
   Stream<Product?> watch(String productId) =>
       _productRepository.watch(productId);
+
   Future<Product?> get(String productId) => _productRepository.get(productId);
+
   Future<List<WishlistSummary>> getCurrentWishlists() =>
       _wishlistController.getCurrentSummaries();
 
-  Future<void> create(ProductDraft draft) {
+  /// Creates a manual product and records the save attempt for BQ Type 2.
+  Future<void> create(ProductDraft draft) async {
     final ownerId = currentUserId;
-    if (ownerId == null) throw StateError('No user logged in.');
-    return _productRepository.create(ownerId: ownerId, draft: draft);
+
+    if (ownerId == null) {
+      throw StateError('No user logged in.');
+    }
+
+    try {
+      await _productRepository.create(ownerId: ownerId, draft: draft);
+    } catch (_) {
+      // The product could not be saved.
+      unawaited(_recordSaveAttempt(ownerId: ownerId, success: false));
+
+      // Preserve the original error for the UI.
+      rethrow;
+    }
+
+    // The product was successfully saved.
+    unawaited(_recordSaveAttempt(ownerId: ownerId, success: true));
+  }
+
+  /// Analytics must never prevent a product from being saved.
+  Future<void> _recordSaveAttempt({
+    required String ownerId,
+    required bool success,
+  }) async {
+    try {
+      await _productRepository.recordSaveAttempt(
+        ownerId: ownerId,
+        success: success,
+      );
+    } catch (_) {
+      // Ignore analytics errors without affecting the user.
+    }
   }
 
   Future<void> update(String productId, ProductDraft draft) =>
       _productRepository.update(productId, draft);
+
   Future<void> markPurchased(String productId) =>
       _productRepository.markPurchased(productId);
+
   Future<void> delete(String productId) => _productRepository.delete(productId);
 }

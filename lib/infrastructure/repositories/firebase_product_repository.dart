@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../models/product.dart';
@@ -55,6 +56,33 @@ class FirebaseProductRepository implements ProductRepository {
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+  /// Records a manual product-save attempt for BQ Type 2.
+  @override
+  Future<void> recordSaveAttempt({
+    required String ownerId,
+    required bool success,
+  }) async {
+    // The backend currently supports analytics events from iOS and Android.
+    // Chrome and desktop platforms do not create these events.
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.iOS &&
+            defaultTargetPlatform != TargetPlatform.android)) {
+      return;
+    }
+
+    final platform = defaultTargetPlatform == TargetPlatform.iOS
+        ? 'ios'
+        : 'android';
+
+    await _firestore.collection('productSaveEvents').add({
+      'userId': ownerId,
+      'platform': platform,
+      'outcome': success ? 'success' : 'failure',
+      'reason': success ? null : 'backend_error',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
 
   @override
   Future<void> update(String productId, ProductDraft draft) =>

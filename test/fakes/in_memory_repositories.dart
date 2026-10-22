@@ -151,6 +151,9 @@ class InMemoryProductRepository implements ProductRepository {
 
   final List<Product> _products;
 
+  /// Save attempts recorded during tests.
+  final saveAttempts = <({String ownerId, bool success})>[];
+
   @override
   Stream<List<Product>> watchAll() => Stream.value(List.of(_products));
 
@@ -181,6 +184,15 @@ class InMemoryProductRepository implements ProductRepository {
     _products.add(
       _fromDraft('product-${_products.length + 1}', ownerId, draft),
     );
+  }
+
+  /// Simulates the BQ Type 2 analytics event without Firebase.
+  @override
+  Future<void> recordSaveAttempt({
+    required String ownerId,
+    required bool success,
+  }) async {
+    saveAttempts.add((ownerId: ownerId, success: success));
   }
 
   @override
