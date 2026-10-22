@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../models/product_recommendation.dart';
+import 'form_controls.dart';
 
 /// UI section responsible for displaying the personalized Smart Feature
 /// recommendation.
@@ -283,14 +284,18 @@ class _RecommendationCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
-            FilledButton(
-              onPressed: isSaving || isSaved ? null : onSave,
-              child: Text(
-                isSaved
-                    ? 'Saved'
-                    : isSaving
-                    ? 'Saving…'
-                    : 'Save this product',
+
+            Center(
+              child: SizedBox(
+                width: 190,
+                child: PillButton(
+                  label: isSaved
+                      ? 'Saved'
+                      : isSaving
+                      ? 'Saving...'
+                      : 'Save this product',
+                  onPressed: isSaving || isSaved ? null : onSave,
+                ),
               ),
             ),
           ],

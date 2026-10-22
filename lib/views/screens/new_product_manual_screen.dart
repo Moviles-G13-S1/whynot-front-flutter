@@ -342,9 +342,25 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
               else if (_isLoadingWishlists)
                 const Center(child: CircularProgressIndicator())
               else if (_wishlists.isEmpty)
-                Text(
-                  'Create a wishlist before adding a product.',
-                  style: WhyNotTextStyles.muted(size: 14),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Create a wishlist before adding a product.',
+                      style: WhyNotTextStyles.muted(size: 14),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.pushReplacementNamed(
+                          context,
+                          AppRoutes.newWishlist,
+                        );
+                      },
+                      icon: const Icon(Icons.add_circle_outline),
+                      label: const Text('Create Wishlist'),
+                    ),
+                  ],
                 )
               else
                 Column(
