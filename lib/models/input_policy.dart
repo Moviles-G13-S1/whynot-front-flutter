@@ -10,6 +10,8 @@ class InputPolicyException implements Exception {
 class InputPolicy {
   InputPolicy._();
 
+  static const int minimumPasswordLength = 8;
+
   // Includes supplementary emoji, pictographs, regional indicators, modifiers,
   // keycap marks and text symbols explicitly rendered as emoji with VS16.
   static final _emoji = RegExp(
@@ -23,6 +25,44 @@ class InputPolicy {
     if (containsEmoji(value)) {
       throw InputPolicyException('$field cannot contain emoji.');
     }
+  }
+
+  static String? nameValidationError(String value, {required int maxLength}) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return 'Name is required.';
+    if (containsEmoji(trimmed)) {
+      return 'You cannot include emojis in your name.';
+    }
+    if (trimmed.length > maxLength) {
+      return 'Name cannot exceed $maxLength characters.';
+    }
+    return null;
+  }
+
+  static String? emailValidationError(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return 'Email is required.';
+    if (containsEmoji(trimmed)) {
+      return 'You cannot include emojis in your email.';
+    }
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(trimmed)) {
+      return 'Enter a valid email address.';
+    }
+    return null;
+  }
+
+  static String? passwordValidationError(
+    String value, {
+    bool requireMinimumLength = false,
+  }) {
+    if (value.isEmpty) return 'Password is required.';
+    if (containsEmoji(value)) {
+      return 'You cannot include emojis in your password.';
+    }
+    if (requireMinimumLength && value.length < minimumPasswordLength) {
+      return 'Password must be at least $minimumPasswordLength characters.';
+    }
+    return null;
   }
 
   /// Optional web URL. Uri parsing alone accepts Unicode and relative paths.

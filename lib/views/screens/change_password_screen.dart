@@ -23,6 +23,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final _confirmController = TextEditingController();
 
   bool _isUpdating = false;
+  String? _currentPasswordError;
+  String? _newPasswordError;
+  String? _confirmPasswordError;
 
   List<TextEditingController> get _controllers => [
     _currentController,
@@ -32,10 +35,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   /// Enables submission only when all local password rules are satisfied.
   bool get _isComplete =>
-      _currentController.text.isNotEmpty &&
-      _newController.text.length >= 8 &&
-      _confirmController.text.isNotEmpty &&
-      _confirmController.text == _newController.text &&
+      _currentPasswordValidationError(_currentController.text) == null &&
+      _newPasswordValidationError(_newController.text) == null &&
+      _confirmPasswordValidationError(_confirmController.text) == null &&
       !_isUpdating;
 
   @override
@@ -50,7 +52,21 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   /// Rebuilds the submit state when any password value changes.
   void _refresh() {
     if (mounted) {
-      setState(() {});
+      setState(() {
+        if (_currentPasswordError != null) {
+          _currentPasswordError = _currentPasswordValidationError(
+            _currentController.text,
+          );
+        }
+        if (_newPasswordError != null) {
+          _newPasswordError = _newPasswordValidationError(_newController.text);
+        }
+        if (_confirmPasswordError != null) {
+          _confirmPasswordError = _confirmPasswordValidationError(
+            _confirmController.text,
+          );
+        }
+      });
     }
   }
 
@@ -64,8 +80,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   }
 
   Future<void> _updatePassword() async {
-    if (!_isComplete) return;
-
     FocusScope.of(context).unfocus();
 
     if (context.dependencies.authController.currentUser == null) {
@@ -78,27 +92,22 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     final newPassword = _newController.text;
 
     final confirmPassword = _confirmController.text;
+    final currentPasswordError = _currentPasswordValidationError(
+      currentPassword,
+    );
+    final newPasswordError = _newPasswordValidationError(newPassword);
+    final confirmPasswordError = _confirmPasswordValidationError(
+      confirmPassword,
+    );
 
-    if (InputPolicy.containsEmoji(newPassword) ||
-        InputPolicy.containsEmoji(confirmPassword)) {
-      _showMessage('New password cannot contain emoji.');
-      return;
-    }
-
-    if (newPassword.length < 8) {
-      _showMessage('New password must have at least 8 characters.');
-      return;
-    }
-
-    if (newPassword != confirmPassword) {
-      _showMessage('New passwords do not match.');
-      return;
-    }
-
-    if (currentPassword == newPassword) {
-      _showMessage(
-        'Your new password must be different from your current password.',
-      );
+    setState(() {
+      _currentPasswordError = currentPasswordError;
+      _newPasswordError = newPasswordError;
+      _confirmPasswordError = confirmPasswordError;
+    });
+    if (currentPasswordError != null ||
+        newPasswordError != null ||
+        confirmPasswordError != null) {
       return;
     }
 
@@ -131,12 +140,18 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       switch (error.code) {
         case 'wrong-password':
         case 'invalid-credential':
-          message = 'Your current password is incorrect.';
-          break;
+          setState(
+            () => _currentPasswordError = 'Your current password is incorrect.',
+          );
+          return;
 
         case 'weak-password':
-          message = 'Your new password is too weak.';
-          break;
+          setState(
+            () => _newPasswordError =
+                'Password must be at least '
+                '${InputPolicy.minimumPasswordLength} characters.',
+          );
+          return;
 
         case 'requires-recent-login':
           message = 'Please log in again before changing your password.';
@@ -170,6 +185,31 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String? _currentPasswordValidationError(String value) =>
+      InputPolicy.passwordValidationError(value);
+
+  String? _newPasswordValidationError(String value) {
+    final error = InputPolicy.passwordValidationError(
+      value,
+      requireMinimumLength: true,
+    );
+    if (error != null) return error;
+    if (_currentController.text.isNotEmpty &&
+        value == _currentController.text) {
+      return 'Your new password must be different from your current password.';
+    }
+    return null;
+  }
+
+  String? _confirmPasswordValidationError(String value) {
+    if (value.isEmpty) return 'Confirm your new password.';
+    if (InputPolicy.containsEmoji(value)) {
+      return 'You cannot include emojis in your password.';
+    }
+    if (value != _newController.text) return 'Passwords do not match.';
+    return null;
   }
 
   /// Provides direct access to implemented bottom-navigation destinations.
@@ -239,12 +279,14 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       label: 'Current password',
                       hint: 'Enter current password',
                       controller: _currentController,
+                      errorText: _currentPasswordError,
                     ),
 
                     PasswordFieldGroup(
                       label: 'New password',
                       hint: 'Enter new password',
                       controller: _newController,
+                      errorText: _newPasswordError,
                     ),
 
                     PasswordFieldGroup(
@@ -252,6 +294,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       hint: 'Confirm new password',
                       controller: _confirmController,
                       isLast: true,
+                      errorText: _confirmPasswordError,
                     ),
 
                     const SizedBox(height: 23),
@@ -279,7 +322,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
               PillButton(
                 label: _isUpdating ? 'Updating...' : 'Update password',
-                onPressed: _isComplete ? _updatePassword : null,
+                onPressed: _isUpdating ? null : _updatePassword,
               ),
 
               const SizedBox(height: 10),

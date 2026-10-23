@@ -8,12 +8,14 @@ class AccountField extends StatelessWidget {
     required this.label,
     required this.child,
     this.isLast = false,
+    this.errorText,
     super.key,
   });
 
   final String label;
   final Widget child;
   final bool isLast;
+  final String? errorText;
 
   @override
   Widget build(BuildContext context) {
@@ -24,10 +26,17 @@ class AccountField extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 7),
-            child: FieldLabel(label),
+            child: FieldLabel(label, hasError: errorText != null),
           ),
           const SizedBox(height: 7),
           child,
+          if (errorText != null) ...[
+            const SizedBox(height: 5),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 7),
+              child: FieldErrorMessage(errorText!),
+            ),
+          ],
         ],
       ),
     );

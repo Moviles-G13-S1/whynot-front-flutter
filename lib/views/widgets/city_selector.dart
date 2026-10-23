@@ -10,6 +10,7 @@ class CitySelector extends StatelessWidget {
     required this.controller,
     required this.selectedId,
     required this.onSelected,
+    this.hasError = false,
     super.key,
   });
 
@@ -17,6 +18,7 @@ class CitySelector extends StatelessWidget {
   final TextEditingController controller;
   final String? selectedId;
   final ValueChanged<String?> onSelected;
+  final bool hasError;
 
   @override
   Widget build(BuildContext context) {
@@ -44,10 +46,18 @@ class CitySelector extends StatelessWidget {
           ),
           inputDecorationTheme: InputDecorationTheme(
             filled: true,
-            fillColor: WhyNotColors.field,
+            fillColor: hasError
+                ? WhyNotColors.errorSurface
+                : WhyNotColors.field,
             contentPadding: const EdgeInsets.symmetric(horizontal: 13),
-            enabledBorder: fieldBorder(),
-            focusedBorder: fieldBorder(color: WhyNotColors.muted),
+            enabledBorder: fieldBorder(
+              color: hasError ? WhyNotColors.error : WhyNotColors.border,
+              width: hasError ? 1.5 : 1,
+            ),
+            focusedBorder: fieldBorder(
+              color: hasError ? WhyNotColors.error : WhyNotColors.muted,
+              width: hasError ? 1.8 : 1,
+            ),
           ),
           dropdownMenuEntries: [
             for (final city in cities)

@@ -129,6 +129,8 @@ class PasswordFieldGroup extends StatelessWidget {
     required this.hint,
     required this.controller,
     this.isLast = false,
+    this.errorText,
+    this.onChanged,
     super.key,
   });
 
@@ -136,6 +138,8 @@ class PasswordFieldGroup extends StatelessWidget {
   final String hint;
   final TextEditingController controller;
   final bool isLast;
+  final String? errorText;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -146,10 +150,16 @@ class PasswordFieldGroup extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 7),
-            child: FieldLabel(label),
+            child: FieldLabel(label, hasError: errorText != null),
           ),
           const SizedBox(height: 9),
-          DesignField(controller: controller, hint: hint, obscureText: true),
+          DesignField(
+            controller: controller,
+            hint: hint,
+            obscureText: true,
+            errorText: errorText,
+            onChanged: onChanged,
+          ),
         ],
       ),
     );
