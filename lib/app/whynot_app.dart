@@ -24,6 +24,7 @@ import '../views/screens/wishlist_detail_screen.dart';
 import '../views/screens/new_wishlist_screen.dart';
 
 import '../views/screens/product_detail_screen.dart';
+import '../views/screens/recommendation_detail_screen.dart';
 import '../views/screens/new_product_manual_screen.dart';
 import '../views/screens/edit_product_screen.dart';
 
@@ -82,6 +83,8 @@ class _WhyNotAppState extends State<WhyNotApp> {
 
           // Products
           AppRoutes.productDetail: (_) => const ProductDetailScreen(),
+          AppRoutes.recommendationDetail: (_) =>
+              const RecommendationDetailScreen(),
 
           // Old newProduct route also opens the manual form.
           // This keeps any older navigation calls working.
@@ -192,6 +195,8 @@ class _WhyNotAppState extends State<WhyNotApp> {
       'wishlist-detail' => AppRoutes.wishlistDetail,
 
       'product-detail' => AppRoutes.productDetail,
+
+      'recommendation-detail' => AppRoutes.recommendationDetail,
 
       // Both browser preview URLs now open
       // the manual product creation screen.
