@@ -11,4 +11,24 @@ abstract interface class WishlistRepository {
     required String imageUrl,
     String? emoji,
   });
+  Future<void> updatePresentation({
+    required String ownerId,
+    required String wishlistId,
+    required String imageUrl,
+    String? emoji,
+  });
+
+  /// Returns success, blocked/nonempty, or failure/not_found.
+  Future<({String outcome, String reason})> deleteEmpty({
+    required String ownerId,
+    required String wishlistId,
+  });
+  Future<void> trackInteraction({
+    required String ownerId,
+    required String action,
+    required String outcome,
+    required String reason,
+    String? wishlistId,
+    String? categoryId,
+  });
 }

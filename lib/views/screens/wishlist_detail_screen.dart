@@ -5,6 +5,9 @@ import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../../models/product.dart';
+import '../../models/wishlist.dart';
+import '../../models/wishlist_emoji.dart';
+import '../../models/input_policy.dart';
 
 enum _ProductSort { none, lowToHigh, highToLow }
 
@@ -18,6 +21,188 @@ class WishlistDetailScreen extends StatefulWidget {
 class _WishlistDetailScreenState extends State<WishlistDetailScreen> {
   _ProductSort _sort = _ProductSort.none;
   bool _showOnlyUnpurchased = false;
+  bool _busy = false;
+  bool _presentationLoaded = false;
+  String? _currentEmoji;
+  TextEditingController? _editImageController;
+
+  @override
+  void dispose() {
+    _editImageController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _edit(String wishlistId) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    late final List<WishlistSummary> summaries;
+    try {
+      summaries = await context.dependencies.wishlistController
+          .getCurrentSummaries();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not load wishlist. Try again.')),
+        );
+      }
+      return;
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    final matches = summaries.where((item) => item.wishlist.id == wishlistId);
+    if (!mounted) return;
+    if (matches.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Wishlist not found.')));
+      return;
+    }
+    final current = matches.first.wishlist;
+    _editImageController?.dispose();
+    final image = TextEditingController(text: current.imageUrl);
+    _editImageController = image;
+    String? selectedEmoji = current.emoji;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, refresh) => AlertDialog(
+          title: const Text('Edit wishlist'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: image,
+                  decoration: const InputDecoration(
+                    labelText: 'Picture link (optional)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('None'),
+                      selected: selectedEmoji == null,
+                      onSelected: _busy
+                          ? null
+                          : (_) => refresh(() => selectedEmoji = null),
+                    ),
+                    for (final option in WishlistEmoji.choices)
+                      ChoiceChip(
+                        label: Text(option),
+                        selected: selectedEmoji == option,
+                        onSelected: _busy
+                            ? null
+                            : (_) => refresh(() => selectedEmoji = option),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: _busy ? null : () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: _busy
+                  ? null
+                  : () async {
+                      refresh(() => _busy = true);
+                      try {
+                        await context.dependencies.wishlistController
+                            .updatePresentation(
+                              wishlistId: wishlistId,
+                              imageUrl: image.text.trim(),
+                              emoji: selectedEmoji,
+                            );
+                        if (!mounted) return;
+                        setState(() => _currentEmoji = selectedEmoji);
+                        if (dialogContext.mounted) Navigator.pop(dialogContext);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Wishlist updated.')),
+                        );
+                      } on InputPolicyException catch (error) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(error.message)),
+                          );
+                        }
+                      } catch (_) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Could not update wishlist. Try again.',
+                              ),
+                            ),
+                          );
+                        }
+                      } finally {
+                        _busy = false;
+                        if (dialogContext.mounted) refresh(() {});
+                      }
+                    },
+              child: Text(_busy ? 'Saving...' : 'Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _delete(String wishlistId) async {
+    if (_busy) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete wishlist?'),
+        content: const Text(
+          'You can delete this wishlist only when it has no products.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _busy) return;
+    setState(() => _busy = true);
+    try {
+      final result = await context.dependencies.wishlistController.deleteEmpty(
+        wishlistId,
+      );
+      if (!mounted) return;
+      if (result.outcome == 'success') {
+        Navigator.pushReplacementNamed(context, AppRoutes.wishlists);
+        return;
+      }
+      final message = result.reason == 'nonempty'
+          ? 'Remove the products before deleting this wishlist.'
+          : 'Wishlist not found. Refresh your wishlists and try again.';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not delete wishlist. Try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   String _formatPrice(double price) {
     return price % 1 == 0
@@ -92,6 +277,10 @@ class _WishlistDetailScreenState extends State<WishlistDetailScreen> {
     final categoryName =
         arguments?['categoryName'] as String? ?? 'Wishlist Category';
     final emoji = arguments?['emoji'] as String?;
+    if (!_presentationLoaded) {
+      _currentEmoji = emoji;
+      _presentationLoaded = true;
+    }
 
     return Scaffold(
       backgroundColor: WhyNotColors.background,
@@ -140,9 +329,9 @@ class _WishlistDetailScreenState extends State<WishlistDetailScreen> {
                             children: [
                               Row(
                                 children: [
-                                  if (emoji != null) ...[
+                                  if (_currentEmoji != null) ...[
                                     Text(
-                                      emoji,
+                                      _currentEmoji!,
                                       style: const TextStyle(fontSize: 30),
                                     ),
                                     const SizedBox(width: 10),
@@ -152,6 +341,23 @@ class _WishlistDetailScreenState extends State<WishlistDetailScreen> {
                                       categoryName,
                                       style: WhyNotTextStyles.serif(size: 30),
                                     ),
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  TextButton(
+                                    onPressed: _busy
+                                        ? null
+                                        : () => _edit(wishlistId),
+                                    child: const Text('Edit picture & emoji'),
+                                  ),
+                                  const Spacer(),
+                                  TextButton(
+                                    onPressed: _busy
+                                        ? null
+                                        : () => _delete(wishlistId),
+                                    child: const Text('Delete wishlist'),
                                   ),
                                 ],
                               ),

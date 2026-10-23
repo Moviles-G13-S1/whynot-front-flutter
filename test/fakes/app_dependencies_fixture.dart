@@ -39,6 +39,7 @@ AppDependencies createTestDependencies({
   CityRepository? cityRepository,
   RecommendationRepository? recommendationRepository,
   List<Wishlist> wishlists = const [],
+  InMemoryWishlistRepository? wishlistRepositoryOverride,
   NearbyStoreController? nearbyStoreController,
 }) {
   final auth = InMemoryAuthRepository(
@@ -50,10 +51,9 @@ AppDependencies createTestDependencies({
   final users = InMemoryUserRepository();
   users.profiles.addAll({for (final profile in profiles) profile.id: profile});
 
-  final wishlistRepository = InMemoryWishlistRepository(
-    categories: categories,
-    wishlists: wishlists,
-  );
+  final wishlistRepository =
+      wishlistRepositoryOverride ??
+      InMemoryWishlistRepository(categories: categories, wishlists: wishlists);
   final productRepository = InMemoryProductRepository(products: products);
 
   final recommendations =

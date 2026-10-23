@@ -179,6 +179,11 @@ class _HomeWishlistCard extends StatelessWidget {
           emoji: emoji,
           contentAlignment: CrossAxisAlignment.center,
           onTap: () {
+            context.dependencies.wishlistController.trackIntent(
+              'open',
+              wishlistId: wishlistId,
+              categoryId: categoryId,
+            );
             Navigator.pushNamed(
               context,
               AppRoutes.wishlistDetail,
