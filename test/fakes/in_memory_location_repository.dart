@@ -15,7 +15,15 @@ class InMemoryLocationRepository implements LocationRepository {
   final DeviceLocation location;
 
   @override
-  Future<DeviceLocation> getCurrentLocation() async {
+  Future<DeviceLocation> getCurrentLocation({
+    bool requestPermission = true,
+  }) async {
     return location;
   }
+
+  @override
+  Future<bool> openAppSettings() async => true;
+
+  @override
+  Future<bool> openLocationSettings() async => true;
 }

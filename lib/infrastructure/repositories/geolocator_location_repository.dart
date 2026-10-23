@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:geolocator/geolocator.dart';
 
 import '../../models/device_location.dart';
+import '../../models/nearby_failure.dart';
 import '../../models/repositories/location_repository.dart';
 
 /// Geolocator implementation of [LocationRepository].
@@ -22,38 +25,57 @@ class GeolocatorLocationRepository implements LocationRepository {
   /// view can later translate these failures into a
   /// user-friendly state.
   @override
-  Future<DeviceLocation> getCurrentLocation() async {
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  Future<DeviceLocation> getCurrentLocation({
+    bool requestPermission = true,
+  }) async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw const NearbyFailure(NearbyFailureKind.servicesDisabled);
+      }
 
-    if (!serviceEnabled) {
-      throw Exception('Location services are disabled.');
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied && requestPermission) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw const NearbyFailure(
+          NearbyFailureKind.permissionPermanentlyDenied,
+        );
+      }
+      if (permission == LocationPermission.denied) {
+        throw const NearbyFailure(NearbyFailureKind.permissionDenied);
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      ).timeout(const Duration(seconds: 12));
+      return DeviceLocation(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+    } on NearbyFailure {
+      rethrow;
+    } on LocationServiceDisabledException {
+      throw const NearbyFailure(NearbyFailureKind.servicesDisabled);
+    } on PermissionDeniedException {
+      final permission = await Geolocator.checkPermission();
+      throw NearbyFailure(
+        permission == LocationPermission.deniedForever
+            ? NearbyFailureKind.permissionPermanentlyDenied
+            : NearbyFailureKind.permissionDenied,
+      );
+    } on TimeoutException {
+      throw const NearbyFailure(NearbyFailureKind.locationUnavailable);
+    } catch (_) {
+      throw const NearbyFailure(NearbyFailureKind.locationUnavailable);
     }
-
-    var permission = await Geolocator.checkPermission();
-
-    // Ask for permission when it has not been granted yet.
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-
-    // The user denied the permission request.
-    if (permission == LocationPermission.denied) {
-      throw Exception('Location permission was denied.');
-    }
-
-    // The user permanently denied location access.
-    if (permission == LocationPermission.deniedForever) {
-      throw Exception('Location permission was permanently denied.');
-    }
-
-    // Obtain the current position only after permission is available.
-    final position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-    );
-
-    return DeviceLocation(
-      latitude: position.latitude,
-      longitude: position.longitude,
-    );
   }
+
+  @override
+  Future<bool> openAppSettings() => Geolocator.openAppSettings();
+
+  @override
+  Future<bool> openLocationSettings() => Geolocator.openLocationSettings();
 }
