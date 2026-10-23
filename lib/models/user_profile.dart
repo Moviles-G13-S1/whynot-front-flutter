@@ -13,6 +13,7 @@ class UserProfile {
     required this.age,
     required this.preferredCategoryId,
     this.cityId,
+    this.photoPath,
     this.createdAt,
     this.updatedAt,
   });
@@ -24,6 +25,7 @@ class UserProfile {
   final int age;
   final String preferredCategoryId;
   final String? cityId;
+  final String? photoPath;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 }

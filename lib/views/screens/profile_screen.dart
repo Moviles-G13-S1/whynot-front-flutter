@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -31,13 +30,12 @@ class ProfileScreen extends StatelessWidget {
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not log out. Please try again.'),
-        ),
+        const SnackBar(content: Text('Could not log out. Please try again.')),
       );
     }
   }
 
+  // Santiago Casasbuenas: Display the saved profile image in the summary.
   @override
   Widget build(BuildContext context) {
     final controller = context.dependencies.profileController;
@@ -75,13 +73,13 @@ class ProfileScreen extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(24, 39, 24, 130),
                     child: Column(
                       children: [
-                        const ProfileAvatar(),
+                        ProfileAvatar(
+                          photoPath: profile.photoPath,
+                          loadPhoto: controller.readPhoto,
+                        ),
                         const SizedBox(height: 31),
 
-                        Text(
-                          name,
-                          style: WhyNotTextStyles.serif(size: 30),
-                        ),
+                        Text(name, style: WhyNotTextStyles.serif(size: 30)),
 
                         const SizedBox(height: 45),
 
@@ -90,18 +88,9 @@ class ProfileScreen extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              ProfileValue(
-                                label: 'Email',
-                                value: email,
-                              ),
-                              ProfileValue(
-                                label: 'Gender',
-                                value: gender,
-                              ),
-                              ProfileValue(
-                                label: 'Age',
-                                value: age,
-                              ),
+                              ProfileValue(label: 'Email', value: email),
+                              ProfileValue(label: 'Gender', value: gender),
+                              ProfileValue(label: 'Age', value: age),
                               if (profile.cityId == null)
                                 const ProfileValue(
                                   label: 'City',
