@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../app/dependencies_scope.dart';
+import '../../app/app_routes.dart';
 import '../../app/whynot_theme.dart';
 import '../../models/product_recommendation.dart';
 import 'form_controls.dart';
+import 'recommendation_save_flow.dart';
 
 /// UI section responsible for displaying the personalized Smart Feature
 /// recommendation.
@@ -28,7 +30,6 @@ class SmartRecommendationSection extends StatefulWidget {
 
 class _SmartRecommendationSectionState
     extends State<SmartRecommendationSection> {
-  static const _createWishlistChoice = '__create_wishlist__';
   bool _isSaving = false;
   String? _savedEventId;
 
@@ -67,76 +68,29 @@ class _SmartRecommendationSectionState
     setState(() => _isSaving = true);
 
     try {
-      final wishlistController = context.dependencies.wishlistController;
-      final recommendationController =
-          context.dependencies.recommendationController;
-      final summaries = await wishlistController.getCurrentSummaries();
+      final saved = await saveRecommendationToWishlist(context, recommendation);
       if (!mounted) return;
-
-      final matching = summaries
-          .where(
-            (summary) =>
-                summary.wishlist.categoryId == recommendation.categoryId,
-          )
-          .toList();
-      final choice = await showDialog<String>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Save to wishlist'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (matching.isEmpty)
-                const Text('You need a wishlist in this category first.'),
-              for (final summary in matching)
-                ListTile(
-                  title: Text(summary.categoryName),
-                  onTap: () =>
-                      Navigator.pop(dialogContext, summary.wishlist.id),
-                ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            if (matching.isEmpty)
-              TextButton(
-                onPressed: () =>
-                    Navigator.pop(dialogContext, _createWishlistChoice),
-                child: const Text('Create wishlist and save'),
-              ),
-          ],
-        ),
-      );
-      if (!mounted || choice == null) return;
-
-      final wishlistId = choice == _createWishlistChoice
-          ? await wishlistController.create(
-              categoryId: recommendation.categoryId,
-              imageUrl: '',
-            )
-          : choice;
-      await recommendationController.saveRecommendation(
-        recommendation: recommendation,
-        wishlistId: wishlistId,
-      );
-      if (!mounted) return;
-      setState(() => _savedEventId = recommendation.recommendationEventId);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Recommendation saved to your wishlist.')),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not save the recommendation. Please try again.'),
-        ),
-      );
+      if (saved) {
+        setState(() => _savedEventId = recommendation.recommendationEventId);
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  void _openDetails(ProductRecommendation recommendation) {
+    Navigator.pushNamed(
+      context,
+      AppRoutes.recommendationDetail,
+      arguments: <String, Object?>{
+        'recommendation': recommendation,
+        'isSaved': _savedEventId == recommendation.recommendationEventId,
+        'onSaved': () {
+          if (!mounted) return;
+          setState(() => _savedEventId = recommendation.recommendationEventId);
+        },
+      },
+    );
   }
 
   /// Formats the numeric product price using Colombian-style thousands
@@ -193,6 +147,7 @@ class _SmartRecommendationSectionState
           isSaving: _isSaving,
           isSaved: _savedEventId == recommendation.recommendationEventId,
           onSave: () => _saveRecommendation(recommendation),
+          onOpenDetails: () => _openDetails(recommendation),
         );
       },
     );
@@ -207,6 +162,7 @@ class _RecommendationCard extends StatelessWidget {
     required this.isSaving,
     required this.isSaved,
     required this.onSave,
+    required this.onOpenDetails,
   });
 
   final ProductRecommendation recommendation;
@@ -214,91 +170,97 @@ class _RecommendationCard extends StatelessWidget {
   final bool isSaving;
   final bool isSaved;
   final VoidCallback onSave;
+  final VoidCallback onOpenDetails;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      decoration: BoxDecoration(
+      child: Material(
         color: WhyNotColors.card,
         borderRadius: BorderRadius.circular(18),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onOpenDetails,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Product image returned by the recommendation backend.
-                _RecommendationImage(imageUrl: recommendation.imageUrl),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Recommended product name.
-                        Text(
-                          recommendation.name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: WhyNotTextStyles.serif(size: 20),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Product image returned by the recommendation backend.
+                    _RecommendationImage(imageUrl: recommendation.imageUrl),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Recommended product name.
+                            Text(
+                              recommendation.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: WhyNotTextStyles.serif(size: 20),
+                            ),
+
+                            // Brand is optional in the visual layout.
+                            if (recommendation.brand.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                recommendation.brand,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: WhyNotTextStyles.muted(size: 12),
+                              ),
+                            ],
+
+                            const SizedBox(height: 12),
+
+                            // Product price.
+                            Text(
+                              formattedPrice,
+                              style: WhyNotTextStyles.serif(size: 18),
+                            ),
+
+                            // Explanation generated by the recommendation backend.
+                            if (recommendation.reason.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Text(
+                                recommendation.reason,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: WhyNotTextStyles.muted(size: 11),
+                              ),
+                            ],
+                          ],
                         ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
 
-                        // Brand is optional in the visual layout.
-                        if (recommendation.brand.isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Text(
-                            recommendation.brand,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: WhyNotTextStyles.muted(size: 12),
-                          ),
-                        ],
-
-                        const SizedBox(height: 12),
-
-                        // Product price.
-                        Text(
-                          formattedPrice,
-                          style: WhyNotTextStyles.serif(size: 18),
-                        ),
-
-                        // Explanation generated by the recommendation backend.
-                        if (recommendation.reason.isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          Text(
-                            recommendation.reason,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: WhyNotTextStyles.muted(size: 11),
-                          ),
-                        ],
-                      ],
+                Center(
+                  child: SizedBox(
+                    width: 190,
+                    child: PillButton(
+                      label: isSaved
+                          ? 'Saved'
+                          : isSaving
+                          ? 'Saving...'
+                          : 'Save this product',
+                      onPressed: isSaving || isSaved ? null : onSave,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-
-            Center(
-              child: SizedBox(
-                width: 190,
-                child: PillButton(
-                  label: isSaved
-                      ? 'Saved'
-                      : isSaving
-                      ? 'Saving...'
-                      : 'Save this product',
-                  onPressed: isSaving || isSaved ? null : onSave,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
