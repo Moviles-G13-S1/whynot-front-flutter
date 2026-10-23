@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:whynot_mobile/models/profile_photo.dart';
 import 'package:whynot_mobile/models/repositories/profile_photo_repository.dart';
 import 'package:whynot_mobile/app/app_dependencies.dart';
@@ -105,8 +103,9 @@ class InMemoryProfilePhotoRepository implements ProfilePhotoRepository {
   Future<String> upload(String userId, ProfilePhoto photo) async =>
       'profilePhotos/$userId/test.jpg';
   @override
-  // Santiago Casasbuenas: Simulate an unavailable stored image.
-  Future<Uint8List?> read(String path) async => null;
+  // Santiago Casasbuenas: Resolve a test photo without network access.
+  Future<String> getDownloadUrl(String path) async =>
+      'https://example.com/profile.jpg';
   @override
   // Santiago Casasbuenas: Simulate cleanup without network access.
   Future<void> delete(String path) async {}

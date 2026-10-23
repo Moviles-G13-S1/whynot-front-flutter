@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
@@ -60,7 +59,8 @@ class FirebaseProfilePhotoRepository implements ProfilePhotoRepository {
   @override
   // Santiago Casasbuenas: Store each image under its owner with a unique path.
   Future<String> upload(String userId, ProfilePhoto photo) async {
-    final nonce = Random.secure().nextInt(1 << 32);
+    // Keep the upper bound positive when compiled to JavaScript for Flutter Web.
+    final nonce = Random.secure().nextInt(0x7fffffff);
     final path =
         'profilePhotos/$userId/${DateTime.now().microsecondsSinceEpoch}-$nonce.${photo.extension}';
     await _storage
@@ -70,8 +70,9 @@ class FirebaseProfilePhotoRepository implements ProfilePhotoRepository {
   }
 
   @override
-  // Santiago Casasbuenas: Read photo bytes through owner-protected Storage rules.
-  Future<Uint8List?> read(String path) => _storage.ref(path).getData(maxBytes);
+  // Santiago Casasbuenas: Resolve the uploaded image for native and web rendering.
+  Future<String> getDownloadUrl(String path) =>
+      _storage.ref(path).getDownloadURL();
 
   @override
   // Santiago Casasbuenas: Remove a replaced or rolled-back image.
