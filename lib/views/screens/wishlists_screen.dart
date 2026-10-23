@@ -97,6 +97,11 @@ class WishlistsScreen extends StatelessWidget {
                                     imageUrl: wishlist.imageUrl,
                                     emoji: wishlist.emoji,
                                     onTap: () {
+                                      wishlistController.trackIntent(
+                                        'open',
+                                        wishlistId: wishlist.id,
+                                        categoryId: wishlist.categoryId,
+                                      );
                                       Navigator.pushNamed(
                                         context,
                                         AppRoutes.wishlistDetail,

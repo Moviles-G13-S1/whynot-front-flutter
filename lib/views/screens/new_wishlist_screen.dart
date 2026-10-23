@@ -26,6 +26,7 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _loadFailed = false;
   bool _initialized = false;
 
   @override
@@ -33,6 +34,7 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
     super.didChangeDependencies();
     if (_initialized) return;
     _initialized = true;
+    context.dependencies.wishlistController.trackIntent('create_form_open');
     _loadCategories();
   }
 
@@ -44,6 +46,10 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
 
   /// Loads approved categories not already used by this user's wishlists.
   Future<void> _loadCategories() async {
+    setState(() {
+      _isLoading = true;
+      _loadFailed = false;
+    });
     if (context.dependencies.wishlistController.currentUserId == null) {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -57,6 +63,7 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
       final availableCategories = available
           .map((entry) => entry.value)
           .toList();
+      _categoryIdsByName.clear();
       _categoryIdsByName.addEntries(
         available.map((entry) => MapEntry(entry.value, entry.key)),
       );
@@ -70,7 +77,10 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
     } catch (_) {
       if (!mounted) return;
 
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _loadFailed = true;
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not load categories.')),
@@ -132,6 +142,7 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
   }
 
   void _cancel() {
+    context.dependencies.wishlistController.trackIntent('create_form_cancel');
     Navigator.pushReplacementNamed(context, AppRoutes.wishlists);
   }
 
@@ -158,6 +169,11 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
 
               if (_isLoading)
                 const Center(child: CircularProgressIndicator())
+              else if (_loadFailed)
+                TextButton(
+                  onPressed: _loadCategories,
+                  child: const Text('Could not load categories. Try again'),
+                )
               else if (_categories.isEmpty)
                 Text(
                   'You already have a wishlist for every available category.',
@@ -217,7 +233,7 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
               Row(
                 children: [
                   TextButton(
-                    onPressed: _cancel,
+                    onPressed: _isSaving ? null : _cancel,
                     style: TextButton.styleFrom(
                       foregroundColor: WhyNotColors.muted,
                       padding: EdgeInsets.zero,

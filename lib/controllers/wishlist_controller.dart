@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../models/repositories/auth_repository.dart';
 import '../models/category.dart';
 import '../models/wishlist.dart';
@@ -84,18 +86,97 @@ class WishlistController {
     required String categoryId,
     required String imageUrl,
     String? emoji,
-  }) {
+  }) async {
     final ownerId = currentUserId;
     if (ownerId == null) throw StateError('No user logged in.');
-    InputPolicy.optionalWebUrl(imageUrl, 'Picture link');
-    if (emoji != null && !WishlistEmoji.choices.contains(emoji)) {
-      throw const InputPolicyException('Choose an emoji from the list.');
+    try {
+      InputPolicy.optionalWebUrl(imageUrl, 'Picture link');
+      if (emoji != null && !WishlistEmoji.choices.contains(emoji)) {
+        throw const InputPolicyException('Choose an emoji from the list.');
+      }
+      return await _wishlistRepository.create(
+        ownerId: ownerId,
+        categoryId: categoryId,
+        imageUrl: imageUrl,
+        emoji: emoji,
+      );
+    } on InputPolicyException {
+      unawaited(
+        _track('create', 'failure', 'validation', categoryId: categoryId),
+      );
+      rethrow;
     }
-    return _wishlistRepository.create(
+  }
+
+  Future<void> updatePresentation({
+    required String wishlistId,
+    required String imageUrl,
+    String? emoji,
+  }) async {
+    final ownerId = currentUserId;
+    if (ownerId == null) throw StateError('No user logged in.');
+    try {
+      InputPolicy.optionalWebUrl(imageUrl, 'Picture link');
+      if (emoji != null && !WishlistEmoji.choices.contains(emoji)) {
+        throw const InputPolicyException('Choose an emoji from the list.');
+      }
+      await _wishlistRepository.updatePresentation(
+        ownerId: ownerId,
+        wishlistId: wishlistId,
+        imageUrl: imageUrl,
+        emoji: emoji,
+      );
+    } on InputPolicyException {
+      unawaited(
+        _track('edit', 'failure', 'validation', wishlistId: wishlistId),
+      );
+      rethrow;
+    }
+  }
+
+  Future<({String outcome, String reason})> deleteEmpty(
+    String wishlistId,
+  ) async {
+    final ownerId = currentUserId;
+    if (ownerId == null) throw StateError('No user logged in.');
+    return _wishlistRepository.deleteEmpty(
       ownerId: ownerId,
-      categoryId: categoryId,
-      imageUrl: imageUrl,
-      emoji: emoji,
+      wishlistId: wishlistId,
+    );
+  }
+
+  Future<void> _track(
+    String action,
+    String outcome,
+    String reason, {
+    String? wishlistId,
+    String? categoryId,
+  }) async {
+    final ownerId = currentUserId;
+    if (ownerId == null) return;
+    try {
+      await _wishlistRepository.trackInteraction(
+        ownerId: ownerId,
+        action: action,
+        outcome: outcome,
+        reason: reason,
+        wishlistId: wishlistId,
+        categoryId: categoryId,
+      );
+    } catch (_) {
+      /* Telemetry must not interrupt the interaction. */
+    }
+  }
+
+  void trackIntent(String action, {String? wishlistId, String? categoryId}) {
+    unawaited(
+      _track(
+        action,
+        'intent',
+        'none',
+        wishlistId: wishlistId,
+        categoryId: categoryId,
+      ),
     );
   }
 }

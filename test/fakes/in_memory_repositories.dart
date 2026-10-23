@@ -133,6 +133,9 @@ class InMemoryWishlistRepository implements WishlistRepository {
 
   final List<Category> categories;
   final List<Wishlist> _wishlists;
+  final interactions =
+      <({String action, String outcome, String reason, String? wishlistId})>[];
+  final productCounts = <String, int>{};
 
   @override
   Stream<List<Wishlist>> watchByOwner(String ownerId) => Stream.value(
@@ -163,7 +166,91 @@ class InMemoryWishlistRepository implements WishlistRepository {
         emoji: emoji,
       ),
     );
+    await trackInteraction(
+      ownerId: ownerId,
+      action: 'create',
+      outcome: 'success',
+      reason: 'none',
+      wishlistId: id,
+      categoryId: categoryId,
+    );
     return id;
+  }
+
+  @override
+  Future<void> updatePresentation({
+    required String ownerId,
+    required String wishlistId,
+    required String imageUrl,
+    String? emoji,
+  }) async {
+    final index = _wishlists.indexWhere(
+      (wishlist) => wishlist.id == wishlistId && wishlist.ownerId == ownerId,
+    );
+    if (index < 0) throw StateError('Wishlist not found.');
+    final old = _wishlists[index];
+    _wishlists[index] = Wishlist(
+      id: old.id,
+      ownerId: old.ownerId,
+      categoryId: old.categoryId,
+      imageUrl: imageUrl,
+      emoji: emoji,
+      createdAt: old.createdAt,
+      updatedAt: DateTime.now(),
+    );
+    await trackInteraction(
+      ownerId: ownerId,
+      action: 'edit',
+      outcome: 'success',
+      reason: 'none',
+      wishlistId: wishlistId,
+    );
+  }
+
+  @override
+  Future<({String outcome, String reason})> deleteEmpty({
+    required String ownerId,
+    required String wishlistId,
+  }) async {
+    final index = _wishlists.indexWhere(
+      (wishlist) => wishlist.id == wishlistId && wishlist.ownerId == ownerId,
+    );
+    final outcome = index < 0
+        ? 'failure'
+        : (productCounts[wishlistId] ?? 0) > 0
+        ? 'blocked'
+        : 'success';
+    final reason = index < 0
+        ? 'not_found'
+        : outcome == 'blocked'
+        ? 'nonempty'
+        : 'none';
+    if (outcome == 'success') _wishlists.removeAt(index);
+    await trackInteraction(
+      ownerId: ownerId,
+      action: 'delete',
+      outcome: outcome,
+      reason: reason,
+      wishlistId: wishlistId,
+    );
+    return (outcome: outcome, reason: reason);
+  }
+
+  @override
+  Future<void> trackInteraction({
+    required String ownerId,
+    required String action,
+    required String outcome,
+    required String reason,
+    String? wishlistId,
+    String? categoryId,
+  }) async {
+    interactions.add((
+      action: action,
+      outcome: outcome,
+      reason: reason,
+      wishlistId: wishlistId,
+    ));
   }
 }
 
