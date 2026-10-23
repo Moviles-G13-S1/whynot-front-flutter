@@ -39,6 +39,7 @@ AppDependencies createTestDependencies({
   CityRepository? cityRepository,
   RecommendationRepository? recommendationRepository,
   List<Wishlist> wishlists = const [],
+  NearbyStoreController? nearbyStoreController,
 }) {
   final auth = InMemoryAuthRepository(
     user: signedIn
@@ -89,10 +90,12 @@ AppDependencies createTestDependencies({
     recommendationController: RecommendationController(
       recommendationRepository: recommendations,
     ),
-    nearbyStoreController: NearbyStoreController(
-      locationRepository: location,
-      nearbyStoreRepository: nearbyStores,
-    ),
+    nearbyStoreController:
+        nearbyStoreController ??
+        NearbyStoreController(
+          locationRepository: location,
+          nearbyStoreRepository: nearbyStores,
+        ),
   );
 }
 

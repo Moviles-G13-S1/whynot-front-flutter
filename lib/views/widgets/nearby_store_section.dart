@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../models/nearby_store.dart';
+import '../../models/nearby_failure.dart';
 
 /// Displays the Context-Aware nearby-store recommendation.
 ///
@@ -26,27 +27,79 @@ class NearbyStoreSection extends StatefulWidget {
   State<NearbyStoreSection> createState() => _NearbyStoreSectionState();
 }
 
-class _NearbyStoreSectionState extends State<NearbyStoreSection> {
+class _NearbyStoreSectionState extends State<NearbyStoreSection>
+    with WidgetsBindingObserver {
   /// Future containing the store selected for the user's current location.
   ///
   /// It is stored in state so rebuilding the widget does not request the
   /// device location repeatedly.
-  Future<NearbyStore?>? _storeFuture;
+  Future<(NearbyStore?, NearbyFailureKind?)>? _storeFuture;
+  bool _awaitingSettingsReturn = false;
+  bool _openingSettings = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _awaitingSettingsReturn) {
+      _awaitingSettingsReturn = false;
+      _retry(requestPermission: false);
+    }
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    _storeFuture ??= context.dependencies.nearbyStoreController
-        .getNearestStore();
+    _storeFuture ??= _load();
+  }
+
+  Future<(NearbyStore?, NearbyFailureKind?)> _load({
+    bool requestPermission = true,
+  }) async {
+    try {
+      final store = await context.dependencies.nearbyStoreController
+          .getNearestStore(requestPermission: requestPermission);
+      return (store, null);
+    } on NearbyFailure catch (failure) {
+      return (null, failure.kind);
+    } catch (_) {
+      return (null, NearbyFailureKind.nearbyServiceUnavailable);
+    }
   }
 
   /// Requests the current location and nearby store again.
-  void _retry() {
+  void _retry({bool requestPermission = true}) {
     setState(() {
-      _storeFuture = context.dependencies.nearbyStoreController
-          .getNearestStore();
+      _storeFuture = _load(requestPermission: requestPermission);
     });
+  }
+
+  Future<void> _openSettings(NearbyFailureKind kind) async {
+    if (_openingSettings || _awaitingSettingsReturn) return;
+    _openingSettings = true;
+    _awaitingSettingsReturn = true;
+    try {
+      final controller = context.dependencies.nearbyStoreController;
+      final opened = kind == NearbyFailureKind.servicesDisabled
+          ? await controller.openLocationSettings()
+          : await controller.openAppSettings();
+      if (!opened) _awaitingSettingsReturn = false;
+    } catch (_) {
+      _awaitingSettingsReturn = false;
+    } finally {
+      _openingSettings = false;
+    }
   }
 
   /// Formats the backend distance in a compact, user-friendly form.
@@ -61,7 +114,7 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<NearbyStore?>(
+    return FutureBuilder<(NearbyStore?, NearbyFailureKind?)>(
       future: _storeFuture,
       builder: (context, snapshot) {
         // The app is obtaining the current location and requesting a store.
@@ -70,11 +123,19 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection> {
         }
 
         // Location permission, device location, or backend request failed.
-        if (snapshot.hasError) {
-          return _NearbyStoreErrorCard(error: snapshot.error, onRetry: _retry);
+        final kind = snapshot.data?.$2;
+        if (kind != null) {
+          return _NearbyStoreErrorCard(
+            kind: kind,
+            onAction:
+                kind == NearbyFailureKind.permissionPermanentlyDenied ||
+                    kind == NearbyFailureKind.servicesDisabled
+                ? () => _openSettings(kind)
+                : () => _retry(),
+          );
         }
 
-        final store = snapshot.data;
+        final store = snapshot.data?.$1;
 
         // A null store is a valid backend response.
         //
@@ -287,26 +348,40 @@ class _NoNearbyStoreCard extends StatelessWidget {
 /// The message is intentionally user-facing and does not expose raw Firebase
 /// or platform errors.
 class _NearbyStoreErrorCard extends StatelessWidget {
-  const _NearbyStoreErrorCard({required this.error, required this.onRetry});
+  const _NearbyStoreErrorCard({required this.kind, required this.onAction});
 
-  final Object? error;
-  final VoidCallback onRetry;
-
-  bool get _isLocationError {
-    final message = error.toString().toLowerCase();
-
-    return message.contains('location') || message.contains('permission');
-  }
+  final NearbyFailureKind kind;
+  final VoidCallback onAction;
 
   @override
   Widget build(BuildContext context) {
-    final title = _isLocationError
-        ? 'We need your location'
-        : 'We could not load nearby stores';
-
-    final message = _isLocationError
-        ? 'Allow location access so WhyNot can find something nearby for you.'
-        : 'Something went wrong while finding a nearby store. Please try again.';
+    final (title, message, action) = switch (kind) {
+      NearbyFailureKind.permissionDenied => (
+        'Location permission denied',
+        'Allow location access to find a store near you.',
+        'Try permission again',
+      ),
+      NearbyFailureKind.permissionPermanentlyDenied => (
+        'Location permission denied',
+        'Enable location access for WhyNot in app settings.',
+        'Open app settings',
+      ),
+      NearbyFailureKind.servicesDisabled => (
+        'Location services are off',
+        'Turn on device location services to find a store near you.',
+        'Open location settings',
+      ),
+      NearbyFailureKind.locationUnavailable => (
+        'Could not get your location',
+        'Your location signal is unavailable. Move to an open area and try again.',
+        'Try again',
+      ),
+      NearbyFailureKind.nearbyServiceUnavailable => (
+        'We could not load nearby stores',
+        'The nearby service or network is unavailable. Please try again.',
+        'Try again',
+      ),
+    };
 
     return Container(
       width: double.infinity,
@@ -342,9 +417,9 @@ class _NearbyStoreErrorCard extends StatelessWidget {
           const SizedBox(height: 10),
 
           TextButton(
-            onPressed: onRetry,
+            onPressed: onAction,
             style: linkButtonStyle(),
-            child: const Text('Try again'),
+            child: Text(action),
           ),
         ],
       ),

@@ -11,5 +11,8 @@ abstract interface class LocationRepository {
   ///
   /// Implementations may throw when location services are disabled,
   /// permissions are denied, or the position cannot be obtained.
-  Future<DeviceLocation> getCurrentLocation();
+  Future<DeviceLocation> getCurrentLocation({bool requestPermission = true});
+
+  Future<bool> openAppSettings();
+  Future<bool> openLocationSettings();
 }
