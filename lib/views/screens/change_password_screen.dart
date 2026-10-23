@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/app_routes.dart';
+import '../../models/input_policy.dart';
 import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../models/repositories/auth_repository.dart';
@@ -72,11 +73,17 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       return;
     }
 
-    final currentPassword = _currentController.text.trim();
+    final currentPassword = _currentController.text;
 
-    final newPassword = _newController.text.trim();
+    final newPassword = _newController.text;
 
-    final confirmPassword = _confirmController.text.trim();
+    final confirmPassword = _confirmController.text;
+
+    if (InputPolicy.containsEmoji(newPassword) ||
+        InputPolicy.containsEmoji(confirmPassword)) {
+      _showMessage('New password cannot contain emoji.');
+      return;
+    }
 
     if (newPassword.length < 8) {
       _showMessage('New password must have at least 8 characters.');
@@ -114,6 +121,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       if (!mounted) return;
 
       Navigator.pop(context);
+    } on InputPolicyException catch (error) {
+      if (mounted) _showMessage(error.message);
     } on AuthFailure catch (error) {
       if (!mounted) return;
 

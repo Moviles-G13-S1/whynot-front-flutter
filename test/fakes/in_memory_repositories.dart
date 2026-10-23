@@ -151,6 +151,7 @@ class InMemoryWishlistRepository implements WishlistRepository {
     required String ownerId,
     required String categoryId,
     required String imageUrl,
+    String? emoji,
   }) async {
     final id = 'wishlist-${_wishlists.length + 1}';
     _wishlists.add(
@@ -159,6 +160,7 @@ class InMemoryWishlistRepository implements WishlistRepository {
         ownerId: ownerId,
         categoryId: categoryId,
         imageUrl: imageUrl,
+        emoji: emoji,
       ),
     );
     return id;

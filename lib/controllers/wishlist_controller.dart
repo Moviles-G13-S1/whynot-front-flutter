@@ -1,6 +1,8 @@
 import '../models/repositories/auth_repository.dart';
 import '../models/category.dart';
 import '../models/wishlist.dart';
+import '../models/wishlist_emoji.dart';
+import '../models/input_policy.dart';
 import '../models/repositories/wishlist_repository.dart';
 
 class WishlistController {
@@ -81,13 +83,19 @@ class WishlistController {
   Future<String> create({
     required String categoryId,
     required String imageUrl,
+    String? emoji,
   }) {
     final ownerId = currentUserId;
     if (ownerId == null) throw StateError('No user logged in.');
+    InputPolicy.optionalWebUrl(imageUrl, 'Picture link');
+    if (emoji != null && !WishlistEmoji.choices.contains(emoji)) {
+      throw const InputPolicyException('Choose an emoji from the list.');
+    }
     return _wishlistRepository.create(
       ownerId: ownerId,
       categoryId: categoryId,
       imageUrl: imageUrl,
+      emoji: emoji,
     );
   }
 }

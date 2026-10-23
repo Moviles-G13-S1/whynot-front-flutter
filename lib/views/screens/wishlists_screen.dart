@@ -95,6 +95,7 @@ class WishlistsScreen extends StatelessWidget {
                                     label: summary.categoryName,
                                     itemCount: itemCount,
                                     imageUrl: wishlist.imageUrl,
+                                    emoji: wishlist.emoji,
                                     onTap: () {
                                       Navigator.pushNamed(
                                         context,
@@ -104,6 +105,7 @@ class WishlistsScreen extends StatelessWidget {
                                           'categoryId': wishlist.categoryId,
                                           'categoryName': summary.categoryName,
                                           'itemCount': itemCount,
+                                          'emoji': wishlist.emoji,
                                         },
                                       );
                                     },

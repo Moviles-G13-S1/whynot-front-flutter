@@ -44,11 +44,14 @@ class FirebaseWishlistRepository implements WishlistRepository {
     required String ownerId,
     required String categoryId,
     required String imageUrl,
+    String? emoji,
   }) async {
     final document = await _firestore.collection('wishlists').add({
       'ownerId': ownerId,
       'categoryId': categoryId,
       'imageUrl': imageUrl,
+      // ignore: use_null_aware_elements
+      if (emoji != null) 'emoji': emoji,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -62,6 +65,7 @@ class FirebaseWishlistRepository implements WishlistRepository {
       ownerId: data['ownerId'] as String? ?? '',
       categoryId: data['categoryId'] as String? ?? '',
       imageUrl: data['imageUrl'] as String? ?? '',
+      emoji: data['emoji'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );

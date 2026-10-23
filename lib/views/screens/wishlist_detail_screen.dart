@@ -91,6 +91,7 @@ class _WishlistDetailScreenState extends State<WishlistDetailScreen> {
 
     final categoryName =
         arguments?['categoryName'] as String? ?? 'Wishlist Category';
+    final emoji = arguments?['emoji'] as String?;
 
     return Scaffold(
       backgroundColor: WhyNotColors.background,
@@ -137,9 +138,22 @@ class _WishlistDetailScreenState extends State<WishlistDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                categoryName,
-                                style: WhyNotTextStyles.serif(size: 30),
+                              Row(
+                                children: [
+                                  if (emoji != null) ...[
+                                    Text(
+                                      emoji,
+                                      style: const TextStyle(fontSize: 30),
+                                    ),
+                                    const SizedBox(width: 10),
+                                  ],
+                                  Expanded(
+                                    child: Text(
+                                      categoryName,
+                                      style: WhyNotTextStyles.serif(size: 30),
+                                    ),
+                                  ),
+                                ],
                               ),
 
                               const SizedBox(height: 8),
@@ -162,6 +176,7 @@ class _WishlistDetailScreenState extends State<WishlistDetailScreen> {
                                           'wishlistId': wishlistId,
                                           'categoryId': categoryId,
                                           'categoryName': categoryName,
+                                          'emoji': emoji,
                                         },
                                       );
                                     },

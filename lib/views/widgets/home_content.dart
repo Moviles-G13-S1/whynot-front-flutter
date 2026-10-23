@@ -135,6 +135,7 @@ class WishlistRail extends StatelessWidget {
                   categoryId: wishlist.categoryId,
                   categoryName: summary.categoryName,
                   imageUrl: wishlist.imageUrl,
+                  emoji: wishlist.emoji,
                 ),
               );
             },
@@ -153,12 +154,14 @@ class _HomeWishlistCard extends StatelessWidget {
     required this.categoryName,
     this.categoryId,
     this.imageUrl,
+    this.emoji,
   });
 
   final String wishlistId;
   final String? categoryId;
   final String categoryName;
   final String? imageUrl;
+  final String? emoji;
 
   @override
   Widget build(BuildContext context) {
@@ -173,6 +176,7 @@ class _HomeWishlistCard extends StatelessWidget {
           label: categoryName,
           itemCount: itemCount,
           imageUrl: imageUrl,
+          emoji: emoji,
           contentAlignment: CrossAxisAlignment.center,
           onTap: () {
             Navigator.pushNamed(
@@ -183,6 +187,7 @@ class _HomeWishlistCard extends StatelessWidget {
                 'categoryId': categoryId,
                 'categoryName': categoryName,
                 'itemCount': itemCount,
+                'emoji': emoji,
               },
             );
           },

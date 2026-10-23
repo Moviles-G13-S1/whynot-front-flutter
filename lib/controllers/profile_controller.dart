@@ -4,6 +4,7 @@ import '../models/profile_photo.dart';
 import '../models/repositories/profile_photo_repository.dart';
 import '../models/repositories/auth_repository.dart';
 import '../models/user_profile.dart';
+import '../models/input_policy.dart';
 import '../models/repositories/user_repository.dart';
 
 class ProfileController {
@@ -74,6 +75,7 @@ class ProfileController {
   }
 
   Future<void> updateCurrentProfile(UserProfileUpdate update) {
+    InputPolicy.noEmoji(update.name, 'Name');
     final id = currentUserId;
     if (id == null) throw StateError('No user logged in.');
     if (update.name.trim().isEmpty ||

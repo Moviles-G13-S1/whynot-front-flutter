@@ -4,6 +4,7 @@ class Wishlist {
     required this.ownerId,
     required this.categoryId,
     required this.imageUrl,
+    this.emoji,
     this.createdAt,
     this.updatedAt,
   });
@@ -12,6 +13,7 @@ class Wishlist {
   final String ownerId;
   final String categoryId;
   final String imageUrl;
+  final String? emoji;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 }

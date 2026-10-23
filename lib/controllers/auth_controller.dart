@@ -2,6 +2,7 @@ import '../models/user_profile.dart';
 import '../models/repositories/user_repository.dart';
 import '../models/repositories/auth_repository.dart';
 import '../models/auth_user.dart';
+import '../models/input_policy.dart';
 
 class AuthController {
   const AuthController({
@@ -27,6 +28,9 @@ class AuthController {
     required String preferredCategoryId,
     required String cityId,
   }) async {
+    InputPolicy.noEmoji(name, 'Name');
+    InputPolicy.noEmoji(email, 'Email');
+    InputPolicy.noEmoji(password, 'Password');
     if (name.trim().isEmpty ||
         name.trim().length > UserProfileConstraints.maximumNameLength) {
       throw const AuthFailure('invalid-name');
@@ -69,8 +73,11 @@ class AuthController {
   Future<void> changePassword({
     required String currentPassword,
     required String newPassword,
-  }) => _authRepository.changePassword(
-    currentPassword: currentPassword,
-    newPassword: newPassword,
-  );
+  }) {
+    InputPolicy.noEmoji(newPassword, 'New password');
+    return _authRepository.changePassword(
+      currentPassword: currentPassword,
+      newPassword: newPassword,
+    );
+  }
 }

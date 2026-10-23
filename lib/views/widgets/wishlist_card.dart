@@ -9,6 +9,7 @@ class WishlistCard extends StatelessWidget {
     required this.onTap,
     this.itemCount,
     this.imageUrl,
+    this.emoji,
     this.contentAlignment = CrossAxisAlignment.start,
     super.key,
   });
@@ -16,6 +17,7 @@ class WishlistCard extends StatelessWidget {
   final String label;
   final int? itemCount;
   final String? imageUrl;
+  final String? emoji;
   final VoidCallback onTap;
   final CrossAxisAlignment contentAlignment;
 
@@ -33,7 +35,17 @@ class WishlistCard extends StatelessWidget {
             aspectRatio: 131 / 170,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(18),
-              child: hasImage
+              child: emoji != null
+                  ? Container(
+                      color: WhyNotColors.card,
+                      child: Center(
+                        child: Text(
+                          emoji!,
+                          style: const TextStyle(fontSize: 58),
+                        ),
+                      ),
+                    )
+                  : hasImage
                   ? Image.network(
                       imageUrl!,
                       fit: BoxFit.cover,

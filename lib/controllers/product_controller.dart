@@ -4,6 +4,7 @@ import '../models/repositories/auth_repository.dart';
 import 'wishlist_controller.dart';
 import '../models/wishlist.dart';
 import '../models/product.dart';
+import '../models/input_policy.dart';
 import '../models/repositories/product_repository.dart';
 
 class ProductController {
@@ -49,6 +50,8 @@ class ProductController {
       throw StateError('No user logged in.');
     }
 
+    _validateDraft(draft);
+
     try {
       await _productRepository.create(ownerId: ownerId, draft: draft);
     } catch (_) {
@@ -78,8 +81,23 @@ class ProductController {
     }
   }
 
-  Future<void> update(String productId, ProductDraft draft) =>
-      _productRepository.update(productId, draft);
+  Future<void> update(String productId, ProductDraft draft) {
+    _validateDraft(draft);
+    return _productRepository.update(productId, draft);
+  }
+
+  void _validateDraft(ProductDraft draft) {
+    InputPolicy.noEmoji(draft.name, 'Product name');
+    InputPolicy.noEmoji(draft.brand, 'Brand');
+    InputPolicy.optionalWebUrl(draft.imageUrl, 'Picture link');
+    InputPolicy.optionalWebUrl(draft.productUrl, 'Product link');
+    if (draft.name.trim().isEmpty ||
+        draft.brand.trim().isEmpty ||
+        !draft.price.isFinite ||
+        draft.price < 0) {
+      throw const InputPolicyException('Enter a name, brand, and valid price.');
+    }
+  }
 
   Future<void> markPurchased(String productId) =>
       _productRepository.markPurchased(productId);

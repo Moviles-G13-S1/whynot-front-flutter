@@ -11,6 +11,7 @@ import '../widgets/city_selector.dart';
 import '../widgets/form_controls.dart';
 import '../widgets/profile_controls.dart';
 import '../../models/user_profile.dart';
+import '../../models/input_policy.dart';
 import '../../models/profile_photo.dart';
 
 /// Form for editing the fields displayed in the profile summary.
@@ -168,6 +169,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       return;
     }
 
+    if (InputPolicy.containsEmoji(_nameController.text)) {
+      _showMessage('Name cannot contain emoji.');
+      return;
+    }
+    if (InputPolicy.containsEmoji(_cityController.text)) {
+      _showMessage('City search cannot contain emoji.');
+      return;
+    }
+    if (_nameController.text.trim().length >
+        UserProfileConstraints.maximumNameLength) {
+      _showMessage(
+        'Name must have at most ${UserProfileConstraints.maximumNameLength} characters.',
+      );
+      return;
+    }
+
     if (_nameController.text.trim().isEmpty ||
         age == null ||
         selectedCity == null ||
@@ -207,6 +224,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ).showSnackBar(const SnackBar(content: Text('Profile updated')));
 
       Navigator.pop(context);
+    } on InputPolicyException catch (error) {
+      if (mounted) _showMessage(error.message);
     } catch (_) {
       if (!mounted) return;
 
@@ -333,17 +352,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _field(
-                      'Name',
-                      DesignField(
-                        controller: _nameController,
-                        inputFormatters: [
-                          LengthLimitingTextInputFormatter(
-                            UserProfileConstraints.maximumNameLength,
-                          ),
-                        ],
-                      ),
-                    ),
+                    _field('Name', DesignField(controller: _nameController)),
 
                     // Email is displayed but not updated yet.
                     _field(

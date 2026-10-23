@@ -9,5 +9,6 @@ abstract interface class WishlistRepository {
     required String ownerId,
     required String categoryId,
     required String imageUrl,
+    String? emoji,
   });
 }

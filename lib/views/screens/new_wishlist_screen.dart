@@ -5,6 +5,8 @@ import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../widgets/form_controls.dart';
+import '../../models/input_policy.dart';
+import '../../models/wishlist_emoji.dart';
 
 class NewWishlistScreen extends StatefulWidget {
   const NewWishlistScreen({super.key});
@@ -20,6 +22,7 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
 
   List<String> _categories = [];
   String? _selectedCategory;
+  String? _selectedEmoji;
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -92,6 +95,7 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
       final wishlistId = await context.dependencies.wishlistController.create(
         categoryId: categoryId,
         imageUrl: _imageUrlController.text.trim(),
+        emoji: _selectedEmoji,
       );
 
       if (!mounted) return;
@@ -104,8 +108,14 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
           'categoryId': categoryId,
           'categoryName': _selectedCategory,
           'itemCount': 0,
+          'emoji': _selectedEmoji,
         },
       );
+    } on InputPolicyException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } catch (_) {
       if (!mounted) return;
 
@@ -173,6 +183,33 @@ class _NewWishlistScreenState extends State<NewWishlistScreen> {
               DesignField(
                 controller: _imageUrlController,
                 keyboardType: TextInputType.url,
+              ),
+
+              const SizedBox(height: 12),
+              Text(
+                'Optional. A selected emoji appears instead of the picture.',
+                style: WhyNotTextStyles.muted(size: 13),
+              ),
+
+              const SizedBox(height: 25),
+              const FieldLabel('Emoji'),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 9,
+                runSpacing: 9,
+                children: [
+                  ChoiceChip(
+                    label: const Text('None'),
+                    selected: _selectedEmoji == null,
+                    onSelected: (_) => setState(() => _selectedEmoji = null),
+                  ),
+                  for (final emoji in WishlistEmoji.choices)
+                    ChoiceChip(
+                      label: Text(emoji, style: const TextStyle(fontSize: 23)),
+                      selected: _selectedEmoji == emoji,
+                      onSelected: (_) => setState(() => _selectedEmoji = emoji),
+                    ),
+                ],
               ),
 
               const SizedBox(height: 42),

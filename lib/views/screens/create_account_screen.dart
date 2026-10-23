@@ -10,6 +10,7 @@ import '../widgets/brand_mark.dart';
 import '../widgets/city_selector.dart';
 import '../widgets/form_controls.dart';
 import '../../models/user_profile.dart';
+import '../../models/input_policy.dart';
 import '../widgets/account_field.dart';
 import '../../models/repositories/auth_repository.dart';
 
@@ -85,6 +86,18 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         .where((city) => city.id == _cityId)
         .firstOrNull;
 
+    for (final field in [
+      ('Name', name),
+      ('Email', email),
+      ('Password', password),
+      ('City search', _cityController.text),
+    ]) {
+      if (InputPolicy.containsEmoji(field.$2)) {
+        _showMessage('${field.$1} cannot contain emoji.');
+        return;
+      }
+    }
+
     if (name.isEmpty ||
         email.isEmpty ||
         password.isEmpty ||
@@ -122,6 +135,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       if (!mounted) return;
 
       Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
+    } on InputPolicyException catch (error) {
+      if (mounted) _showMessage(error.message);
     } on AuthFailure catch (error) {
       if (!mounted) return;
 
@@ -214,11 +229,6 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       child: DesignField(
                         controller: _nameController,
                         autofillHints: const [AutofillHints.name],
-                        inputFormatters: [
-                          LengthLimitingTextInputFormatter(
-                            UserProfileConstraints.maximumNameLength,
-                          ),
-                        ],
                       ),
                     ),
                     AccountField(

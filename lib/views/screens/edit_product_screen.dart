@@ -4,6 +4,7 @@ import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../../models/product.dart';
+import '../../models/input_policy.dart';
 
 class EditProductScreen extends StatefulWidget {
   const EditProductScreen({super.key});
@@ -184,6 +185,8 @@ class _EditProductScreenState extends State<EditProductScreen> {
       ).showSnackBar(const SnackBar(content: Text('Product updated')));
 
       Navigator.pop(context);
+    } on InputPolicyException catch (error) {
+      if (mounted) _showMessage(error.message);
     } catch (_) {
       if (!mounted) return;
 

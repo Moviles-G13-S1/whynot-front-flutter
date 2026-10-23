@@ -6,6 +6,7 @@ import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../../models/product.dart';
+import '../../models/input_policy.dart';
 
 class NewProductManualScreen extends StatefulWidget {
   const NewProductManualScreen({super.key});
@@ -21,11 +22,12 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
   final _imageUrlController = TextEditingController();
   final _productUrlController = TextEditingController();
 
-  final List<Map<String, String>> _wishlists = [];
+  final List<Map<String, String?>> _wishlists = [];
 
   String? _selectedWishlistId;
   String? _selectedCategoryId;
   String? _selectedWishlistName;
+  String? _selectedWishlistEmoji;
 
   bool _initialized = false;
   bool _isLoadingWishlists = false;
@@ -55,6 +57,7 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
     _selectedWishlistId = arguments?['wishlistId'] as String?;
     _selectedCategoryId = arguments?['categoryId'] as String?;
     _selectedWishlistName = arguments?['categoryName'] as String?;
+    _selectedWishlistEmoji = arguments?['emoji'] as String?;
 
     if (_selectedWishlistId == null) {
       _loadWishlists();
@@ -106,6 +109,7 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
               'wishlistId': summary.wishlist.id,
               'categoryId': summary.wishlist.categoryId,
               'name': summary.categoryName,
+              'emoji': summary.wishlist.emoji,
             },
           )
           .toList();
@@ -169,8 +173,11 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
           'wishlistId': _selectedWishlistId,
           'categoryId': _selectedCategoryId,
           'categoryName': _selectedWishlistName,
+          'emoji': _selectedWishlistEmoji,
         },
       );
+    } on InputPolicyException catch (error) {
+      if (mounted) _showMessage(error.message);
     } catch (_) {
       if (!mounted) return;
 
@@ -377,6 +384,7 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
                           _selectedWishlistId = wishlistId;
                           _selectedCategoryId = categoryId;
                           _selectedWishlistName = name;
+                          _selectedWishlistEmoji = wishlist['emoji'];
                         });
                       },
                       borderRadius: BorderRadius.circular(18),
