@@ -99,6 +99,26 @@ class InMemoryUserRepository implements UserRepository {
       age: update.age,
       preferredCategoryId: update.preferredCategoryId,
       cityId: update.cityId,
+      photoPath: profile.photoPath,
+      createdAt: profile.createdAt,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  @override
+  // Santiago Casasbuenas: Save photo paths in the test profile store.
+  Future<void> updatePhotoPath(String userId, String path) async {
+    final profile = profiles[userId];
+    if (profile == null) throw StateError('Profile not found.');
+    profiles[userId] = UserProfile(
+      id: profile.id,
+      name: profile.name,
+      email: profile.email,
+      gender: profile.gender,
+      age: profile.age,
+      preferredCategoryId: profile.preferredCategoryId,
+      cityId: profile.cityId,
+      photoPath: path,
       createdAt: profile.createdAt,
       updatedAt: DateTime.now(),
     );

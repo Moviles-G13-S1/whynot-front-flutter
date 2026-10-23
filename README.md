@@ -49,7 +49,7 @@ The application currently uses:
   - Products
   - Purchase state
 
-Firebase Storage is currently **not used**. Product and wishlist images are stored as external image URLs.
+Firebase Storage holds private profile photos. Product and wishlist images remain external image URLs.
 
 There is also no custom REST API or application server. Flutter communicates directly with Firebase using the Firebase Flutter SDK.
 
@@ -63,6 +63,8 @@ The Flutter application currently uses:
 firebase_core
 firebase_auth
 cloud_firestore
+firebase_storage
+image_picker
 ```
 
 After cloning the repository, install all Flutter dependencies with:
@@ -644,3 +646,19 @@ theme. `main.dart` initializes Firebase before starting the app.
 
 No Provider/Riverpod/Bloc dependency is used; widgets continue to own local UI
 state with `StatefulWidget` and `setState`.
+
+## Profile photos
+
+The Edit Profile screen lets a signed-in user pick a JPEG or PNG from the photo
+library. Images are resized to at most 1024 × 1024 pixels and must be at most
+5 MB. The app shows a preview during upload, saves a private Storage path in
+Firestore, and deletes the previous photo after the new path is saved. The
+original avatar appears when no photo is available.
+
+The Firebase project's default bucket (`whynot-f4ae6.firebasestorage.app`)
+must be provisioned in the Firebase Console. Deploy `storage.rules` and the
+updated `firestore.rules` from `whynot-back` before trying production uploads.
+Do not deploy from the Flutter repository. On an iOS simulator, sign in, open
+Profile → Edit Profile → Change photo, choose an image from Photos, wait for
+“Photo updated,” then return to Profile to verify the new avatar. Canceling
+the picker should leave the previous photo in place.

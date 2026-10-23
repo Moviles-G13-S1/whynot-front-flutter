@@ -1,3 +1,7 @@
+import 'dart:typed_data';
+
+import 'package:whynot_mobile/models/profile_photo.dart';
+import 'package:whynot_mobile/models/repositories/profile_photo_repository.dart';
 import 'package:whynot_mobile/app/app_dependencies.dart';
 import 'package:whynot_mobile/controllers/admin_access_controller.dart';
 import 'package:whynot_mobile/controllers/admin_metrics_controller.dart';
@@ -67,6 +71,7 @@ AppDependencies createTestDependencies({
     profileController: ProfileController(
       authRepository: auth,
       userRepository: users,
+      photoRepository: InMemoryProfilePhotoRepository(),
     ),
     wishlistController: wishlistController,
     productController: ProductController(
@@ -89,4 +94,20 @@ AppDependencies createTestDependencies({
       nearbyStoreRepository: nearbyStores,
     ),
   );
+}
+
+class InMemoryProfilePhotoRepository implements ProfilePhotoRepository {
+  @override
+  // Santiago Casasbuenas: Keep test selection canceled by default.
+  Future<ProfilePhoto?> pick() async => null;
+  @override
+  // Santiago Casasbuenas: Return a user-scoped test path.
+  Future<String> upload(String userId, ProfilePhoto photo) async =>
+      'profilePhotos/$userId/test.jpg';
+  @override
+  // Santiago Casasbuenas: Simulate an unavailable stored image.
+  Future<Uint8List?> read(String path) async => null;
+  @override
+  // Santiago Casasbuenas: Simulate cleanup without network access.
+  Future<void> delete(String path) async {}
 }

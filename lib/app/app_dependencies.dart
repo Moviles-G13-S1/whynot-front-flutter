@@ -24,6 +24,7 @@ import '../infrastructure/repositories/firebase_nearby_store_repository.dart';
 import '../infrastructure/repositories/firebase_product_repository.dart';
 import '../infrastructure/repositories/firebase_recommendation_repository.dart';
 import '../infrastructure/repositories/firebase_user_repository.dart';
+import '../infrastructure/repositories/firebase_profile_photo_repository.dart';
 import '../infrastructure/repositories/firebase_wishlist_repository.dart';
 import '../infrastructure/repositories/geolocator_location_repository.dart';
 
@@ -51,6 +52,7 @@ class AppDependencies {
   /// In local development, Firebase SDK instances are redirected to the
   /// Emulator Suite during application startup in `main.dart`; repositories
   /// themselves remain environment-independent.
+  // Santiago Casasbuenas: Inject the profile photo repository in production.
   factory AppDependencies.firebase() {
     final AuthRepository authRepository = FirebaseAuthRepository();
     final UserRepository userRepository = FirebaseUserRepository();
@@ -81,6 +83,7 @@ class AppDependencies {
       profileController: ProfileController(
         authRepository: authRepository,
         userRepository: userRepository,
+        photoRepository: FirebaseProfilePhotoRepository(),
       ),
       wishlistController: wishlistController,
       productController: ProductController(

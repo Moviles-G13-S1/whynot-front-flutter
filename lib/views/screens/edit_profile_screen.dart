@@ -11,6 +11,7 @@ import '../widgets/city_selector.dart';
 import '../widgets/form_controls.dart';
 import '../widgets/profile_controls.dart';
 import '../../models/user_profile.dart';
+import '../../models/profile_photo.dart';
 
 /// Form for editing the fields displayed in the profile summary.
 class EditProfileScreen extends StatefulWidget {
@@ -39,6 +40,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isUploadingPhoto = false;
+  String? _photoPath;
+  ProfilePhoto? _photoPreview;
   bool _profileRequested = false;
 
   List<TextEditingController> get _controllers => [
@@ -76,6 +80,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  // Santiago Casasbuenas: Load the current photo path with profile fields.
   Future<void> _loadProfile() async {
     final profileController = context.dependencies.profileController;
     if (profileController.currentUserId == null) {
@@ -104,6 +109,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           .where((item) => item.id == profile.cityId)
           .firstOrNull;
 
+      _photoPath = profile.photoPath;
       _initialName = name;
       _initialAge = age;
       _initialGender = gender;
@@ -212,6 +218,47 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  // Santiago Casasbuenas: Preview the selected image and report upload results.
+  Future<void> _changePhoto() async {
+    if (_isUploadingPhoto) return;
+    final controller = context.dependencies.profileController;
+    if (controller.currentUserId == null) {
+      _showMessage('No user logged in.');
+      return;
+    }
+    try {
+      final photo = await controller.pickPhoto();
+      if (photo == null || !mounted) return;
+      setState(() {
+        _photoPreview = photo;
+        _isUploadingPhoto = true;
+      });
+      final path = await controller.savePhoto(photo);
+      if (!mounted) return;
+      setState(() {
+        _photoPreview = null;
+        _photoPath = path;
+        _isUploadingPhoto = false;
+      });
+      _showMessage('Photo updated');
+    } on FormatException catch (error) {
+      if (mounted) {
+        _showMessage(error.message);
+      }
+    } catch (_) {
+      if (mounted) {
+        _showMessage('Could not update photo. Please try again.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _photoPreview = null;
+          _isUploadingPhoto = false;
+        });
+      }
+    }
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
@@ -231,6 +278,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  // Santiago Casasbuenas: Show photo preview and upload state on the form.
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -261,15 +309,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
               ),
               const SizedBox(height: 18),
-              const Center(child: ProfileAvatar(size: 72)),
+              Center(
+                child: ProfileAvatar(
+                  size: 72,
+                  photoPath: _photoPath,
+                  loadPhoto: context.dependencies.profileController.readPhoto,
+                  preview: _photoPreview?.bytes,
+                ),
+              ),
               const SizedBox(height: 8),
               Center(
                 child: TextButton(
-                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Photo picker coming soon')),
-                  ),
+                  onPressed: _isUploadingPhoto ? null : _changePhoto,
                   style: linkButtonStyle(),
-                  child: const Text('Change photo'),
+                  child: Text(
+                    _isUploadingPhoto ? 'Uploading photo...' : 'Change photo',
+                  ),
                 ),
               ),
               const SizedBox(height: 12),

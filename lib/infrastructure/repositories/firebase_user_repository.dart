@@ -55,6 +55,14 @@ class FirebaseUserRepository implements UserRepository {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+  @override
+  // Santiago Casasbuenas: Persist the private Storage path on the user profile.
+  Future<void> updatePhotoPath(String userId, String path) => _firestore
+      .collection('users')
+      .doc(userId)
+      .update({'photoPath': path, 'updatedAt': FieldValue.serverTimestamp()});
+
+  // Santiago Casasbuenas: Include the saved photo path when reading profiles.
   UserProfile? _fromDocument(DocumentSnapshot<Map<String, dynamic>> document) {
     final data = document.data();
     if (data == null) return null;
@@ -67,6 +75,7 @@ class FirebaseUserRepository implements UserRepository {
       age: (data['age'] as num?)?.toInt() ?? 0,
       preferredCategoryId: data['preferredCategoryId'] as String? ?? '',
       cityId: data['cityId'] as String?,
+      photoPath: data['photoPath'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );

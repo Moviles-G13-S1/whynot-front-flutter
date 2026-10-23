@@ -27,6 +27,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>WhyNot lets you choose a profile photo from your library.</string>
+
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>WhyNot uses your location to find stores near you.</string>
 
