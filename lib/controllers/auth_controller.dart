@@ -16,8 +16,11 @@ class AuthController {
 
   AuthUser? get currentUser => _authRepository.currentUser;
 
-  Future<void> signIn({required String email, required String password}) =>
-      _authRepository.signIn(email: email, password: password);
+  Future<void> signIn({required String email, required String password}) {
+    InputPolicy.noEmoji(email, 'Email');
+    InputPolicy.noEmoji(password, 'Password');
+    return _authRepository.signIn(email: email, password: password);
+  }
 
   Future<void> createAccount({
     required String name,
@@ -31,6 +34,9 @@ class AuthController {
     InputPolicy.noEmoji(name, 'Name');
     InputPolicy.noEmoji(email, 'Email');
     InputPolicy.noEmoji(password, 'Password');
+    if (password.length < InputPolicy.minimumPasswordLength) {
+      throw const AuthFailure('weak-password');
+    }
     if (name.trim().isEmpty ||
         name.trim().length > UserProfileConstraints.maximumNameLength) {
       throw const AuthFailure('invalid-name');
@@ -74,7 +80,11 @@ class AuthController {
     required String currentPassword,
     required String newPassword,
   }) {
+    InputPolicy.noEmoji(currentPassword, 'Current password');
     InputPolicy.noEmoji(newPassword, 'New password');
+    if (newPassword.length < InputPolicy.minimumPasswordLength) {
+      throw const AuthFailure('weak-password');
+    }
     return _authRepository.changePassword(
       currentPassword: currentPassword,
       newPassword: newPassword,

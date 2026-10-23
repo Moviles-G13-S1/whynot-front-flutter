@@ -37,6 +37,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   bool _citiesRequested = false;
   bool _citiesError = false;
   bool _isLoading = false;
+  String? _nameError;
+  String? _emailError;
+  String? _genderError;
+  String? _ageError;
+  String? _cityError;
+  String? _passwordError;
+  String? _categoryError;
 
   @override
   void didChangeDependencies() {
@@ -85,37 +92,44 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     final selectedCity = _cities
         .where((city) => city.id == _cityId)
         .firstOrNull;
+    final nameError = InputPolicy.nameValidationError(
+      name,
+      maxLength: UserProfileConstraints.maximumNameLength,
+    );
+    final emailError = InputPolicy.emailValidationError(email);
+    final passwordError = InputPolicy.passwordValidationError(
+      password,
+      requireMinimumLength: true,
+    );
+    final ageError = _ageValidationError(_ageController.text);
+    final cityText = _cityController.text.trim();
+    final cityError = InputPolicy.containsEmoji(cityText)
+        ? 'You cannot include emojis in your city.'
+        : selectedCity == null || cityText != selectedCity.name
+        ? 'Select a city from the list.'
+        : null;
+    final genderError = _gender == null ? 'Select a gender.' : null;
+    final categoryError = _category == null
+        ? 'Select a preferred category.'
+        : null;
 
-    for (final field in [
-      ('Name', name),
-      ('Email', email),
-      ('Password', password),
-      ('City search', _cityController.text),
-    ]) {
-      if (InputPolicy.containsEmoji(field.$2)) {
-        _showMessage('${field.$1} cannot contain emoji.');
-        return;
-      }
-    }
+    setState(() {
+      _nameError = nameError;
+      _emailError = emailError;
+      _passwordError = passwordError;
+      _ageError = ageError;
+      _cityError = cityError;
+      _genderError = genderError;
+      _categoryError = categoryError;
+    });
 
-    if (name.isEmpty ||
-        email.isEmpty ||
-        password.isEmpty ||
-        age == null ||
-        selectedCity == null ||
-        _cityController.text.trim() != selectedCity.name ||
-        _gender == null ||
-        _category == null) {
-      _showMessage('Please complete all fields.');
-      return;
-    }
-
-    if (age < UserProfileConstraints.minimumAge ||
-        age > UserProfileConstraints.maximumAge) {
-      _showMessage(
-        'Age must be between ${UserProfileConstraints.minimumAge} and '
-        '${UserProfileConstraints.maximumAge}.',
-      );
+    if (nameError != null ||
+        emailError != null ||
+        passwordError != null ||
+        ageError != null ||
+        cityError != null ||
+        genderError != null ||
+        categoryError != null) {
       return;
     }
 
@@ -127,9 +141,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         email: email,
         password: password,
         gender: _gender!,
-        age: age,
+        age: age!,
         preferredCategoryId: CategoryCatalog.idsByLabel[_category]!,
-        cityId: selectedCity.id,
+        cityId: selectedCity!.id,
       );
 
       if (!mounted) return;
@@ -142,25 +156,33 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
       switch (error.code) {
         case 'invalid-name':
-          _showMessage(
-            'Name must have at most '
-            '${UserProfileConstraints.maximumNameLength} characters.',
+          setState(
+            () => _nameError =
+                'Name cannot exceed '
+                '${UserProfileConstraints.maximumNameLength} characters.',
           );
           break;
         case 'invalid-age':
-          _showMessage(
-            'Age must be between ${UserProfileConstraints.minimumAge} and '
-            '${UserProfileConstraints.maximumAge}.',
+          setState(
+            () => _ageError =
+                'Age must be between ${UserProfileConstraints.minimumAge} and '
+                '${UserProfileConstraints.maximumAge}.',
           );
           break;
         case 'weak-password':
-          _showMessage('The password is too weak.');
+          setState(
+            () => _passwordError =
+                'Password must be at least '
+                '${InputPolicy.minimumPasswordLength} characters.',
+          );
           break;
         case 'email-already-in-use':
-          _showMessage('An account already exists with this email.');
+          setState(
+            () => _emailError = 'An account already exists with this email.',
+          );
           break;
         case 'invalid-email':
-          _showMessage('Please enter a valid email.');
+          setState(() => _emailError = 'Enter a valid email address.');
           break;
         default:
           _showMessage('Could not create the account. Please try again.');
@@ -179,6 +201,49 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String? _ageValidationError(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return 'Age is required.';
+    final age = int.tryParse(trimmed);
+    if (age == null) return 'Enter a valid age.';
+    if (age < UserProfileConstraints.minimumAge ||
+        age > UserProfileConstraints.maximumAge) {
+      return 'Age must be between ${UserProfileConstraints.minimumAge} and '
+          '${UserProfileConstraints.maximumAge}.';
+    }
+    return null;
+  }
+
+  void _revalidateName(String value) {
+    if (_nameError == null) return;
+    setState(
+      () => _nameError = InputPolicy.nameValidationError(
+        value,
+        maxLength: UserProfileConstraints.maximumNameLength,
+      ),
+    );
+  }
+
+  void _revalidateEmail(String value) {
+    if (_emailError == null) return;
+    setState(() => _emailError = InputPolicy.emailValidationError(value));
+  }
+
+  void _revalidatePassword(String value) {
+    if (_passwordError == null) return;
+    setState(
+      () => _passwordError = InputPolicy.passwordValidationError(
+        value,
+        requireMinimumLength: true,
+      ),
+    );
+  }
+
+  void _revalidateAge(String value) {
+    if (_ageError == null) return;
+    setState(() => _ageError = _ageValidationError(value));
   }
 
   Future<void> _goBack() async {
@@ -226,39 +291,54 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                   children: [
                     AccountField(
                       label: 'Name',
+                      errorText: _nameError,
                       child: DesignField(
                         controller: _nameController,
                         autofillHints: const [AutofillHints.name],
+                        onChanged: _revalidateName,
+                        hasError: _nameError != null,
                       ),
                     ),
                     AccountField(
                       label: 'Email',
+                      errorText: _emailError,
                       child: DesignField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         autofillHints: const [AutofillHints.email],
+                        onChanged: _revalidateEmail,
+                        hasError: _emailError != null,
                       ),
                     ),
                     AccountField(
                       label: 'Gender',
+                      errorText: _genderError,
                       child: DesignDropdown(
                         value: _gender,
                         items: const ['Female', 'Male', 'Other'],
-                        onChanged: (value) => setState(() => _gender = value),
+                        hasError: _genderError != null,
+                        onChanged: (value) => setState(() {
+                          _gender = value;
+                          _genderError = null;
+                        }),
                       ),
                     ),
                     AccountField(
                       label: 'Age',
+                      errorText: _ageError,
                       child: DesignField(
                         controller: _ageController,
                         keyboardType: TextInputType.number,
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
                         ],
+                        onChanged: _revalidateAge,
+                        hasError: _ageError != null,
                       ),
                     ),
                     AccountField(
                       label: 'City',
+                      errorText: _cityError,
                       child: _citiesLoading
                           ? const Text('Loading cities...')
                           : _citiesError
@@ -276,24 +356,36 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                               cities: _cities,
                               controller: _cityController,
                               selectedId: _cityId,
-                              onSelected: (id) => setState(() => _cityId = id),
+                              hasError: _cityError != null,
+                              onSelected: (id) => setState(() {
+                                _cityId = id;
+                                _cityError = null;
+                              }),
                             ),
                     ),
                     AccountField(
                       label: 'Password',
+                      errorText: _passwordError,
                       child: DesignField(
                         controller: _passwordController,
                         obscureText: true,
                         autofillHints: const [AutofillHints.newPassword],
+                        onChanged: _revalidatePassword,
+                        hasError: _passwordError != null,
                       ),
                     ),
                     AccountField(
                       label: 'Preferred Category',
                       isLast: true,
+                      errorText: _categoryError,
                       child: DesignDropdown(
                         value: _category,
                         items: CategoryCatalog.labelsById.values.toList(),
-                        onChanged: (value) => setState(() => _category = value),
+                        hasError: _categoryError != null,
+                        onChanged: (value) => setState(() {
+                          _category = value;
+                          _categoryError = null;
+                        }),
                       ),
                     ),
                   ],

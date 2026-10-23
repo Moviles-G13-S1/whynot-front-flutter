@@ -11,6 +11,8 @@ abstract final class WhyNotColors {
   static const form = Color(0xFFF4EFE8);
   static const field = Color(0xFFFFFEFE);
   static const border = Color(0xFFC6C0BB);
+  static const error = Color(0xFFB3261E);
+  static const errorSurface = Color(0xFFFFF2F0);
 }
 
 /// Reusable text styles from the Figma design.
@@ -65,10 +67,13 @@ abstract final class WhyNotTheme {
 }
 
 /// Border shared by text fields and dropdowns.
-OutlineInputBorder fieldBorder({Color color = WhyNotColors.border}) {
+OutlineInputBorder fieldBorder({
+  Color color = WhyNotColors.border,
+  double width = 1,
+}) {
   return OutlineInputBorder(
     borderRadius: BorderRadius.circular(10),
-    borderSide: BorderSide(color: color),
+    borderSide: BorderSide(color: color, width: width),
   );
 }
 

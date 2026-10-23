@@ -4,6 +4,7 @@ import '../../app/app_routes.dart';
 import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../controllers/admin_access_controller.dart';
+import '../../models/input_policy.dart';
 import '../../models/repositories/auth_repository.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/form_controls.dart';
@@ -21,6 +22,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
 
   bool _isLoading = false;
+  String? _emailError;
+  String? _passwordError;
 
   @override
   void dispose() {
@@ -36,10 +39,13 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
-    if (email.isEmpty || password.isEmpty) {
-      _showMessage('Please enter your email and password.');
-      return;
-    }
+    final emailError = InputPolicy.emailValidationError(email);
+    final passwordError = InputPolicy.passwordValidationError(password);
+    setState(() {
+      _emailError = emailError;
+      _passwordError = passwordError;
+    });
+    if (emailError != null || passwordError != null) return;
 
     setState(() => _isLoading = true);
 
@@ -64,17 +70,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
       switch (error.code) {
         case 'invalid-email':
-          _showMessage('Please enter a valid email.');
+          setState(() => _emailError = 'Enter a valid email address.');
           break;
 
         case 'user-not-found':
         case 'wrong-password':
         case 'invalid-credential':
-          _showMessage('Incorrect email or password.');
+          setState(() => _passwordError = 'Incorrect email or password.');
           break;
 
         case 'user-disabled':
-          _showMessage('This account has been disabled.');
+          setState(() => _emailError = 'This account has been disabled.');
           break;
 
         default:
@@ -94,6 +100,16 @@ class _LoginScreenState extends State<LoginScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _revalidateEmail(String value) {
+    if (_emailError == null) return;
+    setState(() => _emailError = InputPolicy.emailValidationError(value));
+  }
+
+  void _revalidatePassword(String value) {
+    if (_passwordError == null) return;
+    setState(() => _passwordError = InputPolicy.passwordValidationError(value));
   }
 
   @override
@@ -119,21 +135,25 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const FieldLabel('Email'),
+                    FieldLabel('Email', hasError: _emailError != null),
                     const SizedBox(height: 7),
                     DesignField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       autofillHints: const [AutofillHints.email],
+                      errorText: _emailError,
+                      onChanged: _revalidateEmail,
                     ),
                     const SizedBox(height: 31),
-                    const FieldLabel('Password'),
+                    FieldLabel('Password', hasError: _passwordError != null),
                     const SizedBox(height: 7),
                     DesignField(
                       controller: _passwordController,
                       obscureText: true,
                       autofillHints: const [AutofillHints.password],
                       onSubmitted: (_) => _login(),
+                      errorText: _passwordError,
+                      onChanged: _revalidatePassword,
                     ),
                   ],
                 ),

@@ -46,7 +46,7 @@ void main() {
   );
 
   test(
-    'registration rejects emoji before auth creation, while sign-in stays compatible',
+    'authentication fields reject emoji before reaching the repository',
     () async {
       final auth = InMemoryAuthRepository();
       final controller = AuthController(
@@ -85,18 +85,28 @@ void main() {
         preferredCategoryId: 'fashion',
         cityId: 'bogota',
       );
-      await controller.signIn(
-        email: 'legacy@example.com',
-        password: 'legacy🎁',
+      expect(
+        () => controller.signIn(
+          email: 'legacy@example.com',
+          password: 'legacy🎁',
+        ),
+        throwsA(isA<InputPolicyException>()),
       );
       await controller.changePassword(
-        currentPassword: 'legacy🎁',
+        currentPassword: 'currentpassword123',
         newPassword: 'newpassword123',
       );
       expect(
         () => controller.changePassword(
-          currentPassword: 'legacy🎁',
+          currentPassword: 'currentpassword123',
           newPassword: 'new🎁password',
+        ),
+        throwsA(isA<InputPolicyException>()),
+      );
+      expect(
+        () => controller.changePassword(
+          currentPassword: 'current🎁password',
+          newPassword: 'newpassword123',
         ),
         throwsA(isA<InputPolicyException>()),
       );
@@ -295,6 +305,9 @@ void main() {
     await tester.ensureVisible(find.text('Create an account').last);
     await tester.tap(find.text('Create an account').last);
     await tester.pump();
-    expect(find.text('City search cannot contain emoji.'), findsOneWidget);
+    expect(
+      find.text('You cannot include emojis in your city.'),
+      findsOneWidget,
+    );
   });
 }
