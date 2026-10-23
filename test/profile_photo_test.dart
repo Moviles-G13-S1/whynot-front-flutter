@@ -29,8 +29,9 @@ class _Photos implements ProfilePhotoRepository {
   // Santiago Casasbuenas: Return a test upload path.
   Future<String> upload(String userId, ProfilePhoto photo) async => uploaded;
   @override
-  // Santiago Casasbuenas: Simulate reading a stored image.
-  Future<Uint8List?> read(String path) async => Uint8List.fromList([1]);
+  // Santiago Casasbuenas: Simulate resolving a stored image.
+  Future<String> getDownloadUrl(String path) async =>
+      'https://example.com/profile.jpg';
   @override
   // Santiago Casasbuenas: Track cleanup of photo objects.
   Future<void> delete(String path) async => deleted.add(path);
@@ -73,9 +74,12 @@ void main() {
       await controller.savePhoto((await controller.pickPhoto())!);
       expect(users.profiles['alice']!.photoPath, photos.uploaded);
       expect(photos.deleted, [_profile.photoPath]);
-      expect(await controller.readPhoto(photos.uploaded), isNotNull);
       expect(
-        () => controller.readPhoto('profilePhotos/bob/123-456.jpg'),
+        await controller.getPhotoUrl(photos.uploaded),
+        'https://example.com/profile.jpg',
+      );
+      expect(
+        () => controller.getPhotoUrl('profilePhotos/bob/123-456.jpg'),
         throwsStateError,
       );
     },
@@ -100,20 +104,22 @@ void main() {
   });
 
   testWidgets(
-    'avatar shows preview and falls back when stored image is unavailable',
+    'avatar uses a CORS-safe web image and supports a local preview',
     (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: ProfileAvatar(
               photoPath: 'profilePhotos/alice/123-456.jpg',
-              loadPhoto: (_) async => null,
+              loadPhotoUrl: (_) async => 'https://example.com/profile.jpg',
             ),
           ),
         ),
       );
       await tester.pump();
-      expect(find.byType(Image), findsNothing);
+      final storedImage = tester.widget<Image>(find.byType(Image));
+      final provider = storedImage.image as NetworkImage;
+      expect(provider.webHtmlElementStrategy, WebHtmlElementStrategy.prefer);
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(

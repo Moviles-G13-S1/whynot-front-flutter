@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import '../models/profile_photo.dart';
 import '../models/repositories/profile_photo_repository.dart';
 import '../models/repositories/auth_repository.dart';
@@ -39,13 +37,13 @@ class ProfileController {
   // Santiago Casasbuenas: Select a profile image through the injected photo repository.
   Future<ProfilePhoto?> pickPhoto() => _photoRepository.pick();
 
-  // Santiago Casasbuenas: Read only the signed-in user's stored profile image.
-  Future<Uint8List?> readPhoto(String path) {
+  // Santiago Casasbuenas: Resolve only the signed-in user's stored profile image.
+  Future<String> getPhotoUrl(String path) {
     final id = currentUserId;
     if (id == null || !path.startsWith('profilePhotos/$id/')) {
       throw StateError('Photo does not belong to the current user.');
     }
-    return _photoRepository.read(path);
+    return _photoRepository.getDownloadUrl(path);
   }
 
   // Santiago Casasbuenas: Upload, save the path, and clean up replaced or failed uploads.

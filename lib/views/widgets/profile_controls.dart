@@ -11,14 +11,14 @@ class ProfileAvatar extends StatefulWidget {
   const ProfileAvatar({
     this.size = 100,
     this.photoPath,
-    this.loadPhoto,
+    this.loadPhotoUrl,
     this.preview,
     super.key,
   });
 
   final double size;
   final String? photoPath;
-  final Future<Uint8List?> Function(String path)? loadPhoto;
+  final Future<String> Function(String path)? loadPhotoUrl;
   final Uint8List? preview;
 
   @override
@@ -27,7 +27,7 @@ class ProfileAvatar extends StatefulWidget {
 }
 
 class _ProfileAvatarState extends State<ProfileAvatar> {
-  Future<Uint8List?>? _photo;
+  Future<String>? _photoUrl;
 
   @override
   // Santiago Casasbuenas: Load the saved profile image on first display.
@@ -41,7 +41,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
   void didUpdateWidget(ProfileAvatar oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.photoPath != widget.photoPath ||
-        oldWidget.loadPhoto != widget.loadPhoto) {
+        oldWidget.loadPhotoUrl != widget.loadPhotoUrl) {
       _refreshPhoto();
     }
   }
@@ -49,9 +49,9 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
   // Santiago Casasbuenas: Resolve the owner-protected photo through the controller.
   void _refreshPhoto() {
     final path = widget.photoPath;
-    _photo = path == null || widget.loadPhoto == null
+    _photoUrl = path == null || widget.loadPhotoUrl == null
         ? null
-        : widget.loadPhoto!(path);
+        : widget.loadPhotoUrl!(path);
   }
 
   @override
@@ -73,13 +73,23 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
         errorBuilder: (_, _, _) => fallback(),
       ),
     );
+    Widget networkPhoto(String url) => ClipOval(
+      child: Image.network(
+        url,
+        width: widget.size,
+        height: widget.size,
+        fit: BoxFit.cover,
+        webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+        errorBuilder: (_, _, _) => fallback(),
+      ),
+    );
     if (widget.preview != null) return photo(widget.preview!);
-    if (_photo == null) return fallback();
-    return FutureBuilder<Uint8List?>(
-      future: _photo,
+    if (_photoUrl == null) return fallback();
+    return FutureBuilder<String>(
+      future: _photoUrl,
       builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data != null) {
-          return photo(snapshot.data!);
+        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+          return networkPhoto(snapshot.data!);
         }
         return fallback();
       },

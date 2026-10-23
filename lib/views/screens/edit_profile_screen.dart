@@ -332,7 +332,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: ProfileAvatar(
                   size: 72,
                   photoPath: _photoPath,
-                  loadPhoto: context.dependencies.profileController.readPhoto,
+                  loadPhotoUrl:
+                      context.dependencies.profileController.getPhotoUrl,
                   preview: _photoPreview?.bytes,
                 ),
               ),

@@ -75,7 +75,7 @@ class ProfileScreen extends StatelessWidget {
                       children: [
                         ProfileAvatar(
                           photoPath: profile.photoPath,
-                          loadPhoto: controller.readPhoto,
+                          loadPhotoUrl: controller.getPhotoUrl,
                         ),
                         const SizedBox(height: 31),
 

@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:whynot_mobile/controllers/auth_controller.dart';
@@ -27,7 +25,7 @@ class _UnusedPhotos implements ProfilePhotoRepository {
   @override
   Future<String> upload(String userId, ProfilePhoto photo) async => '';
   @override
-  Future<Uint8List?> read(String path) async => null;
+  Future<String> getDownloadUrl(String path) async => '';
   @override
   Future<void> delete(String path) async {}
 }
