@@ -22,7 +22,7 @@ class RecommendationController {
     RecommendationResultCache? cache,
   }) : _recommendationRepository = recommendationRepository,
        _authRepository = authRepository,
-       cache = cache ?? RecommendationResultCache();
+       _cache = cache ?? RecommendationResultCache();
 
   /// Repository used to obtain personalized recommendations.
   ///
@@ -31,7 +31,10 @@ class RecommendationController {
   /// from the backend technology.
   final RecommendationRepository _recommendationRepository;
   final AuthRepository _authRepository;
-  final RecommendationResultCache cache;
+  final RecommendationResultCache _cache;
+
+  RecommendationCacheStats get cacheStats => _cache.stats;
+  int get cachedEntryCount => _cache.length;
   final Map<String, Future<ProductRecommendation?>> _inFlight = {};
   final Map<String, int> _versions = {};
   int _epoch = 0;
@@ -55,11 +58,11 @@ class RecommendationController {
       _activeUserId = userId;
     }
     if (!forceRefresh) {
-      final (hit, value) = cache.lookup(userId);
+      final (hit, value) = _cache.lookup(userId);
       if (hit) return Future.value(value);
       final pending = _inFlight[userId];
       if (pending != null) {
-        cache.recordCoalesced();
+        _cache.recordCoalesced();
         return pending;
       }
     } else {
@@ -89,7 +92,7 @@ class RecommendationController {
       if ((_versions[userId] ?? 0) != version) {
         throw StateError('Recommendation changed during request.');
       }
-      cache.store(userId, value);
+      _cache.store(userId, value);
       return value;
     } finally {
       if (_epoch == epoch && (_versions[userId] ?? 0) == version) {
@@ -101,7 +104,7 @@ class RecommendationController {
   /// Santiago Casasbuenas: Mutations invalidate the affected user's result and
   /// prevent an older request from repopulating it after the mutation succeeds.
   void invalidateForUser(String userId) {
-    cache.invalidate(userId);
+    _cache.invalidate(userId);
     _versions[userId] = (_versions[userId] ?? 0) + 1;
     _inFlight.remove(userId);
   }
@@ -110,7 +113,7 @@ class RecommendationController {
   /// in-flight completion. This cache never survives an application restart.
   void clearCache() {
     _epoch++;
-    cache.clear();
+    _cache.clear();
     _versions.clear();
     _inFlight.clear();
     _activeUserId = null;

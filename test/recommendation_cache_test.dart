@@ -101,8 +101,8 @@ void main() {
       'new',
     );
     expect(repository.calls, 2);
-    expect(controller.cache.stats.coalesced, 1);
-    expect(controller.cache.stats.hits, 1);
+    expect(controller.cacheStats.coalesced, 1);
+    expect(controller.cacheStats.hits, 1);
     // Runnable cold/warm evidence: the warm path performs zero backend calls.
     // ignore: avoid_print
     print('Recommendation cache demo: cold=1 callable, warm=0 callables.');
@@ -135,7 +135,7 @@ void main() {
       expect(repository.calls, 3);
       auth.user = null;
       await expectLater(controller.getRecommendation(), throwsStateError);
-      expect(controller.cache.length, 0);
+      expect(controller.cachedEntryCount, 0);
     },
   );
 
@@ -169,7 +169,7 @@ void main() {
       expect(repository.calls, 3);
       expect(repository.saves, 1);
       controller.invalidateForUser('a');
-      expect(controller.cache.length, 0);
+      expect(controller.cachedEntryCount, 0);
     },
   );
 
@@ -251,7 +251,7 @@ void main() {
       );
       expect((await recommendations.getRecommendation())?.name, 'four');
       await dependencies.authController.signOut();
-      expect(recommendations.cache.length, 0);
+      expect(recommendations.cachedEntryCount, 0);
       expect(repository.calls, 4);
     },
   );
