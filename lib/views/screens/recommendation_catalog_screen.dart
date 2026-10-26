@@ -4,6 +4,7 @@ import '../../app/app_routes.dart';
 import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../models/recommendation_catalog_item.dart';
+import '../../models/repositories/recommendation_repository.dart';
 import '../widgets/form_controls.dart';
 
 /// Browse all currently eligible products; each revisit makes the data-cache
@@ -78,65 +79,69 @@ class _RecommendationCatalogScreenState
           ),
         ],
       ),
-      body:
-          FutureBuilder<
-            ({List<RecommendationCatalogItem> items, bool fromCache})
-          >(
-            future: _load,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Could not load recommendations.'),
-                      const SizedBox(height: 12),
-                      PillButton(label: 'Try again', onPressed: _refresh),
-                    ],
-                  ),
-                );
-              }
-              final result = snapshot.data!;
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 36),
+      body: FutureBuilder<({List<RecommendationCatalogItem> items, bool fromCache})>(
+        future: _load,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            final unavailable =
+                snapshot.error is RecommendationCatalogUnavailable;
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    result.fromCache
-                        ? 'Loaded from cache · no recommendation request'
-                        : 'Fetched fresh recommendations',
-                    key: const Key('catalog-cache-status'),
-                    style: WhyNotTextStyles.muted(size: 13),
+                    unavailable
+                        ? 'Recommendation catalog is not available in this app environment yet.'
+                        : 'Could not load recommendations. Check your connection and try again.',
+                    textAlign: TextAlign.center,
                   ),
-                  if (result.fromCache) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      'Cached results may be up to 5 minutes old.',
-                      style: WhyNotTextStyles.muted(size: 11),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  Text(
-                    'Products in your preferred category from people with similar profiles.',
-                    style: WhyNotTextStyles.muted(size: 13),
-                  ),
-                  const SizedBox(height: 22),
-                  if (result.items.isEmpty)
-                    const Text('No new recommendations yet. Try again later.'),
-                  for (final item in result.items) ...[
-                    _CatalogCard(
-                      item: item,
-                      opening: _openingId == item.sourceProductId,
-                      onTap: () => _open(item),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+                  const SizedBox(height: 12),
+                  PillButton(label: 'Try again', onPressed: _refresh),
                 ],
-              );
-            },
-          ),
+              ),
+            );
+          }
+          final result = snapshot.data!;
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 36),
+            children: [
+              Text(
+                result.fromCache
+                    ? 'Loaded from cache · no recommendation request'
+                    : 'Fetched fresh recommendations',
+                key: const Key('catalog-cache-status'),
+                style: WhyNotTextStyles.muted(size: 13),
+              ),
+              if (result.fromCache) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Cached results may be up to 5 minutes old.',
+                  style: WhyNotTextStyles.muted(size: 11),
+                ),
+              ],
+              const SizedBox(height: 8),
+              Text(
+                'Products in your preferred category from people with similar profiles.',
+                style: WhyNotTextStyles.muted(size: 13),
+              ),
+              const SizedBox(height: 22),
+              if (result.items.isEmpty)
+                const Text('No new recommendations yet. Try again later.'),
+              for (final item in result.items) ...[
+                _CatalogCard(
+                  item: item,
+                  opening: _openingId == item.sourceProductId,
+                  onTap: () => _open(item),
+                ),
+                const SizedBox(height: 12),
+              ],
+            ],
+          );
+        },
+      ),
     );
   }
 }

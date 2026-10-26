@@ -72,9 +72,17 @@ class FirebaseRecommendationRepository implements RecommendationRepository {
 
   @override
   Future<List<RecommendationCatalogItem>> getCatalog() async {
-    final result = await _functions
-        .httpsCallable('get_recommendation_catalog')
-        .call();
+    HttpsCallableResult<dynamic> result;
+    try {
+      result = await _functions
+          .httpsCallable('get_recommendation_catalog')
+          .call();
+    } on FirebaseFunctionsException catch (error) {
+      if (error.code == 'not-found' || error.code == 'unimplemented') {
+        throw const RecommendationCatalogUnavailable();
+      }
+      rethrow;
+    }
     final data = Map<String, dynamic>.from(result.data as Map);
     final rawItems = data['recommendations'] as List;
     return rawItems

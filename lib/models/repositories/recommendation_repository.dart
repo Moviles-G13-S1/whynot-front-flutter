@@ -1,6 +1,11 @@
 import '../product_recommendation.dart';
 import '../recommendation_catalog_item.dart';
 
+/// The catalog callable is absent from the connected Firebase environment.
+class RecommendationCatalogUnavailable implements Exception {
+  const RecommendationCatalogUnavailable();
+}
+
 /// Domain contract for obtaining personalized product recommendations.
 ///
 /// The domain layer defines only the capability required by the application.

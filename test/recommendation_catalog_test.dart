@@ -7,6 +7,7 @@ import 'package:whynot_mobile/controllers/recommendation_result_cache.dart';
 import 'package:whynot_mobile/models/auth_user.dart';
 import 'package:whynot_mobile/models/product_recommendation.dart';
 import 'package:whynot_mobile/models/recommendation_catalog_item.dart';
+import 'package:whynot_mobile/models/repositories/recommendation_repository.dart';
 import 'package:whynot_mobile/views/screens/recommendation_catalog_screen.dart';
 import 'package:whynot_mobile/views/screens/recommendation_detail_screen.dart';
 
@@ -51,7 +52,36 @@ class CatalogRepository extends InMemoryRecommendationRepository {
   }
 }
 
+class UnavailableCatalogRepository extends CatalogRepository {
+  @override
+  Future<List<RecommendationCatalogItem>> getCatalog() async {
+    throw const RecommendationCatalogUnavailable();
+  }
+}
+
 void main() {
+  testWidgets('missing catalog service has a specific recovery message', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      DependenciesScope(
+        dependencies: createTestDependencies(
+          signedIn: true,
+          recommendationRepository: UnavailableCatalogRepository(),
+        ),
+        child: const MaterialApp(home: RecommendationCatalogScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Recommendation catalog is not available in this app environment yet.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Try again'), findsOneWidget);
+  });
+
   test(
     'catalog TTL, invalidation, and user switch require fresh calls',
     () async {
