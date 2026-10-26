@@ -11,11 +11,13 @@ class WishlistController {
   const WishlistController({
     required AuthRepository authRepository,
     required WishlistRepository wishlistRepository,
+    this.onRecommendationInputsChanged,
   }) : _authRepository = authRepository,
        _wishlistRepository = wishlistRepository;
 
   final AuthRepository _authRepository;
   final WishlistRepository _wishlistRepository;
+  final void Function(String userId)? onRecommendationInputsChanged;
 
   String? get currentUserId => _authRepository.currentUser?.id;
 
@@ -94,12 +96,15 @@ class WishlistController {
       if (emoji != null && !WishlistEmoji.choices.contains(emoji)) {
         throw const InputPolicyException('Choose an emoji from the list.');
       }
-      return await _wishlistRepository.create(
+      final id = await _wishlistRepository.create(
         ownerId: ownerId,
         categoryId: categoryId,
         imageUrl: imageUrl,
         emoji: emoji,
       );
+      // Santiago Casasbuenas: Wishlist membership changes recommendation inputs.
+      onRecommendationInputsChanged?.call(ownerId);
+      return id;
     } on InputPolicyException {
       unawaited(
         _track('create', 'failure', 'validation', categoryId: categoryId),
@@ -139,10 +144,14 @@ class WishlistController {
   ) async {
     final ownerId = currentUserId;
     if (ownerId == null) throw StateError('No user logged in.');
-    return _wishlistRepository.deleteEmpty(
+    final result = await _wishlistRepository.deleteEmpty(
       ownerId: ownerId,
       wishlistId: wishlistId,
     );
+    if (result.outcome == 'success') {
+      onRecommendationInputsChanged?.call(ownerId);
+    }
+    return result;
   }
 
   Future<void> _track(

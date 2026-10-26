@@ -49,7 +49,7 @@ class _SmartRecommendationSectionState
         .getRecommendation();
   }
 
-  /// Requests the recommendation again after an error.
+  /// Santiago Casasbuenas: Retry deliberately bypasses the result cache.
   ///
   /// Calling setState replaces the previous Future and causes the
   /// FutureBuilder to run through the loading/result states again.
@@ -57,7 +57,7 @@ class _SmartRecommendationSectionState
     setState(() {
       _savedEventId = null;
       _recommendationFuture = context.dependencies.recommendationController
-          .getRecommendation();
+          .getRecommendation(forceRefresh: true);
     });
   }
 

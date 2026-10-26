@@ -1,0 +1,15 @@
+# Smart Recommendation result cache — Santiago Casasbuenas
+
+The Flutter app shares one `RecommendationController` through `AppDependencies`. Its in-memory `RecommendationResultCache` holds at most **8** successful lookup results in LRU order. A product result expires **5 minutes** after retrieval; a valid `null` (no eligible product) expires after **30 seconds**. Errors are not cached. The clock and capacity are injectable for tests. These entries do **not** survive an app restart.
+
+The `get_recommendation` callable currently accepts no explicit request parameters. Its authenticated UID is therefore the cache key; age, gender, preferred category, and product data are read by the server. If request parameters are added later, they must become part of the key. The controller clears all entries on sign-in, account creation, sign-out, and an observed user switch. It rejects an old in-flight response after a user switch or invalidation. Concurrent ordinary requests for the same user share one backend call. An explicit retry uses `forceRefresh: true`, bypasses a valid entry, and only replaces it after success; a failed refresh leaves a valid previous entry available to a later ordinary lookup.
+
+Successful local product create/update/delete/purchase, demographic-profile update, wishlist create/delete, and recommendation save invalidate the affected user's entry. The server also compares other users' profiles and products; changes made on other devices are not locally observable, so the **5-minute TTL** bounds their staleness. The 30-second null TTL lets newly eligible products appear sooner. This cache does not implement offline display or network recovery; that is Sprint 3 point 3.
+
+`RecommendationCacheStats` exposes hit, miss, eviction, expiration, and coalescing counts without product or user data. `flutter test test/recommendation_cache_test.dart` demonstrates the cold/warm path: **cold = 1 callable; warm = 0 callables**. It also tests LRU order, TTL boundaries, user isolation, in-flight deduplication, force refresh, and mutation invalidation. A physical-device cold/warm demonstration is still needed.
+
+## Product images
+
+The Home card and detail view currently use `Image.network` with a fallback, and Flutter's in-process image cache can reuse the same image provider URL between those views. We evaluated `cached_network_image` but did not add it for this result-cache change: its disk cache and extra dependency would add a separate persistence policy, while this work is deliberately an in-memory recommendation-data cache. `Image.network` does not guarantee an image will be available offline after an app restart. If point 3 needs persistent offline images, evaluate the package there with disk-size, eviction, privacy, and error-state requirements.
+
+The open BQ Home-card instrumentation branch must retain its rule that a cached card becoming visible is a new Home exposure when integrated. Cache hits flow through the same `SmartRecommendationSection` card rendering path.

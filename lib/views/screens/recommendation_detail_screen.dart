@@ -55,7 +55,7 @@ class _RecommendationDetailScreenState
   void _retry() {
     setState(() {
       _recommendationFuture = context.dependencies.recommendationController
-          .getRecommendation();
+          .getRecommendation(forceRefresh: true);
     });
   }
 

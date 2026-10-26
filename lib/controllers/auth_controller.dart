@@ -8,18 +8,22 @@ class AuthController {
   const AuthController({
     required AuthRepository authRepository,
     required UserRepository userRepository,
+    this.onAuthChanged,
   }) : _authRepository = authRepository,
        _userRepository = userRepository;
 
   final AuthRepository _authRepository;
   final UserRepository _userRepository;
+  final void Function()? onAuthChanged;
 
   AuthUser? get currentUser => _authRepository.currentUser;
 
-  Future<void> signIn({required String email, required String password}) {
+  Future<void> signIn({required String email, required String password}) async {
     InputPolicy.noEmoji(email, 'Email');
     InputPolicy.noEmoji(password, 'Password');
-    return _authRepository.signIn(email: email, password: password);
+    await _authRepository.signIn(email: email, password: password);
+    // Santiago Casasbuenas: Do not reuse another session's recommendation.
+    onAuthChanged?.call();
   }
 
   Future<void> createAccount({
@@ -50,6 +54,7 @@ class AuthController {
       email: email,
       password: password,
     );
+    onAuthChanged?.call();
     try {
       await _userRepository.create(
         UserProfile(
@@ -74,7 +79,11 @@ class AuthController {
     }
   }
 
-  Future<void> signOut() => _authRepository.signOut();
+  Future<void> signOut() async {
+    await _authRepository.signOut();
+    // Santiago Casasbuenas: Discard recommendation data after sign-out.
+    onAuthChanged?.call();
+  }
 
   Future<void> changePassword({
     required String currentPassword,
