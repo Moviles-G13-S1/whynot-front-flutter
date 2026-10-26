@@ -1,7 +1,5 @@
 import 'dart:collection';
 
-import '../models/product_recommendation.dart';
-
 typedef CacheClock = DateTime Function();
 
 class RecommendationCacheStats {
@@ -20,17 +18,17 @@ class RecommendationCacheStats {
   final int coalesced;
 }
 
-class _CacheEntry {
+class _CacheEntry<T> {
   const _CacheEntry(this.value, this.expiresAt);
-  final ProductRecommendation? value;
+  final T? value;
   final DateTime expiresAt;
 }
 
 /// Santiago Casasbuenas: Bounded, process-local LRU for recommendation results.
 /// Successful results live 5 minutes; a valid null result lives 30 seconds.
-/// The backend accepts no request fields, so the authenticated UID is the full
-/// request key. If inputs are added to the callable, extend this key as well.
-class RecommendationResultCache {
+/// Cached top-pick and catalog reads have no request fields, so UID is their
+/// key. Opening one catalog item uses a source ID and is never cached here.
+class RecommendationResultCache<T> {
   RecommendationResultCache({
     this.capacity = 8,
     this.resultTtl = const Duration(minutes: 5),
@@ -43,7 +41,7 @@ class RecommendationResultCache {
   final Duration resultTtl;
   final Duration emptyTtl;
   final CacheClock _clock;
-  final LinkedHashMap<String, _CacheEntry> _entries = LinkedHashMap();
+  final LinkedHashMap<String, _CacheEntry<T>> _entries = LinkedHashMap();
   int _hits = 0, _misses = 0, _evictions = 0, _expirations = 0, _coalesced = 0;
 
   RecommendationCacheStats get stats => RecommendationCacheStats(
@@ -58,7 +56,7 @@ class RecommendationResultCache {
 
   /// Santiago Casasbuenas: A hit moves its entry to the newest LRU position;
   /// expiry removes it before the repository is asked for a fresh result.
-  (bool, ProductRecommendation?) lookup(String userId) {
+  (bool, T?) lookup(String userId) {
     final entry = _entries.remove(userId);
     if (entry == null) {
       _misses++;
@@ -76,7 +74,7 @@ class RecommendationResultCache {
 
   /// Santiago Casasbuenas: Evict the oldest entry after a successful fetch.
   /// Errors are never stored; null has a shorter TTL so new products surface.
-  void store(String userId, ProductRecommendation? value) {
+  void store(String userId, T? value) {
     _entries.remove(userId);
     _entries[userId] = _CacheEntry(
       value,

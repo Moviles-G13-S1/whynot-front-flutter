@@ -9,6 +9,7 @@ import '../widgets/nearby_store_section.dart';
 import '../../models/user_profile.dart';
 import '../widgets/smart_recommendation_section.dart';
 import '../widgets/home_content.dart';
+import '../widgets/form_controls.dart';
 
 /// Main feed containing the user's wishlists and personalized features.
 ///
@@ -105,6 +106,22 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 29),
 
                   const WishlistRail(),
+
+                  const SizedBox(height: 18),
+
+                  // Santiago Casasbuenas: A separate catalog makes a cold
+                  // recommendation fetch and a cached revisit visible.
+                  Padding(
+                    padding: const EdgeInsets.only(right: 18),
+                    child: PillButton(
+                      label: 'Explore recommendations',
+                      height: 44,
+                      onPressed: () => Navigator.pushNamed(
+                        context,
+                        AppRoutes.recommendationCatalog,
+                      ),
+                    ),
+                  ),
 
                   const SizedBox(height: 44),
 

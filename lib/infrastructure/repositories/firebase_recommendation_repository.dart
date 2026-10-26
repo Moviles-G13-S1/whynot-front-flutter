@@ -1,6 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../models/product_recommendation.dart';
+import '../../models/recommendation_catalog_item.dart';
 import '../../models/repositories/recommendation_repository.dart';
 
 /// Firebase implementation of [RecommendationRepository].
@@ -51,6 +52,12 @@ class FirebaseRecommendationRepository implements RecommendationRepository {
 
     final recommendation = Map<String, dynamic>.from(rawRecommendation as Map);
 
+    return _parseRecommendation(recommendation);
+  }
+
+  ProductRecommendation _parseRecommendation(
+    Map<String, dynamic> recommendation,
+  ) {
     return ProductRecommendation(
       recommendationEventId: recommendation['recommendationEventId'] as String,
       name: recommendation['name'] as String,
@@ -60,6 +67,40 @@ class FirebaseRecommendationRepository implements RecommendationRepository {
       productUrl: recommendation['productUrl'] as String,
       categoryId: recommendation['categoryId'] as String,
       reason: recommendation['reason'] as String,
+    );
+  }
+
+  @override
+  Future<List<RecommendationCatalogItem>> getCatalog() async {
+    final result = await _functions
+        .httpsCallable('get_recommendation_catalog')
+        .call();
+    final data = Map<String, dynamic>.from(result.data as Map);
+    final rawItems = data['recommendations'] as List;
+    return rawItems
+        .map((raw) {
+          final item = Map<String, dynamic>.from(raw as Map);
+          return RecommendationCatalogItem(
+            sourceProductId: item['sourceProductId'] as String,
+            name: item['name'] as String,
+            brand: item['brand'] as String,
+            price: (item['price'] as num).toDouble(),
+            imageUrl: item['imageUrl'] as String,
+            categoryId: item['categoryId'] as String,
+            reason: item['reason'] as String,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  @override
+  Future<ProductRecommendation> openCatalogItem(String sourceProductId) async {
+    final result = await _functions.httpsCallable('get_recommendation').call({
+      'sourceProductId': sourceProductId,
+    });
+    final data = Map<String, dynamic>.from(result.data as Map);
+    return _parseRecommendation(
+      Map<String, dynamic>.from(data['recommendation'] as Map),
     );
   }
 

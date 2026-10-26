@@ -1,4 +1,5 @@
 import '../product_recommendation.dart';
+import '../recommendation_catalog_item.dart';
 
 /// Domain contract for obtaining personalized product recommendations.
 ///
@@ -11,6 +12,12 @@ abstract interface class RecommendationRepository {
   /// A null result is valid and indicates that no eligible recommendation
   /// was available.
   Future<ProductRecommendation?> getRecommendation();
+
+  /// Lists eligible products without creating save events for unseen rows.
+  Future<List<RecommendationCatalogItem>> getCatalog();
+
+  /// Rechecks one catalog item and creates its saveable recommendation event.
+  Future<ProductRecommendation> openCatalogItem(String sourceProductId);
 
   /// Saves a shown recommendation into a wishlist of the same category.
   Future<void> saveRecommendation({

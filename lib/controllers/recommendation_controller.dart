@@ -1,4 +1,5 @@
 import '../models/product_recommendation.dart';
+import '../models/recommendation_catalog_item.dart';
 import '../models/repositories/recommendation_repository.dart';
 import '../models/repositories/auth_repository.dart';
 import 'recommendation_result_cache.dart';
@@ -19,10 +20,14 @@ class RecommendationController {
   RecommendationController({
     required RecommendationRepository recommendationRepository,
     required AuthRepository authRepository,
-    RecommendationResultCache? cache,
+    RecommendationResultCache<ProductRecommendation>? cache,
+    RecommendationResultCache<List<RecommendationCatalogItem>>? catalogCache,
   }) : _recommendationRepository = recommendationRepository,
        _authRepository = authRepository,
-       _cache = cache ?? RecommendationResultCache();
+       _cache = cache ?? RecommendationResultCache<ProductRecommendation>(),
+       _catalogCache =
+           catalogCache ??
+           RecommendationResultCache<List<RecommendationCatalogItem>>();
 
   /// Repository used to obtain personalized recommendations.
   ///
@@ -31,12 +36,17 @@ class RecommendationController {
   /// from the backend technology.
   final RecommendationRepository _recommendationRepository;
   final AuthRepository _authRepository;
-  final RecommendationResultCache _cache;
+  final RecommendationResultCache<ProductRecommendation> _cache;
+  final RecommendationResultCache<List<RecommendationCatalogItem>>
+  _catalogCache;
 
   RecommendationCacheStats get cacheStats => _cache.stats;
   int get cachedEntryCount => _cache.length;
   final Map<String, Future<ProductRecommendation?>> _inFlight = {};
+  final Map<String, Future<List<RecommendationCatalogItem>>> _catalogInFlight =
+      {};
   final Map<String, int> _versions = {};
+  final Map<String, int> _catalogVersions = {};
   int _epoch = 0;
   String? _activeUserId;
 
@@ -101,12 +111,87 @@ class RecommendationController {
     }
   }
 
+  /// Santiago Casasbuenas: A catalog revisit reports whether it used the
+  /// in-memory list. The first load fetches from the callable; refresh bypasses it.
+  Future<({List<RecommendationCatalogItem> items, bool fromCache})> getCatalog({
+    bool forceRefresh = false,
+  }) async {
+    final userId = _authRepository.currentUser?.id;
+    if (userId == null) {
+      clearCache();
+      throw StateError('No user logged in.');
+    }
+    if (_activeUserId != userId) {
+      clearCache();
+      _activeUserId = userId;
+    }
+    if (!forceRefresh) {
+      final (hit, cached) = _catalogCache.lookup(userId);
+      if (hit) return (items: cached ?? const [], fromCache: true);
+      final pending = _catalogInFlight[userId];
+      if (pending != null) {
+        _catalogCache.recordCoalesced();
+        return (items: await pending, fromCache: false);
+      }
+    } else {
+      _catalogVersions[userId] = (_catalogVersions[userId] ?? 0) + 1;
+      _catalogInFlight.remove(userId);
+    }
+    final version = _catalogVersions[userId] ?? 0;
+    final pending = _fetchCatalog(userId, version, _epoch);
+    _catalogInFlight[userId] = pending;
+    return (items: await pending, fromCache: false);
+  }
+
+  Future<List<RecommendationCatalogItem>> _fetchCatalog(
+    String userId,
+    int version,
+    int epoch,
+  ) async {
+    try {
+      final items = await _recommendationRepository.getCatalog();
+      if (_authRepository.currentUser?.id != userId ||
+          _activeUserId != userId ||
+          _epoch != epoch ||
+          (_catalogVersions[userId] ?? 0) != version) {
+        throw StateError('Recommendation catalog changed during request.');
+      }
+      _catalogCache.store(
+        userId,
+        items.isEmpty ? null : List.unmodifiable(items),
+      );
+      return items;
+    } finally {
+      if (_epoch == epoch && (_catalogVersions[userId] ?? 0) == version) {
+        _catalogInFlight.remove(userId);
+      }
+    }
+  }
+
+  Future<ProductRecommendation> openCatalogItem(String sourceProductId) async {
+    final userId = _authRepository.currentUser?.id;
+    if (userId == null) throw StateError('No user logged in.');
+    final epoch = _epoch;
+    final recommendation = await _recommendationRepository.openCatalogItem(
+      sourceProductId,
+    );
+    if (_authRepository.currentUser?.id != userId ||
+        _activeUserId != userId ||
+        _epoch != epoch) {
+      throw StateError('Recommendation user changed during request.');
+    }
+    return recommendation;
+  }
+
   /// Santiago Casasbuenas: Mutations invalidate the affected user's result and
   /// prevent an older request from repopulating it after the mutation succeeds.
   void invalidateForUser(String userId) {
     _cache.invalidate(userId);
+    _catalogCache.invalidate(userId);
     _versions[userId] = (_versions[userId] ?? 0) + 1;
+    _catalogVersions[userId] = (_catalogVersions[userId] ?? 0) + 1;
     _inFlight.remove(userId);
+    _catalogInFlight.remove(userId);
   }
 
   /// Santiago Casasbuenas: Explicit auth transitions discard every entry and
@@ -114,8 +199,11 @@ class RecommendationController {
   void clearCache() {
     _epoch++;
     _cache.clear();
+    _catalogCache.clear();
     _versions.clear();
+    _catalogVersions.clear();
     _inFlight.clear();
+    _catalogInFlight.clear();
     _activeUserId = null;
   }
 

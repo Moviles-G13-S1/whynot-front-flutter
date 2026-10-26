@@ -6,6 +6,7 @@ import 'package:whynot_mobile/app/app_routes.dart';
 import 'package:whynot_mobile/app/dependencies_scope.dart';
 import 'package:whynot_mobile/models/category.dart';
 import 'package:whynot_mobile/models/product_recommendation.dart';
+import 'package:whynot_mobile/models/recommendation_catalog_item.dart';
 import 'package:whynot_mobile/models/repositories/recommendation_repository.dart';
 import 'package:whynot_mobile/models/wishlist.dart';
 import 'package:whynot_mobile/views/screens/recommendation_detail_screen.dart';
@@ -39,6 +40,13 @@ class _ScriptedRecommendationRepository implements RecommendationRepository {
     calls += 1;
     return response();
   }
+
+  @override
+  Future<List<RecommendationCatalogItem>> getCatalog() async => const [];
+
+  @override
+  Future<ProductRecommendation> openCatalogItem(String sourceProductId) async =>
+      detailRecommendation;
 
   @override
   Future<void> saveRecommendation({

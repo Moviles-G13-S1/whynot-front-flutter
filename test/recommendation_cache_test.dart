@@ -6,6 +6,7 @@ import 'package:whynot_mobile/controllers/recommendation_result_cache.dart';
 import 'package:whynot_mobile/models/auth_user.dart';
 import 'package:whynot_mobile/models/product.dart';
 import 'package:whynot_mobile/models/product_recommendation.dart';
+import 'package:whynot_mobile/models/recommendation_catalog_item.dart';
 import 'package:whynot_mobile/models/repositories/recommendation_repository.dart';
 import 'package:whynot_mobile/models/user_profile.dart';
 
@@ -33,6 +34,13 @@ class CountingRecommendations implements RecommendationRepository {
     calls++;
     return responses.removeAt(0)();
   }
+
+  @override
+  Future<List<RecommendationCatalogItem>> getCatalog() async => const [];
+
+  @override
+  Future<ProductRecommendation> openCatalogItem(String sourceProductId) async =>
+      pick(sourceProductId);
 
   @override
   Future<void> saveRecommendation({

@@ -1,4 +1,5 @@
 import 'package:whynot_mobile/models/product_recommendation.dart';
+import 'package:whynot_mobile/models/recommendation_catalog_item.dart';
 import 'package:whynot_mobile/models/repositories/recommendation_repository.dart';
 
 class InMemoryRecommendationRepository implements RecommendationRepository {
@@ -11,6 +12,13 @@ class InMemoryRecommendationRepository implements RecommendationRepository {
   Future<ProductRecommendation?> getRecommendation() async {
     return recommendation;
   }
+
+  @override
+  Future<List<RecommendationCatalogItem>> getCatalog() async => const [];
+
+  @override
+  Future<ProductRecommendation> openCatalogItem(String sourceProductId) async =>
+      recommendation ?? (throw StateError('No recommendation available.'));
 
   @override
   Future<void> saveRecommendation({
