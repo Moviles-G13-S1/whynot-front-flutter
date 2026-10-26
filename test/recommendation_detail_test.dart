@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 import 'package:whynot_mobile/app/app_routes.dart';
 import 'package:whynot_mobile/app/dependencies_scope.dart';
 import 'package:whynot_mobile/models/category.dart';
@@ -34,6 +35,13 @@ class _ScriptedRecommendationRepository implements RecommendationRepository {
   var calls = 0;
 
   @override
+  Future<void> recordHomeCardEvent({
+    required String impressionId,
+    required String recommendationEventId,
+    required String eventType,
+  }) async {}
+
+  @override
   Future<ProductRecommendation?> getRecommendation() {
     final response = responses[calls.clamp(0, responses.length - 1)];
     calls += 1;
@@ -64,6 +72,9 @@ Widget _detailApp(RecommendationRepository repository) {
 }
 
 void main() {
+  setUp(
+    () => VisibilityDetectorController.instance.updateInterval = Duration.zero,
+  );
   testWidgets('detail shows the recommendation content', (tester) async {
     tester.view.physicalSize = const Size(390, 1400);
     tester.view.devicePixelRatio = 1;

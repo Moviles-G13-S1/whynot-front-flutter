@@ -1,4 +1,6 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../models/product_recommendation.dart';
 import '../../models/repositories/recommendation_repository.dart';
@@ -16,15 +18,44 @@ import '../../models/repositories/recommendation_repository.dart';
 /// During local development, Firebase services are redirected to the Emulator
 /// Suite from `main.dart`.
 class FirebaseRecommendationRepository implements RecommendationRepository {
-  FirebaseRecommendationRepository({FirebaseFunctions? functions})
-    : _functions =
-          functions ?? FirebaseFunctions.instanceFor(region: 'us-central1');
+  FirebaseRecommendationRepository({
+    FirebaseFunctions? functions,
+    FirebaseFirestore? firestore,
+    FirebaseAuth? auth,
+  }) : _functions =
+           functions ?? FirebaseFunctions.instanceFor(region: 'us-central1'),
+       _firestore = firestore ?? FirebaseFirestore.instance,
+       _auth = auth ?? FirebaseAuth.instance;
 
   /// Firebase Functions client used to communicate with the backend.
   ///
   /// A client can optionally be injected, which keeps this repository
   /// testable and independent from the way Firebase is configured at startup.
   final FirebaseFunctions _functions;
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
+
+  @override
+  Future<void> recordHomeCardEvent({
+    required String impressionId,
+    required String recommendationEventId,
+    required String eventType,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    final suffix = eventType == 'card_displayed' ? 'display' : 'open';
+    await _firestore
+        .collection('recommendationHomeEvents')
+        .doc('${impressionId}_$suffix')
+        .set({
+          'userId': user.uid,
+          'platform': 'flutter',
+          'eventType': eventType,
+          'impressionId': impressionId,
+          'recommendationEventId': recommendationEventId,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+  }
 
   /// Requests the personalized product recommendation for the current user.
   ///

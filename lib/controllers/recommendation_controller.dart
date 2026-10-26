@@ -33,6 +33,16 @@ class RecommendationController {
     return _recommendationRepository.getRecommendation();
   }
 
+  Future<void> recordHomeCardEvent({
+    required String impressionId,
+    required String recommendationEventId,
+    required String eventType,
+  }) => _recommendationRepository.recordHomeCardEvent(
+    impressionId: impressionId,
+    recommendationEventId: recommendationEventId,
+    eventType: eventType,
+  );
+
   Future<void> saveRecommendation({
     required ProductRecommendation recommendation,
     required String wishlistId,

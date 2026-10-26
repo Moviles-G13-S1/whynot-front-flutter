@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:visibility_detector/visibility_detector.dart';
+import 'dart:async';
+import 'dart:math';
 
 import '../../app/dependencies_scope.dart';
 import '../../app/app_routes.dart';
@@ -32,6 +35,45 @@ class _SmartRecommendationSectionState
     extends State<SmartRecommendationSection> {
   bool _isSaving = false;
   String? _savedEventId;
+  String? _impressionId;
+  String? _impressionRecommendationId;
+  bool _displayed = false;
+  bool _opened = false;
+
+  String _newImpressionId() {
+    final random = Random.secure();
+    return List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+  }
+
+  void _record(String type, ProductRecommendation recommendation) {
+    unawaited(
+      context.dependencies.recommendationController
+          .recordHomeCardEvent(
+            impressionId: _impressionId!,
+            recommendationEventId: recommendation.recommendationEventId,
+            eventType: type,
+          )
+          .catchError((Object error) {
+            // Firestore can queue offline writes. A rejected write must never block navigation.
+            debugPrint('Home recommendation event delivery failed: $error');
+          }),
+    );
+  }
+
+  void _display(ProductRecommendation recommendation) {
+    if (_impressionRecommendationId != recommendation.recommendationEventId) {
+      _impressionRecommendationId = recommendation.recommendationEventId;
+      _impressionId = _newImpressionId();
+      _displayed = false;
+      _opened = false;
+    }
+    if (_displayed || !(ModalRoute.of(context)?.isCurrent ?? false)) return;
+    _displayed = true;
+    _record('card_displayed', recommendation);
+  }
 
   /// Future containing the recommendation returned by the controller.
   ///
@@ -56,6 +98,7 @@ class _SmartRecommendationSectionState
   void _retry() {
     setState(() {
       _savedEventId = null;
+      _impressionRecommendationId = null;
       _recommendationFuture = context.dependencies.recommendationController
           .getRecommendation();
     });
@@ -78,8 +121,13 @@ class _SmartRecommendationSectionState
     }
   }
 
-  void _openDetails(ProductRecommendation recommendation) {
-    Navigator.pushNamed(
+  Future<void> _openDetails(ProductRecommendation recommendation) async {
+    // A tap itself establishes visibility if the detector has not reported yet.
+    _display(recommendation);
+    if (!_displayed || _opened) return;
+    _opened = true;
+    _record('detail_opened', recommendation);
+    await Navigator.pushNamed(
       context,
       AppRoutes.recommendationDetail,
       arguments: <String, Object?>{
@@ -91,6 +139,13 @@ class _SmartRecommendationSectionState
         },
       },
     );
+    if (!mounted) return;
+    // Returning from detail starts a new exposure only when the card is visible again.
+    _impressionId = null;
+    _impressionRecommendationId = null;
+    _displayed = false;
+    _opened = false;
+    VisibilityDetectorController.instance.notifyNow();
   }
 
   /// Formats the numeric product price using Colombian-style thousands
@@ -141,13 +196,23 @@ class _SmartRecommendationSectionState
         }
 
         // Successful Smart Feature response.
-        return _RecommendationCard(
-          recommendation: recommendation,
-          formattedPrice: _formatPrice(recommendation.price),
-          isSaving: _isSaving,
-          isSaved: _savedEventId == recommendation.recommendationEventId,
-          onSave: () => _saveRecommendation(recommendation),
-          onOpenDetails: () => _openDetails(recommendation),
+        return VisibilityDetector(
+          key: ValueKey(
+            'home-recommendation-${recommendation.recommendationEventId}',
+          ),
+          onVisibilityChanged: (info) {
+            if (info.visibleFraction >= 0.5 && mounted) {
+              _display(recommendation);
+            }
+          },
+          child: _RecommendationCard(
+            recommendation: recommendation,
+            formattedPrice: _formatPrice(recommendation.price),
+            isSaving: _isSaving,
+            isSaved: _savedEventId == recommendation.recommendationEventId,
+            onSave: () => _saveRecommendation(recommendation),
+            onOpenDetails: () => _openDetails(recommendation),
+          ),
         );
       },
     );
