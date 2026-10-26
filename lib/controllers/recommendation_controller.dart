@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../models/product_recommendation.dart';
 import '../models/recommendation_catalog_item.dart';
 import '../models/repositories/recommendation_repository.dart';
@@ -47,8 +49,12 @@ class RecommendationController {
       {};
   final Map<String, int> _versions = {};
   final Map<String, int> _catalogVersions = {};
+  final StreamController<String> _invalidations = StreamController.broadcast();
   int _epoch = 0;
   String? _activeUserId;
+
+  /// A successful local change asks mounted recommendation views to reload.
+  Stream<String> get invalidations => _invalidations.stream;
 
   /// Returns the personalized product recommendation for the current user.
   ///
@@ -192,6 +198,9 @@ class RecommendationController {
     _catalogVersions[userId] = (_catalogVersions[userId] ?? 0) + 1;
     _inFlight.remove(userId);
     _catalogInFlight.remove(userId);
+    // Santiago Casasbuenas: Cache invalidation must also replace the Future
+    // held by a mounted view; otherwise Home keeps showing the old card.
+    _invalidations.add(userId);
   }
 
   /// Santiago Casasbuenas: Explicit auth transitions discard every entry and

@@ -5,6 +5,7 @@ import 'package:whynot_mobile/app/dependencies_scope.dart';
 import 'package:whynot_mobile/controllers/recommendation_controller.dart';
 import 'package:whynot_mobile/controllers/recommendation_result_cache.dart';
 import 'package:whynot_mobile/models/auth_user.dart';
+import 'package:whynot_mobile/models/product.dart';
 import 'package:whynot_mobile/models/product_recommendation.dart';
 import 'package:whynot_mobile/models/recommendation_catalog_item.dart';
 import 'package:whynot_mobile/models/repositories/recommendation_repository.dart';
@@ -25,6 +26,16 @@ const catalogItem = RecommendationCatalogItem(
   reason: 'A similar user bought this.',
 );
 
+const technologyItem = RecommendationCatalogItem(
+  sourceProductId: 'source-2',
+  name: 'Headphones',
+  brand: 'Studio',
+  price: 30000,
+  imageUrl: '',
+  categoryId: 'technology',
+  reason: 'A similar user saved this.',
+);
+
 class CatalogRepository extends InMemoryRecommendationRepository {
   int catalogCalls = 0;
   int opens = 0;
@@ -32,7 +43,9 @@ class CatalogRepository extends InMemoryRecommendationRepository {
   @override
   Future<List<RecommendationCatalogItem>> getCatalog() async {
     catalogCalls++;
-    return const [catalogItem];
+    return catalogCalls == 1
+        ? const [catalogItem]
+        : const [catalogItem, technologyItem];
   }
 
   @override
@@ -60,6 +73,42 @@ class UnavailableCatalogRepository extends CatalogRepository {
 }
 
 void main() {
+  testWidgets('open catalog reloads after a product is saved', (tester) async {
+    tester.view.physicalSize = const Size(390, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = CatalogRepository();
+    final dependencies = createTestDependencies(
+      signedIn: true,
+      recommendationRepository: repository,
+    );
+    await tester.pumpWidget(
+      DependenciesScope(
+        dependencies: dependencies,
+        child: const MaterialApp(home: RecommendationCatalogScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Jacket'), findsOneWidget);
+    expect(find.text('Headphones'), findsNothing);
+    await dependencies.productController.create(
+      const ProductDraft(
+        wishlistId: 'wishlist',
+        categoryId: 'technology',
+        name: 'Phone',
+        brand: 'Studio',
+        price: 10000,
+        imageUrl: '',
+        productUrl: '',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(repository.catalogCalls, 2);
+    expect(find.text('Headphones'), findsOneWidget);
+    expect(find.text('Fetched fresh recommendations'), findsOneWidget);
+  });
+
   testWidgets('missing catalog service has a specific recovery message', (
     tester,
   ) async {

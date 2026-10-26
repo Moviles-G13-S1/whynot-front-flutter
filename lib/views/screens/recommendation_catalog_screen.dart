@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../app/app_routes.dart';
 import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
+import '../../controllers/recommendation_controller.dart';
 import '../../models/recommendation_catalog_item.dart';
 import '../../models/repositories/recommendation_repository.dart';
 import '../widgets/form_controls.dart';
@@ -21,11 +24,33 @@ class _RecommendationCatalogScreenState
     extends State<RecommendationCatalogScreen> {
   Future<({List<RecommendationCatalogItem> items, bool fromCache})>? _load;
   String? _openingId;
+  RecommendationController? _controller;
+  StreamSubscription<String>? _invalidationSubscription;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _load ??= context.dependencies.recommendationController.getCatalog();
+    final controller = context.dependencies.recommendationController;
+    if (_controller != controller) {
+      _invalidationSubscription?.cancel();
+      _controller = controller;
+      _load = controller.getCatalog();
+      _invalidationSubscription = controller.invalidations.listen((userId) {
+        if (!mounted ||
+            userId != context.dependencies.authController.currentUser?.id) {
+          return;
+        }
+        setState(() {
+          _load = controller.getCatalog();
+        });
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _invalidationSubscription?.cancel();
+    super.dispose();
   }
 
   void _refresh() {
@@ -124,7 +149,7 @@ class _RecommendationCatalogScreenState
               ],
               const SizedBox(height: 8),
               Text(
-                'Products in your preferred category from people with similar profiles.',
+                'Products in your preferred category and categories you save, from people with similar profiles.',
                 style: WhyNotTextStyles.muted(size: 13),
               ),
               const SizedBox(height: 22),
@@ -189,6 +214,11 @@ class _CatalogCard extends StatelessWidget {
                     Text(item.name, style: WhyNotTextStyles.serif(size: 20)),
                     const SizedBox(height: 6),
                     Text(item.brand, style: WhyNotTextStyles.muted(size: 12)),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.categoryId,
+                      style: WhyNotTextStyles.muted(size: 11),
+                    ),
                     const SizedBox(height: 6),
                     Text(item.reason, style: WhyNotTextStyles.muted(size: 11)),
                     const SizedBox(height: 6),
