@@ -3,8 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:whynot_mobile/app/app_routes.dart';
 import 'package:whynot_mobile/app/dependencies_scope.dart';
 import 'package:whynot_mobile/controllers/recommendation_controller.dart';
+import 'package:whynot_mobile/controllers/recommendation_catalog_snapshot_cache.dart';
 import 'package:whynot_mobile/controllers/recommendation_result_cache.dart';
 import 'package:whynot_mobile/models/auth_user.dart';
+import 'package:whynot_mobile/models/catalog_product_details.dart';
 import 'package:whynot_mobile/models/product.dart';
 import 'package:whynot_mobile/models/product_recommendation.dart';
 import 'package:whynot_mobile/models/recommendation_catalog_item.dart';
@@ -39,6 +41,7 @@ const technologyItem = RecommendationCatalogItem(
 class CatalogRepository extends InMemoryRecommendationRepository {
   int catalogCalls = 0;
   int opens = 0;
+  int compactOpens = 0;
 
   @override
   Future<List<RecommendationCatalogItem>> getCatalog() async {
@@ -52,8 +55,8 @@ class CatalogRepository extends InMemoryRecommendationRepository {
   Future<ProductRecommendation> openCatalogItem(String sourceProductId) async {
     opens++;
     expect(sourceProductId, catalogItem.sourceProductId);
-    return const ProductRecommendation(
-      recommendationEventId: 'event-1',
+    return ProductRecommendation(
+      recommendationEventId: 'full-event-$opens',
       name: 'Jacket',
       brand: 'Studio',
       price: 20000,
@@ -62,6 +65,36 @@ class CatalogRepository extends InMemoryRecommendationRepository {
       categoryId: 'fashion',
       reason: 'A similar user bought this.',
     );
+  }
+
+  @override
+  Future<String> createCatalogEvent(String sourceProductId) async {
+    compactOpens++;
+    expect(sourceProductId, catalogItem.sourceProductId);
+    return 'compact-event-$compactOpens';
+  }
+}
+
+class ManyCatalogRepository extends CatalogRepository {
+  @override
+  Future<ProductRecommendation> openCatalogItem(String sourceProductId) async {
+    opens++;
+    return ProductRecommendation(
+      recommendationEventId: 'full-event-$opens',
+      name: sourceProductId,
+      brand: 'Studio',
+      price: 20000,
+      imageUrl: '',
+      productUrl: '',
+      categoryId: 'fashion',
+      reason: 'A similar user saved this.',
+    );
+  }
+
+  @override
+  Future<String> createCatalogEvent(String sourceProductId) async {
+    compactOpens++;
+    return 'compact-event-$compactOpens';
   }
 }
 
@@ -73,6 +106,15 @@ class UnavailableCatalogRepository extends CatalogRepository {
 }
 
 void main() {
+  test('empty catalog snapshot expires after 30 seconds', () {
+    var now = DateTime.utc(2026, 10, 26);
+    final cache = RecommendationCatalogSnapshotCache(clock: () => now);
+    cache.store('a', const []);
+    expect(cache.lookup('a').$1, true);
+    now = now.add(const Duration(seconds: 30));
+    expect(cache.lookup('a').$1, false);
+  });
+
   testWidgets('open catalog reloads after a product is saved', (tester) async {
     tester.view.physicalSize = const Size(390, 1400);
     tester.view.devicePixelRatio = 1;
@@ -106,7 +148,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(repository.catalogCalls, 2);
     expect(find.text('Headphones'), findsOneWidget);
-    expect(find.text('Fetched fresh recommendations'), findsOneWidget);
+    expect(find.text('Fetched fresh catalog'), findsOneWidget);
   });
 
   testWidgets('missing catalog service has a specific recovery message', (
@@ -142,10 +184,9 @@ void main() {
       final controller = RecommendationController(
         recommendationRepository: repository,
         authRepository: auth,
-        catalogCache:
-            RecommendationResultCache<List<RecommendationCatalogItem>>(
-              clock: () => now,
-            ),
+        catalogSnapshotCache: RecommendationCatalogSnapshotCache(
+          clock: () => now,
+        ),
       );
       expect((await controller.getCatalog()).fromCache, false);
       expect((await controller.getCatalog()).fromCache, true);
@@ -159,6 +200,40 @@ void main() {
       expect(repository.catalogCalls, 4);
     },
   );
+
+  test('opened details use five LRU slots and fresh events', () async {
+    var now = DateTime.utc(2026, 10, 26);
+    final auth = InMemoryAuthRepository(
+      user: const AuthUser(id: 'a', email: 'a@example.com'),
+    );
+    final repository = ManyCatalogRepository();
+    final controller = RecommendationController(
+      recommendationRepository: repository,
+      authRepository: auth,
+      catalogProductCache: RecommendationResultCache<CatalogProductDetails>(
+        capacity: 5,
+        clock: () => now,
+      ),
+    );
+    await controller.getCatalog();
+    for (var i = 1; i <= 5; i++) {
+      await controller.openCatalogItem('source-$i');
+    }
+    expect(repository.opens, 5);
+    expect(controller.isCatalogProductCached('source-1'), true);
+    final reopened = await controller.openCatalogItem('source-1');
+    expect(reopened.recommendationEventId, 'compact-event-1');
+    expect(repository.opens, 5);
+    expect(repository.compactOpens, 1);
+    await controller.openCatalogItem('source-6');
+    expect(controller.isCatalogProductCached('source-1'), true);
+    expect(controller.isCatalogProductCached('source-2'), false);
+    expect(controller.isCatalogProductCached('source-6'), true);
+    now = now.add(const Duration(minutes: 5));
+    expect(controller.isCatalogProductCached('source-1'), false);
+    controller.invalidateForUser('a');
+    expect(controller.isCatalogProductCached('source-6'), false);
+  });
 
   testWidgets('catalog revisit identifies cached data and refresh fetches', (
     tester,
@@ -198,29 +273,45 @@ void main() {
     );
     await tester.tap(find.text('Open catalog'));
     await tester.pumpAndSettle();
-    expect(find.text('Fetched fresh recommendations'), findsOneWidget);
+    expect(find.text('Fetched fresh catalog'), findsOneWidget);
     expect(find.text('Jacket'), findsOneWidget);
     expect(repository.catalogCalls, 1);
     expect(repository.opens, 0); // Listing did not create save events.
+    expect(find.byKey(const Key('catalog-cached-dot-source-1')), findsNothing);
+
+    await tester.tap(find.text('Jacket'));
+    await tester.pumpAndSettle();
+    expect(repository.opens, 1);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('catalog-cached-dot-source-1')),
+      findsOneWidget,
+    );
 
     await tester.pageBack();
     await tester.pumpAndSettle();
     await tester.tap(find.text('Open catalog'));
     await tester.pumpAndSettle();
     expect(
-      find.text('Loaded from cache · no recommendation request'),
+      find.text('Catalog loaded from cache · no catalog request'),
       findsOneWidget,
     );
     expect(repository.catalogCalls, 1);
+    expect(
+      find.byKey(const Key('catalog-cached-dot-source-1')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byTooltip('Refresh recommendations'));
     await tester.pumpAndSettle();
-    expect(find.text('Fetched fresh recommendations'), findsOneWidget);
+    expect(find.text('Fetched fresh catalog'), findsOneWidget);
     expect(repository.catalogCalls, 2);
 
     await tester.tap(find.text('Jacket'));
     await tester.pumpAndSettle();
     expect(repository.opens, 1);
+    expect(repository.compactOpens, 1);
     expect(find.text('Save this product'), findsOneWidget);
   });
 }

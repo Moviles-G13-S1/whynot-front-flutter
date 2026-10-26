@@ -50,6 +50,10 @@ class _ScriptedRecommendationRepository implements RecommendationRepository {
       detailRecommendation;
 
   @override
+  Future<String> createCatalogEvent(String sourceProductId) async =>
+      'fresh-event';
+
+  @override
   Future<void> saveRecommendation({
     required String recommendationEventId,
     required String wishlistId,

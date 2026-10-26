@@ -10,8 +10,8 @@ import '../../models/recommendation_catalog_item.dart';
 import '../../models/repositories/recommendation_repository.dart';
 import '../widgets/form_controls.dart';
 
-/// Browse all currently eligible products; each revisit makes the data-cache
-/// source visible. Image loading is independent of recommendation-data caching.
+/// Browse a short-lived catalog snapshot and show which opened products occupy
+/// the separate five-slot detail LRU.
 class RecommendationCatalogScreen extends StatefulWidget {
   const RecommendationCatalogScreen({super.key});
 
@@ -70,6 +70,7 @@ class _RecommendationCatalogScreenState
       final recommendation = await context.dependencies.recommendationController
           .openCatalogItem(item.sourceProductId);
       if (!mounted) return;
+      setState(() {});
       await Navigator.pushNamed(
         context,
         AppRoutes.recommendationDetail,
@@ -135,8 +136,8 @@ class _RecommendationCatalogScreenState
             children: [
               Text(
                 result.fromCache
-                    ? 'Loaded from cache · no recommendation request'
-                    : 'Fetched fresh recommendations',
+                    ? 'Catalog loaded from cache · no catalog request'
+                    : 'Fetched fresh catalog',
                 key: const Key('catalog-cache-status'),
                 style: WhyNotTextStyles.muted(size: 13),
               ),
@@ -147,6 +148,11 @@ class _RecommendationCatalogScreenState
                   style: WhyNotTextStyles.muted(size: 11),
                 ),
               ],
+              const SizedBox(height: 6),
+              Text(
+                'Gray dot = opened product details cached',
+                style: WhyNotTextStyles.muted(size: 11),
+              ),
               const SizedBox(height: 8),
               Text(
                 'Products in your preferred category and categories you save, from people with similar profiles.',
@@ -158,6 +164,8 @@ class _RecommendationCatalogScreenState
               for (final item in result.items) ...[
                 _CatalogCard(
                   item: item,
+                  cached: context.dependencies.recommendationController
+                      .isCatalogProductCached(item.sourceProductId),
                   opening: _openingId == item.sourceProductId,
                   onTap: () => _open(item),
                 ),
@@ -174,11 +182,13 @@ class _RecommendationCatalogScreenState
 class _CatalogCard extends StatelessWidget {
   const _CatalogCard({
     required this.item,
+    required this.cached,
     required this.opening,
     required this.onTap,
   });
 
   final RecommendationCatalogItem item;
+  final bool cached;
   final bool opening;
   final VoidCallback onTap;
 
@@ -190,55 +200,85 @@ class _CatalogCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: opening ? null : onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 74,
-                height: 78,
-                child: item.imageUrl.isEmpty
-                    ? const Icon(Icons.image_outlined)
-                    : Image.network(
-                        item.imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) =>
-                            const Icon(Icons.image_outlined),
-                      ),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 74,
+                    height: 78,
+                    child: item.imageUrl.isEmpty
+                        ? const Icon(Icons.image_outlined)
+                        : Image.network(
+                            item.imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) =>
+                                const Icon(Icons.image_outlined),
+                          ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.name,
+                          style: WhyNotTextStyles.serif(size: 20),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          item.brand,
+                          style: WhyNotTextStyles.muted(size: 12),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          item.categoryId,
+                          style: WhyNotTextStyles.muted(size: 11),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          item.reason,
+                          style: WhyNotTextStyles.muted(size: 11),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'COP ${item.price.round()}',
+                          style: WhyNotTextStyles.muted(size: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (opening)
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    const Icon(Icons.chevron_right),
+                ],
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(item.name, style: WhyNotTextStyles.serif(size: 20)),
-                    const SizedBox(height: 6),
-                    Text(item.brand, style: WhyNotTextStyles.muted(size: 12)),
-                    const SizedBox(height: 4),
-                    Text(
-                      item.categoryId,
-                      style: WhyNotTextStyles.muted(size: 11),
+            ),
+            if (cached)
+              Positioned(
+                right: 9,
+                bottom: 9,
+                child: Semantics(
+                  label: 'Product details cached',
+                  child: Container(
+                    key: Key('catalog-cached-dot-${item.sourceProductId}'),
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.grey,
+                      shape: BoxShape.circle,
                     ),
-                    const SizedBox(height: 6),
-                    Text(item.reason, style: WhyNotTextStyles.muted(size: 11)),
-                    const SizedBox(height: 6),
-                    Text(
-                      'COP ${item.price.round()}',
-                      style: WhyNotTextStyles.muted(size: 13),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-              if (opening)
-                const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                const Icon(Icons.chevron_right),
-            ],
-          ),
+          ],
         ),
       ),
     );

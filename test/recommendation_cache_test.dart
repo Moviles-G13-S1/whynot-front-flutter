@@ -43,6 +43,10 @@ class CountingRecommendations implements RecommendationRepository {
       pick(sourceProductId);
 
   @override
+  Future<String> createCatalogEvent(String sourceProductId) async =>
+      'fresh-event';
+
+  @override
   Future<void> saveRecommendation({
     required String recommendationEventId,
     required String wishlistId,

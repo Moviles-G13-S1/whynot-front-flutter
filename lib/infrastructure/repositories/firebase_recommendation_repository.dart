@@ -113,6 +113,19 @@ class FirebaseRecommendationRepository implements RecommendationRepository {
   }
 
   @override
+  Future<String> createCatalogEvent(String sourceProductId) async {
+    final result = await _functions.httpsCallable('get_recommendation').call({
+      'sourceProductId': sourceProductId,
+      'eventOnly': true,
+    });
+    final data = Map<String, dynamic>.from(result.data as Map);
+    final recommendation = Map<String, dynamic>.from(
+      data['recommendation'] as Map,
+    );
+    return recommendation['recommendationEventId'] as String;
+  }
+
+  @override
   Future<void> saveRecommendation({
     required String recommendationEventId,
     required String wishlistId,

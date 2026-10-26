@@ -24,10 +24,11 @@ class _CacheEntry<T> {
   final DateTime expiresAt;
 }
 
-/// Santiago Casasbuenas: Bounded, process-local LRU for recommendation results.
-/// Successful results live 5 minutes; a valid null result lives 30 seconds.
-/// Cached top-pick and catalog reads have no request fields, so UID is their
-/// key. Opening one catalog item uses a source ID and is never cached here.
+/// Santiago Casasbuenas: Bounded, process-local LRU for recommendation data.
+/// Defaults: successful values live 5 minutes; a valid null lives 30 seconds.
+/// The Home top pick is keyed by UID. Opened catalog display details use a
+/// separate five-slot instance keyed by UID and source product ID; events are
+/// never stored here.
 class RecommendationResultCache<T> {
   RecommendationResultCache({
     this.capacity = 8,
@@ -53,6 +54,18 @@ class RecommendationResultCache<T> {
   );
 
   int get length => _entries.length;
+
+  /// Used by catalog badges without changing recency order.
+  bool containsFresh(String key) {
+    final entry = _entries[key];
+    if (entry == null) return false;
+    if (!_clock().isBefore(entry.expiresAt)) {
+      _entries.remove(key);
+      _expirations++;
+      return false;
+    }
+    return true;
+  }
 
   /// Santiago Casasbuenas: A hit moves its entry to the newest LRU position;
   /// expiry removes it before the repository is asked for a fresh result.

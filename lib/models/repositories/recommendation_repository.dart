@@ -24,6 +24,9 @@ abstract interface class RecommendationRepository {
   /// Rechecks one catalog item and creates its saveable recommendation event.
   Future<ProductRecommendation> openCatalogItem(String sourceProductId);
 
+  /// Rechecks eligibility and creates an event without returning display fields.
+  Future<String> createCatalogEvent(String sourceProductId);
+
   /// Saves a shown recommendation into a wishlist of the same category.
   Future<void> saveRecommendation({
     required String recommendationEventId,

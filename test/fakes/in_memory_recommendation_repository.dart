@@ -21,6 +21,11 @@ class InMemoryRecommendationRepository implements RecommendationRepository {
       recommendation ?? (throw StateError('No recommendation available.'));
 
   @override
+  Future<String> createCatalogEvent(String sourceProductId) async =>
+      recommendation?.recommendationEventId ??
+      (throw StateError('No recommendation available.'));
+
+  @override
   Future<void> saveRecommendation({
     required String recommendationEventId,
     required String wishlistId,
