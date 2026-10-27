@@ -43,6 +43,7 @@ class RecommendationResultCache<T> {
   final Duration emptyTtl;
   final CacheClock _clock;
   final LinkedHashMap<String, _CacheEntry<T>> _entries = LinkedHashMap();
+  final LinkedHashMap<String, T> _lastNonempty = LinkedHashMap();
   int _hits = 0, _misses = 0, _evictions = 0, _expirations = 0, _coalesced = 0;
 
   RecommendationCacheStats get stats => RecommendationCacheStats(
@@ -70,6 +71,9 @@ class RecommendationResultCache<T> {
   /// Read a preview without changing which entry is least recently used.
   T? peek(String key) => containsFresh(key) ? _entries[key]?.value : null;
 
+  /// Retained for the current session only; never returned as a fresh hit.
+  T? staleFor(String key) => _lastNonempty[key];
+
   /// Santiago Casasbuenas: A hit moves its entry to the newest LRU position;
   /// expiry removes it before the repository is asked for a fresh result.
   (bool, T?) lookup(String userId) {
@@ -91,6 +95,15 @@ class RecommendationResultCache<T> {
   /// Santiago Casasbuenas: Evict the oldest entry after a successful fetch.
   /// Errors are never stored; null has a shorter TTL so new products surface.
   void store(String userId, T? value) {
+    if (value != null) {
+      _lastNonempty.remove(userId);
+      _lastNonempty[userId] = value;
+      while (_lastNonempty.length > capacity) {
+        _lastNonempty.remove(_lastNonempty.keys.first);
+      }
+    } else {
+      _lastNonempty.remove(userId);
+    }
     _entries.remove(userId);
     _entries[userId] = _CacheEntry(
       value,
@@ -102,9 +115,15 @@ class RecommendationResultCache<T> {
     }
   }
 
-  void invalidate(String userId) => _entries.remove(userId);
+  void invalidate(String userId) {
+    _entries.remove(userId);
+    _lastNonempty.remove(userId);
+  }
 
-  void clear() => _entries.clear();
+  void clear() {
+    _entries.clear();
+    _lastNonempty.clear();
+  }
 
   void recordCoalesced() => _coalesced++;
 }

@@ -4,7 +4,9 @@ import '../../app/app_routes.dart';
 import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../controllers/recommendation_controller.dart';
+import '../../controllers/connectivity_status.dart';
 import '../../models/product_recommendation.dart';
+import '../../models/catalog_product_details.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../widgets/form_controls.dart';
 import '../widgets/recommendation_save_flow.dart';
@@ -24,19 +26,57 @@ class RecommendationDetailScreen extends StatefulWidget {
 
 class _RecommendationDetailScreenState
     extends State<RecommendationDetailScreen> {
-  Future<ProductRecommendation?>? _recommendationFuture;
+  Future<RecommendationLoad>? _recommendationFuture;
+
+  Future<RecommendationLoad> _resolve(
+    Future<ProductRecommendation?> future,
+  ) async {
+    try {
+      return (value: await future, error: null);
+    } catch (error) {
+      return (value: null, error: error);
+    }
+  }
+
   VoidCallback? _onSaved;
   bool _initialized = false;
   bool _isSaving = false;
   bool _isSaved = false;
   ProductRecommendation? _catalogPreview;
+  ProductRecommendation? _displayedRecommendation;
   String? _catalogSourceProductId;
+  RecommendationController? _controller;
+  NetworkStatus _network = NetworkStatus.unknown;
+
+  void _networkChanged() {
+    final status = _controller?.connectivity.status ?? NetworkStatus.unknown;
+    if (_network == status) return;
+    final wasOffline = _network == NetworkStatus.offline;
+    setState(() {
+      _network = status;
+      if (status == NetworkStatus.offline &&
+          _catalogPreview == null &&
+          _displayedRecommendation != null) {
+        _catalogPreview = CatalogProductDetails.fromRecommendation(
+          _displayedRecommendation!,
+        ).withEvent('');
+      }
+    });
+    if (wasOffline &&
+        status == NetworkStatus.available &&
+        _catalogPreview != null) {
+      _retry();
+    }
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_initialized) return;
     _initialized = true;
+    _controller = context.dependencies.recommendationController;
+    _network = _controller!.connectivity.status;
+    _controller!.connectivity.addListener(_networkChanged);
 
     final arguments = ModalRoute.of(context)?.settings.arguments;
     if (arguments is CatalogOpenRequest) {
@@ -49,6 +89,11 @@ class _RecommendationDetailScreenState
     if (arguments is Map) {
       final candidate = arguments['recommendation'];
       if (candidate is ProductRecommendation) recommendation = candidate;
+      if (arguments['stale'] == true && recommendation != null) {
+        _catalogPreview = CatalogProductDetails.fromRecommendation(
+          recommendation,
+        ).withEvent('');
+      }
       _isSaved = arguments['isSaved'] == true;
       final callback = arguments['onSaved'];
       if (callback is VoidCallback) _onSaved = callback;
@@ -56,25 +101,41 @@ class _RecommendationDetailScreenState
       recommendation = arguments;
     }
 
-    _recommendationFuture = recommendation == null
-        ? context.dependencies.recommendationController.getRecommendation()
-        : Future<ProductRecommendation?>.value(recommendation);
+    _displayedRecommendation = recommendation;
+
+    _recommendationFuture = _resolve(
+      _catalogPreview != null
+          ? _controller!.getRecommendation(forceRefresh: true)
+          : recommendation == null
+          ? context.dependencies.recommendationController.getRecommendation()
+          : Future<ProductRecommendation?>.value(recommendation),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller?.connectivity.removeListener(_networkChanged);
+    super.dispose();
   }
 
   void _retry() {
+    if (_controller?.connectivity.isOffline == true) return;
     setState(() {
       final sourceProductId = _catalogSourceProductId;
-      _recommendationFuture = sourceProductId == null
-          ? context.dependencies.recommendationController.getRecommendation(
-              forceRefresh: true,
-            )
-          : context.dependencies.recommendationController.openCatalogItem(
-              sourceProductId,
-            );
+      _recommendationFuture = _resolve(
+        sourceProductId == null
+            ? context.dependencies.recommendationController.getRecommendation(
+                forceRefresh: true,
+              )
+            : context.dependencies.recommendationController.openCatalogItem(
+                sourceProductId,
+              ),
+      );
     });
   }
 
   Future<void> _save(ProductRecommendation recommendation) async {
+    if (_controller?.connectivity.isOffline == true) return;
     if (_isSaving || _isSaved || recommendation.recommendationEventId.isEmpty) {
       return;
     }
@@ -129,13 +190,16 @@ class _RecommendationDetailScreenState
       extendBody: true,
       body: SafeArea(
         bottom: false,
-        child: FutureBuilder<ProductRecommendation?>(
+        child: FutureBuilder<RecommendationLoad>(
           future: _recommendationFuture,
           builder: (context, snapshot) {
             final preview = _catalogPreview;
+            final offline = _controller?.connectivity.isOffline == true;
+            final error = snapshot.data?.error;
             if (preview != null &&
-                (snapshot.connectionState == ConnectionState.waiting ||
-                    snapshot.hasError)) {
+                (offline ||
+                    snapshot.connectionState == ConnectionState.waiting ||
+                    error != null)) {
               return _RecommendationDetailContent(
                 recommendation: preview,
                 formattedPrice: _formatPrice(preview.price),
@@ -144,7 +208,8 @@ class _RecommendationDetailScreenState
                 isSaved: false,
                 isPreparingSave:
                     snapshot.connectionState == ConnectionState.waiting,
-                preparationFailed: snapshot.hasError,
+                preparationFailed: error != null,
+                offline: offline,
                 onRetry: _retry,
                 onSave: () {},
                 onBack: _goBack,
@@ -153,17 +218,19 @@ class _RecommendationDetailScreenState
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _RecommendationDetailLoading(onBack: _goBack);
             }
-            if (snapshot.hasError) {
+            if (error != null) {
               return _RecommendationDetailMessage(
                 icon: Icons.cloud_off_outlined,
                 title: 'Could not load your recommendation',
-                message: 'Check your connection and try again.',
-                actionLabel: 'Try again',
-                onAction: _retry,
+                message: offline
+                    ? 'You are offline. New recommendations cannot be fetched until connection returns.'
+                    : 'Recommendation service unavailable. Try again.',
+                actionLabel: offline ? 'Try again when online' : 'Try again',
+                onAction: offline ? null : _retry,
                 onBack: _goBack,
               );
             }
-            final recommendation = snapshot.data;
+            final recommendation = snapshot.data?.value;
             if (recommendation == null) {
               return _RecommendationDetailMessage(
                 icon: Icons.auto_awesome_outlined,
@@ -176,12 +243,14 @@ class _RecommendationDetailScreenState
                 onBack: _goBack,
               );
             }
+            _displayedRecommendation = recommendation;
             return _RecommendationDetailContent(
               recommendation: recommendation,
               formattedPrice: _formatPrice(recommendation.price),
               categoryLabel: _categoryLabel(recommendation.categoryId),
               isSaving: _isSaving,
               isSaved: _isSaved,
+              offline: offline,
               onSave: () => _save(recommendation),
               onBack: _goBack,
             );
@@ -202,6 +271,7 @@ class _RecommendationDetailContent extends StatelessWidget {
     required this.isSaved,
     this.isPreparingSave = false,
     this.preparationFailed = false,
+    this.offline = false,
     this.onRetry,
     required this.onSave,
     required this.onBack,
@@ -214,6 +284,7 @@ class _RecommendationDetailContent extends StatelessWidget {
   final bool isSaved;
   final bool isPreparingSave;
   final bool preparationFailed;
+  final bool offline;
   final VoidCallback? onRetry;
   final VoidCallback onSave;
   final VoidCallback onBack;
@@ -321,7 +392,9 @@ class _RecommendationDetailContent extends StatelessWidget {
               const SizedBox(height: 34),
               PillButton(
                 height: 44,
-                label: isPreparingSave
+                label: offline
+                    ? 'Saving is unavailable offline'
+                    : isPreparingSave
                     ? 'Preparing save...'
                     : preparationFailed
                     ? 'Retry availability check'
@@ -330,13 +403,13 @@ class _RecommendationDetailContent extends StatelessWidget {
                     : isSaving
                     ? 'Saving...'
                     : 'Save this product',
-                onPressed: isPreparingSave || isSaving || isSaved
+                onPressed: offline || isPreparingSave || isSaving || isSaved
                     ? null
                     : preparationFailed
                     ? onRetry
                     : onSave,
               ),
-              if (preparationFailed) ...[
+              if (preparationFailed && !offline) ...[
                 const SizedBox(height: 10),
                 Text(
                   'Could not confirm this product is still available.',
@@ -526,7 +599,7 @@ class _RecommendationDetailMessage extends StatelessWidget {
   final String title;
   final String message;
   final String actionLabel;
-  final VoidCallback onAction;
+  final VoidCallback? onAction;
   final VoidCallback onBack;
 
   @override

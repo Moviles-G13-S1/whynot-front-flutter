@@ -8,6 +8,7 @@ import '../../app/dependencies_scope.dart';
 import '../../app/app_routes.dart';
 import '../../app/whynot_theme.dart';
 import '../../controllers/recommendation_controller.dart';
+import '../../controllers/connectivity_status.dart';
 import '../../models/product_recommendation.dart';
 import 'form_controls.dart';
 import 'recommendation_save_flow.dart';
@@ -81,9 +82,35 @@ class _SmartRecommendationSectionState
   ///
   /// It is stored in state so the Cloud Function is not called again every
   /// time the widget rebuilds.
-  Future<ProductRecommendation?>? _recommendationFuture;
+  Future<RecommendationLoad>? _recommendationFuture;
+
+  Future<RecommendationLoad> _resolve(
+    Future<ProductRecommendation?> future,
+  ) async {
+    try {
+      return (value: await future, error: null);
+    } catch (error) {
+      return (value: null, error: error);
+    }
+  }
+
   RecommendationController? _controller;
   StreamSubscription<String>? _invalidationSubscription;
+  NetworkStatus _network = NetworkStatus.unknown;
+
+  void _networkChanged() {
+    final status = _controller?.connectivity.status ?? NetworkStatus.unknown;
+    if (status == _network) return;
+    final wasOffline = _network == NetworkStatus.offline;
+    setState(() {
+      _network = status;
+      if (wasOffline && status == NetworkStatus.available) {
+        _recommendationFuture = _resolve(
+          _controller!.getRecommendation(forceRefresh: true),
+        );
+      }
+    });
+  }
 
   @override
   void didChangeDependencies() {
@@ -94,8 +121,11 @@ class _SmartRecommendationSectionState
     final controller = context.dependencies.recommendationController;
     if (_controller != controller) {
       _invalidationSubscription?.cancel();
+      _controller?.connectivity.removeListener(_networkChanged);
       _controller = controller;
-      _recommendationFuture = controller.getRecommendation();
+      _network = controller.connectivity.status;
+      controller.connectivity.addListener(_networkChanged);
+      _recommendationFuture = _resolve(controller.getRecommendation());
       _invalidationSubscription = controller.invalidations.listen((userId) {
         if (!mounted ||
             _isSaving ||
@@ -103,7 +133,7 @@ class _SmartRecommendationSectionState
           return;
         }
         setState(() {
-          _recommendationFuture = controller.getRecommendation();
+          _recommendationFuture = _resolve(controller.getRecommendation());
         });
       });
     }
@@ -112,6 +142,7 @@ class _SmartRecommendationSectionState
   @override
   void dispose() {
     _invalidationSubscription?.cancel();
+    _controller?.connectivity.removeListener(_networkChanged);
     super.dispose();
   }
 
@@ -120,11 +151,14 @@ class _SmartRecommendationSectionState
   /// Calling setState replaces the previous Future and causes the
   /// FutureBuilder to run through the loading/result states again.
   void _retry() {
+    if (_controller?.connectivity.isOffline == true) return;
     setState(() {
       _savedEventId = null;
-      _impressionRecommendationId = null;
-      _recommendationFuture = context.dependencies.recommendationController
-          .getRecommendation(forceRefresh: true);
+      _recommendationFuture = _resolve(
+        context.dependencies.recommendationController.getRecommendation(
+          forceRefresh: true,
+        ),
+      );
     });
   }
 
@@ -145,7 +179,10 @@ class _SmartRecommendationSectionState
     }
   }
 
-  Future<void> _openDetails(ProductRecommendation recommendation) async {
+  Future<void> _openDetails(
+    ProductRecommendation recommendation, {
+    bool stale = false,
+  }) async {
     // A tap itself establishes visibility if the detector has not reported yet.
     _display(recommendation);
     if (!_displayed || _opened) return;
@@ -156,6 +193,7 @@ class _SmartRecommendationSectionState
       AppRoutes.recommendationDetail,
       arguments: <String, Object?>{
         'recommendation': recommendation,
+        'stale': stale,
         'isSaved': _savedEventId == recommendation.recommendationEventId,
         'onSaved': () {
           if (!mounted) return;
@@ -196,20 +234,64 @@ class _SmartRecommendationSectionState
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<ProductRecommendation?>(
+    return FutureBuilder<RecommendationLoad>(
       future: _recommendationFuture,
       builder: (context, snapshot) {
+        final offline = _controller?.connectivity.isOffline == true;
+        final previous = _controller?.staleRecommendation;
+        final error = snapshot.data?.error;
+        if (previous != null &&
+            (offline ||
+                error != null ||
+                snapshot.connectionState == ConnectionState.waiting)) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                offline
+                    ? 'Outdated recommendation · New recommendations are unavailable offline.'
+                    : error != null
+                    ? 'Outdated recommendation · Could not refresh. Try again.'
+                    : 'Refreshing recommendation...',
+                style: WhyNotTextStyles.muted(size: 11),
+              ),
+              VisibilityDetector(
+                key: ValueKey(
+                  'home-recommendation-${previous.recommendationEventId}',
+                ),
+                onVisibilityChanged: (info) {
+                  if (info.visibleFraction >= 0.5 && mounted) {
+                    _display(previous);
+                  }
+                },
+                child: _RecommendationCard(
+                  recommendation: previous,
+                  formattedPrice: _formatPrice(previous.price),
+                  isSaving: false,
+                  isSaved: false,
+                  onSave: () {},
+                  onOpenDetails: () => _openDetails(previous, stale: true),
+                  saveDisabled: true,
+                  offline: offline,
+                ),
+              ),
+              if (!offline && error != null)
+                TextButton(onPressed: _retry, child: const Text('Try again')),
+            ],
+          );
+        }
+        if (offline) return const _RecommendationOfflineCard();
         // The recommendation is currently being requested.
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const _RecommendationLoadingCard();
         }
 
         // The repository/controller failed to obtain the recommendation.
-        if (snapshot.hasError) {
+        if (error != null) {
           return _RecommendationErrorCard(onRetry: _retry);
         }
 
-        final recommendation = snapshot.data;
+        final recommendation = snapshot.data?.value;
 
         // A null recommendation is a valid backend response.
         //
@@ -252,6 +334,8 @@ class _RecommendationCard extends StatelessWidget {
     required this.isSaved,
     required this.onSave,
     required this.onOpenDetails,
+    this.saveDisabled = false,
+    this.offline = false,
   });
 
   final ProductRecommendation recommendation;
@@ -260,6 +344,8 @@ class _RecommendationCard extends StatelessWidget {
   final bool isSaved;
   final VoidCallback onSave;
   final VoidCallback onOpenDetails;
+  final bool saveDisabled;
+  final bool offline;
 
   @override
   Widget build(BuildContext context) {
@@ -343,10 +429,20 @@ class _RecommendationCard extends StatelessWidget {
                           : isSaving
                           ? 'Saving...'
                           : 'Save this product',
-                      onPressed: isSaving || isSaved ? null : onSave,
+                      onPressed: isSaving || isSaved || saveDisabled
+                          ? null
+                          : onSave,
                     ),
                   ),
                 ),
+                if (saveDisabled)
+                  Text(
+                    offline
+                        ? 'Saving is unavailable offline.'
+                        : 'Open details to recheck availability before saving.',
+                    textAlign: TextAlign.center,
+                    style: WhyNotTextStyles.muted(size: 11),
+                  ),
               ],
             ),
           ),
@@ -463,6 +559,23 @@ class _NoRecommendationCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _RecommendationOfflineCard extends StatelessWidget {
+  const _RecommendationOfflineCard();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+      color: WhyNotColors.card,
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: const Text(
+      'You are offline. New recommendations cannot be fetched until the connection returns.',
+      textAlign: TextAlign.center,
+    ),
+  );
 }
 
 /// Error state displayed when the recommendation request fails.
