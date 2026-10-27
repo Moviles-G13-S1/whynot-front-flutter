@@ -63,6 +63,12 @@ class AppDependencies {
 
     final RecommendationRepository recommendationRepository =
         FirebaseRecommendationRepository();
+    // Santiago Casasbuenas: One cache-owning controller is shared by both
+    // recommendation views and by mutation/auth invalidation callbacks.
+    final recommendationController = RecommendationController(
+      recommendationRepository: recommendationRepository,
+      authRepository: authRepository,
+    );
 
     final LocationRepository locationRepository =
         GeolocatorLocationRepository();
@@ -73,30 +79,34 @@ class AppDependencies {
     final wishlistController = WishlistController(
       authRepository: authRepository,
       wishlistRepository: wishlistRepository,
+      onRecommendationInputsChanged: recommendationController.invalidateForUser,
     );
 
     return AppDependencies(
       authController: AuthController(
         authRepository: authRepository,
         userRepository: userRepository,
+        onAuthChanged: recommendationController.clearCache,
       ),
       profileController: ProfileController(
         authRepository: authRepository,
         userRepository: userRepository,
         photoRepository: FirebaseProfilePhotoRepository(),
+        onRecommendationInputsChanged:
+            recommendationController.invalidateForUser,
       ),
       wishlistController: wishlistController,
       productController: ProductController(
         authRepository: authRepository,
         productRepository: productRepository,
         wishlistController: wishlistController,
+        onRecommendationInputsChanged:
+            recommendationController.invalidateForUser,
       ),
       adminAccessController: AdminAccessController(authRepository),
       adminMetricsController: AdminMetricsController(adminMetricsRepository),
       cityController: CityController(cityRepository: FirebaseCityRepository()),
-      recommendationController: RecommendationController(
-        recommendationRepository: recommendationRepository,
-      ),
+      recommendationController: recommendationController,
       nearbyStoreController: NearbyStoreController(
         locationRepository: locationRepository,
         nearbyStoreRepository: nearbyStoreRepository,

@@ -12,6 +12,7 @@ class ProductController {
     required AuthRepository authRepository,
     required ProductRepository productRepository,
     required WishlistController wishlistController,
+    this.onRecommendationInputsChanged,
   }) : _authRepository = authRepository,
        _productRepository = productRepository,
        _wishlistController = wishlistController;
@@ -19,6 +20,7 @@ class ProductController {
   final AuthRepository _authRepository;
   final ProductRepository _productRepository;
   final WishlistController _wishlistController;
+  final void Function(String userId)? onRecommendationInputsChanged;
 
   String? get currentUserId => _authRepository.currentUser?.id;
 
@@ -63,6 +65,8 @@ class ProductController {
     }
 
     // The product was successfully saved.
+    // Santiago Casasbuenas: Product changes can change the recommended pick.
+    onRecommendationInputsChanged?.call(ownerId);
     unawaited(_recordSaveAttempt(ownerId: ownerId, success: true));
   }
 
@@ -81,9 +85,11 @@ class ProductController {
     }
   }
 
-  Future<void> update(String productId, ProductDraft draft) {
+  Future<void> update(String productId, ProductDraft draft) async {
     _validateDraft(draft);
-    return _productRepository.update(productId, draft);
+    final id = currentUserId;
+    await _productRepository.update(productId, draft);
+    if (id != null) onRecommendationInputsChanged?.call(id);
   }
 
   void _validateDraft(ProductDraft draft) {
@@ -99,8 +105,15 @@ class ProductController {
     }
   }
 
-  Future<void> markPurchased(String productId) =>
-      _productRepository.markPurchased(productId);
+  Future<void> markPurchased(String productId) async {
+    final id = currentUserId;
+    await _productRepository.markPurchased(productId);
+    if (id != null) onRecommendationInputsChanged?.call(id);
+  }
 
-  Future<void> delete(String productId) => _productRepository.delete(productId);
+  Future<void> delete(String productId) async {
+    final id = currentUserId;
+    await _productRepository.delete(productId);
+    if (id != null) onRecommendationInputsChanged?.call(id);
+  }
 }
