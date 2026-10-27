@@ -6,6 +6,7 @@ import '../../models/nearby_store.dart';
 import '../../models/nearby_failure.dart';
 import '../../controllers/nearby_store_controller.dart';
 import '../../controllers/connectivity_status.dart';
+import 'connectivity_message.dart';
 
 /// Displays the Context-Aware nearby-store recommendation.
 ///
@@ -209,12 +210,18 @@ class _NearbyStoreCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (stale) ...[
-            Text(
-              offline
-                  ? 'Outdated nearby result · Offline; new stores require a connection. Store and distance may have changed.'
-                  : 'Outdated nearby result · Store and distance may have changed.',
+            ConnectivityNotice(
+              label: offline ? 'Offline · outdated' : 'May be outdated',
+              title: 'Last nearby match',
+              message: offline
+                  ? 'This store and its distance may have changed. We’ll check again when you reconnect.'
+                  : 'We couldn’t update this match. Store details and distance may have changed.',
+              icon: offline ? Icons.wifi_off_rounded : Icons.history_rounded,
+              actionLabel: offline ? null : 'Try again',
+              onAction: offline ? null : onRetry,
+              backgroundColor: WhyNotColors.background,
             ),
-            TextButton(onPressed: onRetry, child: const Text('Try again')),
+            const SizedBox(height: 16),
           ],
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,7 +263,9 @@ class _NearbyStoreCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            formattedDistance,
+                            stale
+                                ? 'Last checked · $formattedDistance'
+                                : formattedDistance,
                             style: WhyNotTextStyles.muted(size: 12),
                           ),
                         ],
@@ -405,76 +414,56 @@ class _NearbyStoreErrorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (title, message, action) = switch (kind) {
+    final (label, title, message, action, icon) = switch (kind) {
       NearbyFailureKind.permissionDenied => (
+        'Location needed',
         'Location permission denied',
-        'Allow location access to find a store near you.',
+        'Allow location access to see nearby stores picked for you.',
         'Try permission again',
+        Icons.location_off_outlined,
       ),
       NearbyFailureKind.permissionPermanentlyDenied => (
+        'Location needed',
         'Location permission denied',
         'Enable location access for WhyNot in app settings.',
         'Open app settings',
+        Icons.location_off_outlined,
       ),
       NearbyFailureKind.servicesDisabled => (
+        'Location is off',
         'Location services are off',
         'Turn on device location services to find a store near you.',
         'Open location settings',
+        Icons.location_off_outlined,
       ),
       NearbyFailureKind.locationUnavailable => (
+        'Location unavailable',
         'Could not get your location',
         'Your location signal is unavailable. Move to an open area and try again.',
         'Try again',
+        Icons.my_location_outlined,
       ),
       NearbyFailureKind.nearbyServiceUnavailable => (
-        'We could not load nearby stores',
+        offline ? 'Offline' : 'Could not refresh',
         offline
-            ? 'You are offline. No previous store is safe for your current location. New stores require a connection.'
-            : 'The nearby service or network is unavailable. Please try again.',
+            ? 'Nearby picks are waiting'
+            : 'Nearby picks are taking a moment',
+        offline
+            ? 'Connect to search near your current location. We’ll try again when you’re back.'
+            : 'We couldn’t reach nearby stores just now. Give it another try.',
         'Try again',
+        offline ? Icons.wifi_off_rounded : Icons.cloud_off_outlined,
       ),
     };
 
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: WhyNotColors.card,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
-      child: Column(
-        children: [
-          Icon(
-            Icons.location_on_outlined,
-            size: 24,
-            color: WhyNotColors.muted.withValues(alpha: 0.65),
-          ),
-
-          const SizedBox(height: 10),
-
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: WhyNotTextStyles.serif(size: 18),
-          ),
-
-          const SizedBox(height: 7),
-
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: WhyNotTextStyles.muted(size: 11),
-          ),
-
-          const SizedBox(height: 10),
-
-          TextButton(
-            onPressed: onAction,
-            style: linkButtonStyle(),
-            child: Text(action),
-          ),
-        ],
-      ),
+    return ConnectivityNotice(
+      label: label,
+      title: title,
+      message: message,
+      icon: icon,
+      actionLabel: action,
+      onAction: onAction,
+      backgroundColor: WhyNotColors.card,
     );
   }
 }

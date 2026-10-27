@@ -10,6 +10,7 @@ import '../../models/catalog_product_details.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../widgets/form_controls.dart';
 import '../widgets/recommendation_save_flow.dart';
+import '../widgets/connectivity_message.dart';
 
 /// Full-page view for the user's current personalized recommendation.
 ///
@@ -221,10 +222,12 @@ class _RecommendationDetailScreenState
             if (error != null) {
               return _RecommendationDetailMessage(
                 icon: Icons.cloud_off_outlined,
-                title: 'Could not load your recommendation',
+                title: offline
+                    ? 'Your pick is waiting'
+                    : 'Picks are taking a moment',
                 message: offline
-                    ? 'You are offline. New recommendations cannot be fetched until connection returns.'
-                    : 'Recommendation service unavailable. Try again.',
+                    ? 'Connect to see your latest recommendation. We’ll check again when you’re online.'
+                    : 'We couldn’t load your recommendation just now. Give it another try.',
                 actionLabel: offline ? 'Try again when online' : 'Try again',
                 onAction: offline ? null : _retry,
                 onBack: _goBack,
@@ -389,15 +392,34 @@ class _RecommendationDetailContent extends StatelessWidget {
                   style: WhyNotTextStyles.muted(size: 12),
                 ),
               ],
-              const SizedBox(height: 34),
+              const SizedBox(height: 28),
+              if (!isSaved && offline) ...[
+                const ConnectivityNotice(
+                  label: 'Offline',
+                  title: 'Save it when you’re back',
+                  message:
+                      'Saving is unavailable offline. We’ll check this pick again when you reconnect.',
+                  icon: Icons.wifi_off_rounded,
+                ),
+                const SizedBox(height: 18),
+              ] else if (preparationFailed) ...[
+                const ConnectivityNotice(
+                  label: 'One more check',
+                  title: 'Let’s confirm this pick',
+                  message:
+                      'We couldn’t confirm that it’s still available. Check again before saving.',
+                  icon: Icons.info_outline_rounded,
+                ),
+                const SizedBox(height: 18),
+              ],
               PillButton(
                 height: 44,
                 label: offline
-                    ? 'Saving is unavailable offline'
+                    ? 'Save when online'
                     : isPreparingSave
-                    ? 'Preparing save...'
+                    ? 'Checking availability...'
                     : preparationFailed
-                    ? 'Retry availability check'
+                    ? 'Check again'
                     : isSaved
                     ? 'Saved to wishlist'
                     : isSaving
@@ -409,14 +431,6 @@ class _RecommendationDetailContent extends StatelessWidget {
                     ? onRetry
                     : onSave,
               ),
-              if (preparationFailed && !offline) ...[
-                const SizedBox(height: 10),
-                Text(
-                  'Could not confirm this product is still available.',
-                  textAlign: TextAlign.center,
-                  style: WhyNotTextStyles.muted(size: 11),
-                ),
-              ],
               if (isSaved) ...[
                 const SizedBox(height: 10),
                 Row(

@@ -12,6 +12,7 @@ import '../../controllers/connectivity_status.dart';
 import '../../models/product_recommendation.dart';
 import 'form_controls.dart';
 import 'recommendation_save_flow.dart';
+import 'connectivity_message.dart';
 
 /// UI section responsible for displaying the personalized Smart Feature
 /// recommendation.
@@ -247,14 +248,19 @@ class _SmartRecommendationSectionState
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                offline
-                    ? 'Outdated recommendation · New recommendations are unavailable offline.'
+              ConnectivityNotice(
+                label: offline ? 'Offline · outdated' : 'May be outdated',
+                title: 'Keeping your last pick',
+                message: offline
+                    ? 'This pick may have changed. We’ll look for a new one when you reconnect.'
                     : error != null
-                    ? 'Outdated recommendation · Could not refresh. Try again.'
-                    : 'Refreshing recommendation...',
-                style: WhyNotTextStyles.muted(size: 11),
+                    ? 'We couldn’t update your pick just now. You can try again.'
+                    : 'Checking for a new pick while you browse.',
+                icon: offline ? Icons.wifi_off_rounded : Icons.history_rounded,
+                actionLabel: !offline && error != null ? 'Try again' : null,
+                onAction: !offline && error != null ? _retry : null,
               ),
+              const SizedBox(height: 12),
               VisibilityDetector(
                 key: ValueKey(
                   'home-recommendation-${previous.recommendationEventId}',
@@ -275,8 +281,6 @@ class _SmartRecommendationSectionState
                   offline: offline,
                 ),
               ),
-              if (!offline && error != null)
-                TextButton(onPressed: _retry, child: const Text('Try again')),
             ],
           );
         }
@@ -428,6 +432,10 @@ class _RecommendationCard extends StatelessWidget {
                           ? 'Saved'
                           : isSaving
                           ? 'Saving...'
+                          : saveDisabled && offline
+                          ? 'Save when online'
+                          : saveDisabled
+                          ? 'Check before saving'
                           : 'Save this product',
                       onPressed: isSaving || isSaved || saveDisabled
                           ? null
@@ -439,7 +447,7 @@ class _RecommendationCard extends StatelessWidget {
                   Text(
                     offline
                         ? 'Saving is unavailable offline.'
-                        : 'Open details to recheck availability before saving.',
+                        : 'Open this pick to check availability before saving.',
                     textAlign: TextAlign.center,
                     style: WhyNotTextStyles.muted(size: 11),
                   ),
@@ -565,16 +573,13 @@ class _RecommendationOfflineCard extends StatelessWidget {
   const _RecommendationOfflineCard();
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(24),
-    decoration: BoxDecoration(
-      color: WhyNotColors.card,
-      borderRadius: BorderRadius.circular(18),
-    ),
-    child: const Text(
-      'You are offline. New recommendations cannot be fetched until the connection returns.',
-      textAlign: TextAlign.center,
-    ),
+  Widget build(BuildContext context) => const ConnectivityNotice(
+    label: 'Offline',
+    title: 'Your next pick is waiting',
+    message:
+        'Connect to see a recommendation made for you. We’ll load it when you’re back online.',
+    icon: Icons.wifi_off_rounded,
+    backgroundColor: WhyNotColors.card,
   );
 }
 
@@ -588,35 +593,14 @@ class _RecommendationErrorCard extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: WhyNotColors.card,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
-      child: Column(
-        children: [
-          Icon(
-            Icons.auto_awesome_outlined,
-            size: 22,
-            color: WhyNotColors.muted.withValues(alpha: 0.65),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'We could not load your recommendation.',
-            textAlign: TextAlign.center,
-            style: WhyNotTextStyles.muted(size: 12),
-          ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: onRetry,
-            style: linkButtonStyle(),
-            child: const Text('Try again'),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ConnectivityNotice(
+    label: 'Could not refresh',
+    title: 'Picks are taking a moment',
+    message:
+        'We couldn’t find your recommendation just now. Give it another try.',
+    icon: Icons.cloud_off_outlined,
+    actionLabel: 'Try again',
+    onAction: onRetry,
+    backgroundColor: WhyNotColors.card,
+  );
 }

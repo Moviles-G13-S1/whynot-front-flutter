@@ -218,7 +218,7 @@ void main() {
       final net = dependencies.recommendationController.connectivity;
       net.setStatus(NetworkStatus.offline);
       await tester.pumpAndSettle();
-      expect(find.textContaining('Outdated catalog'), findsOneWidget);
+      expect(find.text('Showing your last picks'), findsOneWidget);
       final refresh = tester.widget<IconButton>(find.byType(IconButton).first);
       expect(refresh.onPressed, isNull);
       expect(repo.calls, 1);
@@ -254,10 +254,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(
-        find.textContaining('New recommendations cannot be fetched'),
-        findsOneWidget,
-      );
+      expect(find.text('Your next pick is waiting'), findsOneWidget);
       expect(repo.pickCalls, 0);
       await tester.pumpWidget(
         DependenciesScope(
@@ -266,10 +263,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(
-        find.textContaining('No previous recommendations are available'),
-        findsOneWidget,
-      );
+      expect(find.text('Your picks will be here'), findsOneWidget);
       expect(repo.calls, 0);
     },
   );
@@ -299,7 +293,7 @@ void main() {
       final net = deps.recommendationController.connectivity;
       net.setStatus(NetworkStatus.offline);
       await tester.pumpAndSettle();
-      expect(find.textContaining('Outdated recommendation'), findsOneWidget);
+      expect(find.text('Keeping your last pick'), findsOneWidget);
       expect(find.text('Saving is unavailable offline.'), findsOneWidget);
       expect(
         repo.homeEvents.where((e) => e.eventType == 'card_displayed').length,
@@ -309,11 +303,14 @@ void main() {
       net.setStatus(NetworkStatus.available);
       await tester.pumpAndSettle();
       expect(find.text('Coat'), findsOneWidget);
-      expect(find.textContaining('Could not refresh'), findsOneWidget);
+      expect(
+        find.textContaining('We couldn’t update your pick'),
+        findsOneWidget,
+      );
       repo.failPick = false;
       await tester.tap(find.text('Try again'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Could not refresh'), findsNothing);
+      expect(find.textContaining('We couldn’t update your pick'), findsNothing);
       expect(repo.pickCalls, 3);
     },
   );
@@ -378,12 +375,15 @@ void main() {
       await tester.tap(find.byTooltip('Refresh recommendations'));
       await tester.pumpAndSettle();
       expect(find.text('Coat'), findsOneWidget);
-      expect(find.textContaining('Refresh failed'), findsOneWidget);
+      expect(
+        find.textContaining('We couldn’t refresh just now'),
+        findsOneWidget,
+      );
       repo.fail = false;
       await tester.tap(find.text('Try again'));
       await tester.pumpAndSettle();
       expect(find.text('Coat'), findsOneWidget);
-      expect(find.textContaining('Refresh failed'), findsNothing);
+      expect(find.textContaining('We couldn’t refresh just now'), findsNothing);
     },
   );
 
@@ -419,7 +419,10 @@ void main() {
       await tester.tap(find.text('Coat'));
       await tester.pumpAndSettle();
       expect(find.text('Coat'), findsOneWidget);
-      expect(find.text('Saving is unavailable offline'), findsOneWidget);
+      expect(
+        find.textContaining('Saving is unavailable offline'),
+        findsOneWidget,
+      );
       expect(repo.saves, isEmpty);
       deps.recommendationController.connectivity.setStatus(
         NetworkStatus.available,
@@ -452,7 +455,10 @@ void main() {
     final net = deps.recommendationController.connectivity;
     net.setStatus(NetworkStatus.offline);
     await tester.pumpAndSettle();
-    expect(find.text('Saving is unavailable offline'), findsOneWidget);
+    expect(
+      find.textContaining('Saving is unavailable offline'),
+      findsOneWidget,
+    );
     net.setStatus(NetworkStatus.available);
     await tester.pumpAndSettle();
     expect(repo.pickCalls, 2);
@@ -485,11 +491,11 @@ void main() {
       await tester.pumpAndSettle();
       net.setStatus(NetworkStatus.available);
       await tester.pumpAndSettle();
-      expect(find.textContaining('Outdated nearby result'), findsOneWidget);
+      expect(find.text('Last nearby match'), findsOneWidget);
       repo.fail = false;
       await tester.tap(find.text('Try again'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Outdated nearby result'), findsNothing);
+      expect(find.text('Last nearby match'), findsNothing);
       expect(find.text('Shop'), findsOneWidget);
     },
   );
@@ -513,7 +519,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.textContaining('No previous store is safe'), findsOneWidget);
+      expect(find.text('Nearby picks are waiting'), findsOneWidget);
       expect(find.text('Try again'), findsOneWidget);
       expect(repo.calls, 0);
     },

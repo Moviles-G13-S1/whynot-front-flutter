@@ -9,7 +9,7 @@ import '../../controllers/recommendation_controller.dart';
 import '../../controllers/connectivity_status.dart';
 import '../../models/recommendation_catalog_item.dart';
 import '../../models/repositories/recommendation_repository.dart';
-import '../widgets/form_controls.dart';
+import '../widgets/connectivity_message.dart';
 
 /// Browse a short-lived catalog snapshot and show which opened products occupy
 /// the separate five-slot detail LRU.
@@ -159,27 +159,26 @@ class _RecommendationCatalogScreenState
           final error = snapshot.data?.error;
           if (error != null && previous == null && !offline) {
             final unavailable = error is RecommendationCatalogUnavailable;
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    unavailable
-                        ? 'Recommendation catalog is not available in this app environment yet.'
-                        : 'Recommendation service unavailable. Check your connection and try again.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  PillButton(label: 'Try again', onPressed: _refresh),
-                ],
-              ),
+            return ConnectivityEmptyState(
+              label: 'Could not refresh',
+              title: unavailable
+                  ? 'Your picks are on pause'
+                  : 'Picks are taking a moment',
+              message: unavailable
+                  ? 'Recommendations are unavailable in this app environment right now.'
+                  : 'We couldn’t load your picks just now. Give it another try.',
+              icon: Icons.cloud_off_outlined,
+              actionLabel: 'Try again',
+              onAction: _refresh,
             );
           }
           if (offline && previous == null) {
-            return const Center(
-              child: Text(
-                'You are offline. No previous recommendations are available. New recommendations cannot be fetched until connection returns.',
-              ),
+            return const ConnectivityEmptyState(
+              label: 'Offline',
+              title: 'Your picks will be here',
+              message:
+                  'Connect to discover new picks. We’ll load them when you’re back online.',
+              icon: Icons.wifi_off_rounded,
             );
           }
           final usePrevious =
@@ -193,34 +192,46 @@ class _RecommendationCatalogScreenState
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 36),
             children: [
-              Text(
-                usePrevious && offline
-                    ? 'Outdated catalog · New recommendations unavailable offline'
-                    : usePrevious && error != null
-                    ? 'Outdated catalog · Refresh failed; try again'
-                    : result.fromCache
-                    ? 'Catalog loaded from cache · no catalog request'
-                    : 'Fetched fresh catalog',
-                key: const Key('catalog-cache-status'),
-                style: WhyNotTextStyles.muted(size: 13),
-              ),
-              if (result.fromCache) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Cached results may be up to 5 minutes old.',
-                  style: WhyNotTextStyles.muted(size: 11),
+              if (usePrevious) ...[
+                ConnectivityNotice(
+                  label: offline ? 'Offline · outdated' : 'May be outdated',
+                  title: 'Showing your last picks',
+                  message: offline
+                      ? 'These picks may have changed. We’ll look for new ones when you reconnect.'
+                      : error != null
+                      ? 'We couldn’t refresh just now. Your last picks are still here.'
+                      : 'Checking for new picks while you browse.',
+                  icon: offline
+                      ? Icons.wifi_off_rounded
+                      : Icons.history_rounded,
+                  actionLabel: !offline && error != null ? 'Try again' : null,
+                  onAction: !offline && error != null ? _refresh : null,
                 ),
+                const SizedBox(height: 18),
+              ] else ...[
+                Text(
+                  result.fromCache
+                      ? 'Recently loaded picks'
+                      : 'Fresh picks for you',
+                  key: const Key('catalog-cache-status'),
+                  style: WhyNotTextStyles.muted(size: 13),
+                ),
+                if (result.fromCache) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Loaded during your recent visit. These picks may have changed.',
+                    style: WhyNotTextStyles.muted(size: 11),
+                  ),
+                ],
               ],
-              if (usePrevious && !offline && error != null)
-                TextButton(onPressed: _refresh, child: const Text('Try again')),
               const SizedBox(height: 6),
               Text(
-                'Gray dot = opened product details cached',
+                'Small dots mark details you’ve opened recently.',
                 style: WhyNotTextStyles.muted(size: 11),
               ),
               const SizedBox(height: 8),
               Text(
-                'Products in your preferred category and categories you save, from people with similar profiles.',
+                'Inspired by your favorite categories and people with similar tastes.',
                 style: WhyNotTextStyles.muted(size: 13),
               ),
               const SizedBox(height: 22),
