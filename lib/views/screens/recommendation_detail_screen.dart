@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/app_routes.dart';
 import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
+import '../../controllers/recommendation_controller.dart';
 import '../../models/product_recommendation.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../widgets/form_controls.dart';
@@ -28,6 +29,8 @@ class _RecommendationDetailScreenState
   bool _initialized = false;
   bool _isSaving = false;
   bool _isSaved = false;
+  ProductRecommendation? _catalogPreview;
+  String? _catalogSourceProductId;
 
   @override
   void didChangeDependencies() {
@@ -36,6 +39,12 @@ class _RecommendationDetailScreenState
     _initialized = true;
 
     final arguments = ModalRoute.of(context)?.settings.arguments;
+    if (arguments is CatalogOpenRequest) {
+      _catalogPreview = arguments.preview.withEvent('');
+      _catalogSourceProductId = arguments.sourceProductId;
+      _recommendationFuture = arguments.recommendation;
+      return;
+    }
     ProductRecommendation? recommendation;
     if (arguments is Map) {
       final candidate = arguments['recommendation'];
@@ -54,13 +63,21 @@ class _RecommendationDetailScreenState
 
   void _retry() {
     setState(() {
-      _recommendationFuture = context.dependencies.recommendationController
-          .getRecommendation(forceRefresh: true);
+      final sourceProductId = _catalogSourceProductId;
+      _recommendationFuture = sourceProductId == null
+          ? context.dependencies.recommendationController.getRecommendation(
+              forceRefresh: true,
+            )
+          : context.dependencies.recommendationController.openCatalogItem(
+              sourceProductId,
+            );
     });
   }
 
   Future<void> _save(ProductRecommendation recommendation) async {
-    if (_isSaving || _isSaved) return;
+    if (_isSaving || _isSaved || recommendation.recommendationEventId.isEmpty) {
+      return;
+    }
     setState(() => _isSaving = true);
     try {
       final saved = await saveRecommendationToWishlist(context, recommendation);
@@ -115,6 +132,24 @@ class _RecommendationDetailScreenState
         child: FutureBuilder<ProductRecommendation?>(
           future: _recommendationFuture,
           builder: (context, snapshot) {
+            final preview = _catalogPreview;
+            if (preview != null &&
+                (snapshot.connectionState == ConnectionState.waiting ||
+                    snapshot.hasError)) {
+              return _RecommendationDetailContent(
+                recommendation: preview,
+                formattedPrice: _formatPrice(preview.price),
+                categoryLabel: _categoryLabel(preview.categoryId),
+                isSaving: false,
+                isSaved: false,
+                isPreparingSave:
+                    snapshot.connectionState == ConnectionState.waiting,
+                preparationFailed: snapshot.hasError,
+                onRetry: _retry,
+                onSave: () {},
+                onBack: _goBack,
+              );
+            }
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _RecommendationDetailLoading(onBack: _goBack);
             }
@@ -165,6 +200,9 @@ class _RecommendationDetailContent extends StatelessWidget {
     required this.categoryLabel,
     required this.isSaving,
     required this.isSaved,
+    this.isPreparingSave = false,
+    this.preparationFailed = false,
+    this.onRetry,
     required this.onSave,
     required this.onBack,
   });
@@ -174,6 +212,9 @@ class _RecommendationDetailContent extends StatelessWidget {
   final String categoryLabel;
   final bool isSaving;
   final bool isSaved;
+  final bool isPreparingSave;
+  final bool preparationFailed;
+  final VoidCallback? onRetry;
   final VoidCallback onSave;
   final VoidCallback onBack;
 
@@ -280,13 +321,29 @@ class _RecommendationDetailContent extends StatelessWidget {
               const SizedBox(height: 34),
               PillButton(
                 height: 44,
-                label: isSaved
+                label: isPreparingSave
+                    ? 'Preparing save...'
+                    : preparationFailed
+                    ? 'Retry availability check'
+                    : isSaved
                     ? 'Saved to wishlist'
                     : isSaving
                     ? 'Saving...'
                     : 'Save this product',
-                onPressed: isSaving || isSaved ? null : onSave,
+                onPressed: isPreparingSave || isSaving || isSaved
+                    ? null
+                    : preparationFailed
+                    ? onRetry
+                    : onSave,
               ),
+              if (preparationFailed) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Could not confirm this product is still available.',
+                  textAlign: TextAlign.center,
+                  style: WhyNotTextStyles.muted(size: 11),
+                ),
+              ],
               if (isSaved) ...[
                 const SizedBox(height: 10),
                 Row(

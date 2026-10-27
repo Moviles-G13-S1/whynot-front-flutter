@@ -1,4 +1,5 @@
 import 'product_recommendation.dart';
+import 'recommendation_catalog_item.dart';
 
 /// Reusable display fields; a saveable recommendation event is never cached.
 class CatalogProductDetails {
@@ -22,6 +23,19 @@ class CatalogProductDetails {
     productUrl: recommendation.productUrl,
     categoryId: recommendation.categoryId,
     reason: recommendation.reason,
+  );
+
+  /// Catalog rows can preview the detail page before the save event is ready.
+  factory CatalogProductDetails.fromCatalogItem(
+    RecommendationCatalogItem item,
+  ) => CatalogProductDetails(
+    name: item.name,
+    brand: item.brand,
+    price: item.price,
+    imageUrl: item.imageUrl,
+    productUrl: '',
+    categoryId: item.categoryId,
+    reason: item.reason,
   );
 
   final String name;

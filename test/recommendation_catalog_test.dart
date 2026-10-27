@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:whynot_mobile/app/app_routes.dart';
@@ -98,6 +100,16 @@ class ManyCatalogRepository extends CatalogRepository {
   }
 }
 
+class DeferredRepeatOpenRepository extends CatalogRepository {
+  final event = Completer<String>();
+
+  @override
+  Future<String> createCatalogEvent(String sourceProductId) {
+    compactOpens++;
+    return event.future;
+  }
+}
+
 class UnavailableCatalogRepository extends CatalogRepository {
   @override
   Future<List<RecommendationCatalogItem>> getCatalog() async {
@@ -106,6 +118,63 @@ class UnavailableCatalogRepository extends CatalogRepository {
 }
 
 void main() {
+  testWidgets('repeat open shows product while only save waits for event', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = DeferredRepeatOpenRepository();
+    final dependencies = createTestDependencies(
+      signedIn: true,
+      recommendationRepository: repository,
+    );
+    await tester.pumpWidget(
+      DependenciesScope(
+        dependencies: dependencies,
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.pushNamed(
+                  context,
+                  AppRoutes.recommendationCatalog,
+                ),
+                child: const Text('Open catalog'),
+              ),
+            ),
+          ),
+          routes: {
+            AppRoutes.recommendationCatalog: (_) =>
+                const RecommendationCatalogScreen(),
+            AppRoutes.recommendationDetail: (_) =>
+                const RecommendationDetailScreen(),
+          },
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open catalog'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Jacket'));
+    await tester.pumpAndSettle();
+    expect(find.text('Save this product'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Jacket'));
+    await tester.pumpAndSettle();
+    expect(repository.compactOpens, 1);
+    expect(find.text('Jacket'), findsOneWidget);
+    expect(find.text('Preparing save...'), findsOneWidget);
+    expect(find.text('Save this product'), findsNothing);
+
+    repository.event.complete('fresh-event-2');
+    await tester.pumpAndSettle();
+    expect(find.text('Save this product'), findsOneWidget);
+    expect(find.text('Preparing save...'), findsNothing);
+  });
+
   test('empty catalog snapshot expires after 30 seconds', () {
     var now = DateTime.utc(2026, 10, 26);
     final cache = RecommendationCatalogSnapshotCache(clock: () => now);

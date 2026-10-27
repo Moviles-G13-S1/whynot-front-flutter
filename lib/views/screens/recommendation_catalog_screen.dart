@@ -65,16 +65,13 @@ class _RecommendationCatalogScreenState
     if (_openingId != null) return;
     setState(() => _openingId = item.sourceProductId);
     try {
-      // Santiago Casasbuenas: Selecting an item rechecks eligibility and
-      // creates the save event; simply listing cached rows creates no events.
-      final recommendation = await context.dependencies.recommendationController
-          .openCatalogItem(item.sourceProductId);
-      if (!mounted) return;
-      setState(() {});
+      // Show the product immediately; only saving waits for the fresh event.
+      final opening = context.dependencies.recommendationController
+          .beginCatalogOpen(item);
       await Navigator.pushNamed(
         context,
         AppRoutes.recommendationDetail,
-        arguments: recommendation,
+        arguments: opening,
       );
     } catch (_) {
       if (!mounted) return;
@@ -250,14 +247,7 @@ class _CatalogCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (opening)
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else
-                    const Icon(Icons.chevron_right),
+                  const Icon(Icons.chevron_right),
                 ],
               ),
             ),

@@ -8,6 +8,19 @@ import '../models/repositories/auth_repository.dart';
 import 'recommendation_catalog_snapshot_cache.dart';
 import 'recommendation_result_cache.dart';
 
+/// Data shown immediately while the server prepares a fresh save event.
+class CatalogOpenRequest {
+  const CatalogOpenRequest({
+    required this.sourceProductId,
+    required this.preview,
+    required this.recommendation,
+  });
+
+  final String sourceProductId;
+  final CatalogProductDetails preview;
+  final Future<ProductRecommendation> recommendation;
+}
+
 /// Controller for personalized product recommendations.
 ///
 /// The controller acts as the entry point between views
@@ -183,6 +196,19 @@ class RecommendationController {
         _catalogProductCache.containsFresh(
           _catalogProductKey(userId, sourceProductId),
         );
+  }
+
+  CatalogOpenRequest beginCatalogOpen(RecommendationCatalogItem item) {
+    final userId = _authRepository.currentUser?.id;
+    if (userId == null) throw StateError('No user logged in.');
+    final cached = _catalogProductCache.peek(
+      _catalogProductKey(userId, item.sourceProductId),
+    );
+    return CatalogOpenRequest(
+      sourceProductId: item.sourceProductId,
+      preview: cached ?? CatalogProductDetails.fromCatalogItem(item),
+      recommendation: openCatalogItem(item.sourceProductId),
+    );
   }
 
   Future<ProductRecommendation> openCatalogItem(String sourceProductId) async {

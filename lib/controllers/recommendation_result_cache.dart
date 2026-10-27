@@ -67,6 +67,9 @@ class RecommendationResultCache<T> {
     return true;
   }
 
+  /// Read a preview without changing which entry is least recently used.
+  T? peek(String key) => containsFresh(key) ? _entries[key]?.value : null;
+
   /// Santiago Casasbuenas: A hit moves its entry to the newest LRU position;
   /// expiry removes it before the repository is asked for a fresh result.
   (bool, T?) lookup(String userId) {
