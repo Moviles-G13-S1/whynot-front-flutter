@@ -166,13 +166,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(repository.compactOpens, 1);
     expect(find.text('Jacket'), findsOneWidget);
-    expect(find.text('Preparing save...'), findsOneWidget);
+    expect(find.text('Checking availability...'), findsOneWidget);
     expect(find.text('Save this product'), findsNothing);
 
     repository.event.complete('fresh-event-2');
     await tester.pumpAndSettle();
     expect(find.text('Save this product'), findsOneWidget);
-    expect(find.text('Preparing save...'), findsNothing);
+    expect(find.text('Checking availability...'), findsNothing);
   });
 
   test('empty catalog snapshot expires after 30 seconds', () {
@@ -217,7 +217,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(repository.catalogCalls, 2);
     expect(find.text('Headphones'), findsOneWidget);
-    expect(find.text('Fetched fresh catalog'), findsOneWidget);
+    expect(find.text('Fresh picks for you'), findsOneWidget);
   });
 
   testWidgets('missing catalog service has a specific recovery message', (
@@ -235,7 +235,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.text(
-        'Recommendation catalog is not available in this app environment yet.',
+        'Recommendations are unavailable in this app environment right now.',
       ),
       findsOneWidget,
     );
@@ -342,7 +342,7 @@ void main() {
     );
     await tester.tap(find.text('Open catalog'));
     await tester.pumpAndSettle();
-    expect(find.text('Fetched fresh catalog'), findsOneWidget);
+    expect(find.text('Fresh picks for you'), findsOneWidget);
     expect(find.text('Jacket'), findsOneWidget);
     expect(repository.catalogCalls, 1);
     expect(repository.opens, 0); // Listing did not create save events.
@@ -362,10 +362,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Open catalog'));
     await tester.pumpAndSettle();
-    expect(
-      find.text('Catalog loaded from cache · no catalog request'),
-      findsOneWidget,
-    );
+    expect(find.text('Recently loaded picks'), findsOneWidget);
     expect(repository.catalogCalls, 1);
     expect(
       find.byKey(const Key('catalog-cached-dot-source-1')),
@@ -374,7 +371,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Refresh recommendations'));
     await tester.pumpAndSettle();
-    expect(find.text('Fetched fresh catalog'), findsOneWidget);
+    expect(find.text('Fresh picks for you'), findsOneWidget);
     expect(repository.catalogCalls, 2);
 
     await tester.tap(find.text('Jacket'));

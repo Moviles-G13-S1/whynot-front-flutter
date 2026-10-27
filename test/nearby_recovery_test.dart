@@ -211,8 +211,8 @@ void main() {
     nearby.fails = true;
     await tester.tap(find.text('Try again'));
     await tester.pumpAndSettle();
-    expect(find.text('We could not load nearby stores'), findsOneWidget);
-    expect(find.textContaining('nearby service or network'), findsOneWidget);
+    expect(find.text('Nearby picks are taking a moment'), findsOneWidget);
+    expect(find.textContaining('couldn’t reach nearby stores'), findsOneWidget);
     expect(find.text('Location permission denied'), findsNothing);
     nearby.fails = false;
     nearby.store = exampleStore;

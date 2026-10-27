@@ -7,8 +7,11 @@ import '../models/repositories/recommendation_repository.dart';
 import '../models/repositories/auth_repository.dart';
 import 'recommendation_catalog_snapshot_cache.dart';
 import 'recommendation_result_cache.dart';
+import 'connectivity_status.dart';
 
 /// Data shown immediately while the server prepares a fresh save event.
+typedef RecommendationLoad = ({ProductRecommendation? value, Object? error});
+
 class CatalogOpenRequest {
   const CatalogOpenRequest({
     required this.sourceProductId,
@@ -18,7 +21,7 @@ class CatalogOpenRequest {
 
   final String sourceProductId;
   final CatalogProductDetails preview;
-  final Future<ProductRecommendation> recommendation;
+  final Future<RecommendationLoad> recommendation;
 }
 
 /// Controller for personalized product recommendations.
@@ -40,8 +43,10 @@ class RecommendationController {
     RecommendationResultCache<ProductRecommendation>? cache,
     RecommendationCatalogSnapshotCache? catalogSnapshotCache,
     RecommendationResultCache<CatalogProductDetails>? catalogProductCache,
+    ConnectivityStatus? connectivity,
   }) : _recommendationRepository = recommendationRepository,
        _authRepository = authRepository,
+       connectivity = connectivity ?? ConnectivityStatus(observe: false),
        _cache = cache ?? RecommendationResultCache<ProductRecommendation>(),
        _catalogSnapshotCache =
            catalogSnapshotCache ?? RecommendationCatalogSnapshotCache(),
@@ -56,6 +61,7 @@ class RecommendationController {
   /// from the backend technology.
   final RecommendationRepository _recommendationRepository;
   final AuthRepository _authRepository;
+  final ConnectivityStatus connectivity;
   final RecommendationResultCache<ProductRecommendation> _cache;
   final RecommendationCatalogSnapshotCache _catalogSnapshotCache;
   final RecommendationResultCache<CatalogProductDetails> _catalogProductCache;
@@ -74,12 +80,25 @@ class RecommendationController {
   /// A successful local change asks mounted recommendation views to reload.
   Stream<String> get invalidations => _invalidations.stream;
 
+  ProductRecommendation? get staleRecommendation {
+    final userId = _authRepository.currentUser?.id;
+    if (userId == null || _activeUserId != userId) return null;
+    return _cache.staleFor(userId);
+  }
+
+  List<RecommendationCatalogItem>? get staleCatalog {
+    final userId = _authRepository.currentUser?.id;
+    if (userId == null || _activeUserId != userId) return null;
+    return _catalogSnapshotCache.staleFor(userId);
+  }
+
   /// Returns the personalized product recommendation for the current user.
   ///
   /// A null result is valid and means the backend did not find an eligible
   /// product to recommend.
   Future<ProductRecommendation?> getRecommendation({
     bool forceRefresh = false,
+    bool checkConnection = false,
   }) {
     final userId = _authRepository.currentUser?.id;
     if (userId == null) {
@@ -90,6 +109,11 @@ class RecommendationController {
       // Santiago Casasbuenas: A user switch drops all previous user data.
       clearCache();
       _activeUserId = userId;
+    }
+    if (connectivity.isOffline && !checkConnection) {
+      return Future.error(
+        StateError('Offline: new recommendations unavailable.'),
+      );
     }
     if (!forceRefresh) {
       final (hit, value) = _cache.lookup(userId);
@@ -106,7 +130,7 @@ class RecommendationController {
       _inFlight.remove(userId);
     }
     final version = _versions[userId] ?? 0;
-    final request = _fetch(userId, version, _epoch);
+    final request = _fetch(userId, version, _epoch, checkConnection);
     _inFlight[userId] = request;
     return request;
   }
@@ -115,6 +139,7 @@ class RecommendationController {
     String userId,
     int version,
     int epoch,
+    bool checkConnection,
   ) async {
     try {
       final value = await _recommendationRepository.getRecommendation();
@@ -127,6 +152,7 @@ class RecommendationController {
         throw StateError('Recommendation changed during request.');
       }
       _cache.store(userId, value);
+      if (checkConnection) connectivity.confirmReachable();
       return value;
     } finally {
       if (_epoch == epoch && (_versions[userId] ?? 0) == version) {
@@ -138,6 +164,7 @@ class RecommendationController {
   /// A single expiring snapshot avoids fetching the full list on every visit.
   Future<({List<RecommendationCatalogItem> items, bool fromCache})> getCatalog({
     bool forceRefresh = false,
+    bool checkConnection = false,
   }) async {
     final userId = _authRepository.currentUser?.id;
     if (userId == null) {
@@ -147,6 +174,9 @@ class RecommendationController {
     if (_activeUserId != userId) {
       clearCache();
       _activeUserId = userId;
+    }
+    if (connectivity.isOffline && !checkConnection) {
+      throw StateError('Offline: new recommendations unavailable.');
     }
     if (!forceRefresh) {
       final (hit, cached) = _catalogSnapshotCache.lookup(userId);
@@ -160,7 +190,7 @@ class RecommendationController {
       _catalogInFlight.remove(userId);
     }
     final version = _catalogVersions[userId] ?? 0;
-    final pending = _fetchCatalog(userId, version, _epoch);
+    final pending = _fetchCatalog(userId, version, _epoch, checkConnection);
     _catalogInFlight[userId] = pending;
     return (items: await pending, fromCache: false);
   }
@@ -169,6 +199,7 @@ class RecommendationController {
     String userId,
     int version,
     int epoch,
+    bool checkConnection,
   ) async {
     try {
       final items = await _recommendationRepository.getCatalog();
@@ -179,6 +210,7 @@ class RecommendationController {
         throw StateError('Recommendation catalog changed during request.');
       }
       _catalogSnapshotCache.store(userId, items);
+      if (checkConnection) connectivity.confirmReachable();
       return items;
     } finally {
       if (_epoch == epoch && (_catalogVersions[userId] ?? 0) == version) {
@@ -201,19 +233,26 @@ class RecommendationController {
   CatalogOpenRequest beginCatalogOpen(RecommendationCatalogItem item) {
     final userId = _authRepository.currentUser?.id;
     if (userId == null) throw StateError('No user logged in.');
-    final cached = _catalogProductCache.peek(
-      _catalogProductKey(userId, item.sourceProductId),
-    );
+    final key = _catalogProductKey(userId, item.sourceProductId);
+    final cached =
+        _catalogProductCache.peek(key) ?? _catalogProductCache.staleFor(key);
     return CatalogOpenRequest(
       sourceProductId: item.sourceProductId,
       preview: cached ?? CatalogProductDetails.fromCatalogItem(item),
-      recommendation: openCatalogItem(item.sourceProductId),
+      recommendation: openCatalogItem(item.sourceProductId)
+          .then<RecommendationLoad>(
+            (value) => (value: value, error: null),
+            onError: (Object error) => (value: null, error: error),
+          ),
     );
   }
 
   Future<ProductRecommendation> openCatalogItem(String sourceProductId) async {
     final userId = _authRepository.currentUser?.id;
     if (userId == null) throw StateError('No user logged in.');
+    if (connectivity.isOffline) {
+      throw StateError('Offline: saving is unavailable.');
+    }
     final epoch = _epoch;
     final version = _catalogVersions[userId] ?? 0;
     final key = _catalogProductKey(userId, sourceProductId);
@@ -295,6 +334,9 @@ class RecommendationController {
     required ProductRecommendation recommendation,
     required String wishlistId,
   }) async {
+    if (connectivity.isOffline) {
+      throw StateError('Offline: saving is unavailable.');
+    }
     final userId = _authRepository.currentUser?.id;
     await _recommendationRepository.saveRecommendation(
       recommendationEventId: recommendation.recommendationEventId,

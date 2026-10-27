@@ -187,7 +187,7 @@ void main() {
     await tester.pumpWidget(_detailApp(repository));
     await tester.pumpAndSettle();
 
-    expect(find.text('Could not load your recommendation'), findsOneWidget);
+    expect(find.text('Picks are taking a moment'), findsOneWidget);
     await tester.tap(find.text('Try again'));
     await tester.pumpAndSettle();
 

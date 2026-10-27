@@ -2,6 +2,7 @@ import '../controllers/admin_access_controller.dart';
 import '../controllers/admin_metrics_controller.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/city_controller.dart';
+import '../controllers/connectivity_status.dart';
 import '../controllers/nearby_store_controller.dart';
 import '../controllers/product_controller.dart';
 import '../controllers/profile_controller.dart';
@@ -65,11 +66,13 @@ class AppDependencies {
 
     final RecommendationRepository recommendationRepository =
         FirebaseRecommendationRepository();
+    final connectivity = ConnectivityStatus();
     // Santiago Casasbuenas: One cache-owning controller is shared by both
     // recommendation views and by mutation/auth invalidation callbacks.
     final recommendationController = RecommendationController(
       recommendationRepository: recommendationRepository,
       authRepository: authRepository,
+      connectivity: connectivity,
     );
 
     final LocationRepository locationRepository =
@@ -112,6 +115,8 @@ class AppDependencies {
       nearbyStoreController: NearbyStoreController(
         locationRepository: locationRepository,
         nearbyStoreRepository: nearbyStoreRepository,
+        authRepository: authRepository,
+        connectivity: connectivity,
       ),
     );
   }

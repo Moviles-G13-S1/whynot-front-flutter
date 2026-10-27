@@ -22,11 +22,14 @@ class RecommendationCatalogSnapshotCache {
     if (_userId != userId ||
         expiresAt == null ||
         !_clock().isBefore(expiresAt)) {
-      clear();
       return (false, const []);
     }
     return (true, _items!);
   }
+
+  /// Only nonempty results are useful as an extended offline fallback.
+  List<RecommendationCatalogItem>? staleFor(String userId) =>
+      _userId == userId && _items?.isNotEmpty == true ? _items : null;
 
   void store(String userId, List<RecommendationCatalogItem> items) {
     _userId = userId;

@@ -4,6 +4,9 @@ import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../models/nearby_store.dart';
 import '../../models/nearby_failure.dart';
+import '../../controllers/nearby_store_controller.dart';
+import '../../controllers/connectivity_status.dart';
+import 'connectivity_message.dart';
 
 /// Displays the Context-Aware nearby-store recommendation.
 ///
@@ -33,7 +36,23 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection>
   ///
   /// It is stored in state so rebuilding the widget does not request the
   /// device location repeatedly.
-  Future<(NearbyStore?, NearbyFailureKind?)>? _storeFuture;
+  Future<(NearbyStoreResult?, NearbyFailureKind?)>? _storeFuture;
+  NearbyStoreController? _controller;
+  NetworkStatus _network = NetworkStatus.unknown;
+  bool _checkingConnection = false;
+
+  void _networkChanged() {
+    final status = _controller?.connectivity.status ?? NetworkStatus.unknown;
+    if (status == _network) return;
+    final wasOffline = _network == NetworkStatus.offline;
+    setState(() => _network = status);
+    if (wasOffline &&
+        status == NetworkStatus.available &&
+        !_checkingConnection) {
+      _retry();
+    }
+  }
+
   bool _awaitingSettingsReturn = false;
   bool _openingSettings = false;
 
@@ -46,6 +65,7 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _controller?.connectivity.removeListener(_networkChanged);
     super.dispose();
   }
 
@@ -61,15 +81,26 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection>
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    _storeFuture ??= _load();
+    final controller = context.dependencies.nearbyStoreController;
+    if (_controller != controller) {
+      _controller?.connectivity.removeListener(_networkChanged);
+      _controller = controller;
+      _network = controller.connectivity.status;
+      controller.connectivity.addListener(_networkChanged);
+      _storeFuture = _load();
+    }
   }
 
-  Future<(NearbyStore?, NearbyFailureKind?)> _load({
+  Future<(NearbyStoreResult?, NearbyFailureKind?)> _load({
     bool requestPermission = true,
+    bool checkConnection = false,
   }) async {
     try {
       final store = await context.dependencies.nearbyStoreController
-          .getNearestStore(requestPermission: requestPermission);
+          .getNearestStoreResult(
+            requestPermission: requestPermission,
+            checkConnection: checkConnection,
+          );
       return (store, null);
     } on NearbyFailure catch (failure) {
       return (null, failure.kind);
@@ -80,9 +111,17 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection>
 
   /// Requests the current location and nearby store again.
   void _retry({bool requestPermission = true}) {
+    final checkConnection = _controller?.connectivity.isOffline == true;
+    if (checkConnection && _checkingConnection) return;
+    _checkingConnection = checkConnection;
+    final request = _load(
+      requestPermission: requestPermission,
+      checkConnection: checkConnection,
+    );
     setState(() {
-      _storeFuture = _load(requestPermission: requestPermission);
+      _storeFuture = request;
     });
+    request.whenComplete(() => _checkingConnection = false);
   }
 
   Future<void> _openSettings(NearbyFailureKind kind) async {
@@ -114,7 +153,7 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection>
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<(NearbyStore?, NearbyFailureKind?)>(
+    return FutureBuilder<(NearbyStoreResult?, NearbyFailureKind?)>(
       future: _storeFuture,
       builder: (context, snapshot) {
         // The app is obtaining the current location and requesting a store.
@@ -127,6 +166,7 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection>
         if (kind != null) {
           return _NearbyStoreErrorCard(
             kind: kind,
+            offline: _controller?.connectivity.isOffline == true,
             onAction:
                 kind == NearbyFailureKind.permissionPermanentlyDenied ||
                     kind == NearbyFailureKind.servicesDisabled
@@ -135,7 +175,8 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection>
           );
         }
 
-        final store = snapshot.data?.$1;
+        final result = snapshot.data?.$1;
+        final store = result?.store;
 
         // A null store is a valid backend response.
         //
@@ -148,6 +189,9 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection>
         return _NearbyStoreCard(
           store: store,
           formattedDistance: _formatDistance(store.distanceKm),
+          stale: result!.stale,
+          offline: _controller?.connectivity.isOffline == true,
+          onRetry: _retry,
         );
       },
     );
@@ -159,10 +203,16 @@ class _NearbyStoreCard extends StatelessWidget {
   const _NearbyStoreCard({
     required this.store,
     required this.formattedDistance,
+    required this.stale,
+    required this.offline,
+    required this.onRetry,
   });
 
   final NearbyStore store;
   final String formattedDistance;
+  final bool stale;
+  final bool offline;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -173,54 +223,75 @@ class _NearbyStoreCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
       ),
       padding: const EdgeInsets.all(14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _StoreImage(imageUrl: store.imageUrl),
+          if (stale) ...[
+            ConnectivityNotice(
+              label: offline ? 'Offline · outdated' : 'May be outdated',
+              title: 'Last nearby match',
+              message: offline
+                  ? 'This store and its distance may have changed. We’ll check again when you reconnect.'
+                  : 'We couldn’t update this match. Store details and distance may have changed.',
+              icon: offline ? Icons.wifi_off_rounded : Icons.history_rounded,
+              actionLabel: offline ? 'Check connection' : 'Try again',
+              onAction: onRetry,
+              backgroundColor: WhyNotColors.background,
+            ),
+            const SizedBox(height: 16),
+          ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _StoreImage(imageUrl: store.imageUrl),
 
-          const SizedBox(width: 16),
+              const SizedBox(width: 16),
 
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    store.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: WhyNotTextStyles.serif(size: 20),
-                  ),
-
-                  const SizedBox(height: 7),
-
-                  Text(
-                    store.address,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: WhyNotTextStyles.muted(size: 11),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  Row(
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.location_on_outlined,
-                        size: 15,
-                        color: WhyNotColors.muted,
-                      ),
-                      const SizedBox(width: 4),
                       Text(
-                        formattedDistance,
-                        style: WhyNotTextStyles.muted(size: 12),
+                        store.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: WhyNotTextStyles.serif(size: 20),
+                      ),
+
+                      const SizedBox(height: 7),
+
+                      Text(
+                        store.address,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: WhyNotTextStyles.muted(size: 11),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.location_on_outlined,
+                            size: 15,
+                            color: WhyNotColors.muted,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            stale
+                                ? 'Last checked · $formattedDistance'
+                                : formattedDistance,
+                            style: WhyNotTextStyles.muted(size: 12),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),
@@ -348,81 +419,68 @@ class _NoNearbyStoreCard extends StatelessWidget {
 /// The message is intentionally user-facing and does not expose raw Firebase
 /// or platform errors.
 class _NearbyStoreErrorCard extends StatelessWidget {
-  const _NearbyStoreErrorCard({required this.kind, required this.onAction});
+  const _NearbyStoreErrorCard({
+    required this.kind,
+    required this.onAction,
+    this.offline = false,
+  });
 
   final NearbyFailureKind kind;
   final VoidCallback onAction;
+  final bool offline;
 
   @override
   Widget build(BuildContext context) {
-    final (title, message, action) = switch (kind) {
+    final (label, title, message, action, icon) = switch (kind) {
       NearbyFailureKind.permissionDenied => (
+        'Location needed',
         'Location permission denied',
-        'Allow location access to find a store near you.',
+        'Allow location access to see nearby stores picked for you.',
         'Try permission again',
+        Icons.location_off_outlined,
       ),
       NearbyFailureKind.permissionPermanentlyDenied => (
+        'Location needed',
         'Location permission denied',
         'Enable location access for WhyNot in app settings.',
         'Open app settings',
+        Icons.location_off_outlined,
       ),
       NearbyFailureKind.servicesDisabled => (
+        'Location is off',
         'Location services are off',
         'Turn on device location services to find a store near you.',
         'Open location settings',
+        Icons.location_off_outlined,
       ),
       NearbyFailureKind.locationUnavailable => (
+        'Location unavailable',
         'Could not get your location',
         'Your location signal is unavailable. Move to an open area and try again.',
         'Try again',
+        Icons.my_location_outlined,
       ),
       NearbyFailureKind.nearbyServiceUnavailable => (
-        'We could not load nearby stores',
-        'The nearby service or network is unavailable. Please try again.',
-        'Try again',
+        offline ? 'Offline' : 'Could not refresh',
+        offline
+            ? 'Nearby picks are waiting'
+            : 'Nearby picks are taking a moment',
+        offline
+            ? 'Connect to search near your current location. We’ll try again when you’re back.'
+            : 'We couldn’t reach nearby stores just now. Give it another try.',
+        offline ? 'Check connection' : 'Try again',
+        offline ? Icons.wifi_off_rounded : Icons.cloud_off_outlined,
       ),
     };
 
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: WhyNotColors.card,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
-      child: Column(
-        children: [
-          Icon(
-            Icons.location_on_outlined,
-            size: 24,
-            color: WhyNotColors.muted.withValues(alpha: 0.65),
-          ),
-
-          const SizedBox(height: 10),
-
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: WhyNotTextStyles.serif(size: 18),
-          ),
-
-          const SizedBox(height: 7),
-
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: WhyNotTextStyles.muted(size: 11),
-          ),
-
-          const SizedBox(height: 10),
-
-          TextButton(
-            onPressed: onAction,
-            style: linkButtonStyle(),
-            child: Text(action),
-          ),
-        ],
-      ),
+    return ConnectivityNotice(
+      label: label,
+      title: title,
+      message: message,
+      icon: icon,
+      actionLabel: action,
+      onAction: onAction,
+      backgroundColor: WhyNotColors.card,
     );
   }
 }
