@@ -15,3 +15,7 @@ The Home button opens a recommendation catalog. Its source label distinguishes a
 The Home card and detail view currently use `Image.network` with a fallback, and Flutter's in-process image cache can reuse the same image provider URL between those views. We evaluated `cached_network_image` but did not add it for this result-cache change: its disk cache and extra dependency would add a separate persistence policy, while this work is deliberately an in-memory recommendation-data cache. `Image.network` does not guarantee an image will be available offline after an app restart. If point 3 needs persistent offline images, evaluate the package there with disk-size, eviction, privacy, and error-state requirements.
 
 The open BQ Home-card instrumentation branch must retain its rule that a cached card becoming visible is a new Home exposure when integrated. Cache hits flow through the same `SmartRecommendationSection` card rendering path.
+
+## Eventual connectivity extension
+
+Sprint 3 adds an in-memory nonempty fallback beyond the normal freshness TTL, plus network-aware presentation and revalidation. The full read/save/recovery policy and device-check limits are in [eventual_connectivity.md](eventual_connectivity.md). The five-minute and 30-second TTLs still govern fresh cache hits; an expired fallback is visibly outdated and never used as a fresh hit.
