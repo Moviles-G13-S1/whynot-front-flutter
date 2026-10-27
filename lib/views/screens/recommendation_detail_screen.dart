@@ -48,6 +48,7 @@ class _RecommendationDetailScreenState
   String? _catalogSourceProductId;
   RecommendationController? _controller;
   NetworkStatus _network = NetworkStatus.unknown;
+  bool _checkingConnection = false;
 
   void _networkChanged() {
     final status = _controller?.connectivity.status ?? NetworkStatus.unknown;
@@ -65,7 +66,7 @@ class _RecommendationDetailScreenState
     });
     if (wasOffline &&
         status == NetworkStatus.available &&
-        _catalogPreview != null) {
+        (_catalogPreview != null || _displayedRecommendation == null)) {
       _retry();
     }
   }
@@ -120,7 +121,10 @@ class _RecommendationDetailScreenState
   }
 
   void _retry() {
-    if (_controller?.connectivity.isOffline == true) return;
+    if (_controller?.connectivity.isOffline == true) {
+      _checkConnection();
+      return;
+    }
     setState(() {
       final sourceProductId = _catalogSourceProductId;
       _recommendationFuture = _resolve(
@@ -133,6 +137,21 @@ class _RecommendationDetailScreenState
               ),
       );
     });
+  }
+
+  Future<void> _checkConnection() async {
+    if (_checkingConnection) return;
+    _checkingConnection = true;
+    try {
+      await _controller!.getRecommendation(
+        forceRefresh: true,
+        checkConnection: true,
+      );
+    } catch (_) {
+      // The existing offline state stays visible and the action remains usable.
+    } finally {
+      _checkingConnection = false;
+    }
   }
 
   Future<void> _save(ProductRecommendation recommendation) async {
@@ -228,8 +247,8 @@ class _RecommendationDetailScreenState
                 message: offline
                     ? 'Connect to see your latest recommendation. We’ll check again when you’re online.'
                     : 'We couldn’t load your recommendation just now. Give it another try.',
-                actionLabel: offline ? 'Try again when online' : 'Try again',
-                onAction: offline ? null : _retry,
+                actionLabel: offline ? 'Check connection' : 'Try again',
+                onAction: _retry,
                 onBack: _goBack,
               );
             }
@@ -254,6 +273,7 @@ class _RecommendationDetailScreenState
               isSaving: _isSaving,
               isSaved: _isSaved,
               offline: offline,
+              onRetry: _retry,
               onSave: () => _save(recommendation),
               onBack: _goBack,
             );
@@ -394,12 +414,14 @@ class _RecommendationDetailContent extends StatelessWidget {
               ],
               const SizedBox(height: 28),
               if (!isSaved && offline) ...[
-                const ConnectivityNotice(
+                ConnectivityNotice(
                   label: 'Offline',
                   title: 'Save it when you’re back',
                   message:
                       'Saving is unavailable offline. We’ll check this pick again when you reconnect.',
                   icon: Icons.wifi_off_rounded,
+                  actionLabel: 'Check connection',
+                  onAction: onRetry,
                 ),
                 const SizedBox(height: 18),
               ] else if (preparationFailed) ...[

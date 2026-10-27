@@ -98,6 +98,7 @@ class _SmartRecommendationSectionState
   RecommendationController? _controller;
   StreamSubscription<String>? _invalidationSubscription;
   NetworkStatus _network = NetworkStatus.unknown;
+  bool _checkingConnection = false;
 
   void _networkChanged() {
     final status = _controller?.connectivity.status ?? NetworkStatus.unknown;
@@ -105,7 +106,9 @@ class _SmartRecommendationSectionState
     final wasOffline = _network == NetworkStatus.offline;
     setState(() {
       _network = status;
-      if (wasOffline && status == NetworkStatus.available) {
+      if (wasOffline &&
+          status == NetworkStatus.available &&
+          !_checkingConnection) {
         _recommendationFuture = _resolve(
           _controller!.getRecommendation(forceRefresh: true),
         );
@@ -152,15 +155,20 @@ class _SmartRecommendationSectionState
   /// Calling setState replaces the previous Future and causes the
   /// FutureBuilder to run through the loading/result states again.
   void _retry() {
-    if (_controller?.connectivity.isOffline == true) return;
+    final checkConnection = _controller?.connectivity.isOffline == true;
+    if (checkConnection && _checkingConnection) return;
+    _checkingConnection = checkConnection;
+    final request = _resolve(
+      context.dependencies.recommendationController.getRecommendation(
+        forceRefresh: true,
+        checkConnection: checkConnection,
+      ),
+    );
     setState(() {
       _savedEventId = null;
-      _recommendationFuture = _resolve(
-        context.dependencies.recommendationController.getRecommendation(
-          forceRefresh: true,
-        ),
-      );
+      _recommendationFuture = request;
     });
+    request.whenComplete(() => _checkingConnection = false);
   }
 
   Future<void> _saveRecommendation(ProductRecommendation recommendation) async {
@@ -257,8 +265,16 @@ class _SmartRecommendationSectionState
                     ? 'We couldn’t update your pick just now. You can try again.'
                     : 'Checking for a new pick while you browse.',
                 icon: offline ? Icons.wifi_off_rounded : Icons.history_rounded,
-                actionLabel: !offline && error != null ? 'Try again' : null,
-                onAction: !offline && error != null ? _retry : null,
+                actionLabel: offline
+                    ? 'Check connection'
+                    : error != null
+                    ? 'Try again'
+                    : null,
+                onAction: offline
+                    ? _retry
+                    : error != null
+                    ? _retry
+                    : null,
               ),
               const SizedBox(height: 12),
               VisibilityDetector(
@@ -284,7 +300,7 @@ class _SmartRecommendationSectionState
             ],
           );
         }
-        if (offline) return const _RecommendationOfflineCard();
+        if (offline) return _RecommendationOfflineCard(onRetry: _retry);
         // The recommendation is currently being requested.
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const _RecommendationLoadingCard();
@@ -570,15 +586,19 @@ class _NoRecommendationCard extends StatelessWidget {
 }
 
 class _RecommendationOfflineCard extends StatelessWidget {
-  const _RecommendationOfflineCard();
+  const _RecommendationOfflineCard({required this.onRetry});
+
+  final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) => const ConnectivityNotice(
+  Widget build(BuildContext context) => ConnectivityNotice(
     label: 'Offline',
     title: 'Your next pick is waiting',
     message:
         'Connect to see a recommendation made for you. We’ll load it when you’re back online.',
     icon: Icons.wifi_off_rounded,
+    actionLabel: 'Check connection',
+    onAction: onRetry,
     backgroundColor: WhyNotColors.card,
   );
 }

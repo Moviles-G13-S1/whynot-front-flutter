@@ -98,6 +98,7 @@ class RecommendationController {
   /// product to recommend.
   Future<ProductRecommendation?> getRecommendation({
     bool forceRefresh = false,
+    bool checkConnection = false,
   }) {
     final userId = _authRepository.currentUser?.id;
     if (userId == null) {
@@ -109,7 +110,7 @@ class RecommendationController {
       clearCache();
       _activeUserId = userId;
     }
-    if (connectivity.isOffline) {
+    if (connectivity.isOffline && !checkConnection) {
       return Future.error(
         StateError('Offline: new recommendations unavailable.'),
       );
@@ -129,7 +130,7 @@ class RecommendationController {
       _inFlight.remove(userId);
     }
     final version = _versions[userId] ?? 0;
-    final request = _fetch(userId, version, _epoch);
+    final request = _fetch(userId, version, _epoch, checkConnection);
     _inFlight[userId] = request;
     return request;
   }
@@ -138,6 +139,7 @@ class RecommendationController {
     String userId,
     int version,
     int epoch,
+    bool checkConnection,
   ) async {
     try {
       final value = await _recommendationRepository.getRecommendation();
@@ -150,6 +152,7 @@ class RecommendationController {
         throw StateError('Recommendation changed during request.');
       }
       _cache.store(userId, value);
+      if (checkConnection) connectivity.confirmReachable();
       return value;
     } finally {
       if (_epoch == epoch && (_versions[userId] ?? 0) == version) {
@@ -161,6 +164,7 @@ class RecommendationController {
   /// A single expiring snapshot avoids fetching the full list on every visit.
   Future<({List<RecommendationCatalogItem> items, bool fromCache})> getCatalog({
     bool forceRefresh = false,
+    bool checkConnection = false,
   }) async {
     final userId = _authRepository.currentUser?.id;
     if (userId == null) {
@@ -171,7 +175,7 @@ class RecommendationController {
       clearCache();
       _activeUserId = userId;
     }
-    if (connectivity.isOffline) {
+    if (connectivity.isOffline && !checkConnection) {
       throw StateError('Offline: new recommendations unavailable.');
     }
     if (!forceRefresh) {
@@ -186,7 +190,7 @@ class RecommendationController {
       _catalogInFlight.remove(userId);
     }
     final version = _catalogVersions[userId] ?? 0;
-    final pending = _fetchCatalog(userId, version, _epoch);
+    final pending = _fetchCatalog(userId, version, _epoch, checkConnection);
     _catalogInFlight[userId] = pending;
     return (items: await pending, fromCache: false);
   }
@@ -195,6 +199,7 @@ class RecommendationController {
     String userId,
     int version,
     int epoch,
+    bool checkConnection,
   ) async {
     try {
       final items = await _recommendationRepository.getCatalog();
@@ -205,6 +210,7 @@ class RecommendationController {
         throw StateError('Recommendation catalog changed during request.');
       }
       _catalogSnapshotCache.store(userId, items);
+      if (checkConnection) connectivity.confirmReachable();
       return items;
     } finally {
       if (_epoch == epoch && (_catalogVersions[userId] ?? 0) == version) {

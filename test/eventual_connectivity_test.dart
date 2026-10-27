@@ -197,6 +197,113 @@ void main() {
     },
   );
 
+  test('explicit reads recover from a stale offline signal', () async {
+    final auth = InMemoryAuthRepository(
+      user: const AuthUser(id: 'a', email: 'a@test.com'),
+    );
+    final net = ConnectivityStatus(observe: false);
+    final repo = VariableRecommendations()..fail = true;
+    final controller = RecommendationController(
+      recommendationRepository: repo,
+      authRepository: auth,
+      connectivity: net,
+    );
+    net.setStatus(NetworkStatus.offline);
+    await expectLater(
+      controller.getCatalog(forceRefresh: true, checkConnection: true),
+      throwsStateError,
+    );
+    expect(net.isOffline, isTrue);
+    repo.fail = false;
+    expect(
+      (await controller.getCatalog(
+        forceRefresh: true,
+        checkConnection: true,
+      )).items,
+      [item],
+    );
+    expect(net.status, NetworkStatus.available);
+  });
+
+  test('nearby check recovers from a stale offline signal', () async {
+    final net = ConnectivityStatus(observe: false);
+    final repository = VariableNearby()..fail = true;
+    final controller = NearbyStoreController(
+      locationRepository: MovingLocation(),
+      nearbyStoreRepository: repository,
+      connectivity: net,
+    );
+    net.setStatus(NetworkStatus.offline);
+    await expectLater(
+      controller.getNearestStoreResult(checkConnection: true),
+      throwsA(isA<NearbyFailure>()),
+    );
+    expect(net.isOffline, isTrue);
+    repository.fail = false;
+    expect(
+      (await controller.getNearestStoreResult(checkConnection: true)).store,
+      store,
+    );
+    expect(net.status, NetworkStatus.available);
+  });
+
+  testWidgets('catalog checks connection despite stale offline signal', (
+    tester,
+  ) async {
+    final repo = VariableRecommendations();
+    final deps = createTestDependencies(
+      signedIn: true,
+      recommendationRepository: repo,
+    );
+    deps.recommendationController.connectivity.setStatus(NetworkStatus.offline);
+    await tester.pumpWidget(
+      DependenciesScope(
+        dependencies: deps,
+        child: const MaterialApp(home: RecommendationCatalogScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Your picks will be here'), findsOneWidget);
+    expect(repo.calls, 0);
+    await tester.tap(find.text('Check connection'));
+    await tester.pumpAndSettle();
+    expect(
+      deps.recommendationController.connectivity.status,
+      NetworkStatus.available,
+    );
+    expect(find.text('Coat'), findsOneWidget);
+    expect(repo.calls, 1);
+  });
+
+  testWidgets('Home checks connection despite stale offline signal', (
+    tester,
+  ) async {
+    final repo = VariableRecommendations();
+    final deps = createTestDependencies(
+      signedIn: true,
+      recommendationRepository: repo,
+    );
+    deps.recommendationController.connectivity.setStatus(NetworkStatus.offline);
+    await tester.pumpWidget(
+      DependenciesScope(
+        dependencies: deps,
+        child: const MaterialApp(
+          home: Scaffold(body: SmartRecommendationSection()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(repo.pickCalls, 0);
+    await tester.tap(find.text('Check connection'));
+    await tester.pumpAndSettle();
+    expect(
+      deps.recommendationController.connectivity.status,
+      NetworkStatus.available,
+    );
+    expect(find.text('Coat'), findsOneWidget);
+    expect(repo.pickCalls, 1);
+  });
+
   testWidgets(
     'catalog marks stale, disables refresh, and auto refreshes on reconnection',
     (tester) async {
@@ -520,8 +627,13 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Nearby picks are waiting'), findsOneWidget);
-      expect(find.text('Try again'), findsOneWidget);
+      expect(find.text('Check connection'), findsOneWidget);
       expect(repo.calls, 0);
+      await tester.tap(find.text('Check connection'));
+      await tester.pumpAndSettle();
+      expect(find.text('Shop'), findsOneWidget);
+      expect(net.status, NetworkStatus.available);
+      expect(repo.calls, 1);
     },
   );
 }

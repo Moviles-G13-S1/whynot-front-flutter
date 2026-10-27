@@ -39,13 +39,18 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection>
   Future<(NearbyStoreResult?, NearbyFailureKind?)>? _storeFuture;
   NearbyStoreController? _controller;
   NetworkStatus _network = NetworkStatus.unknown;
+  bool _checkingConnection = false;
 
   void _networkChanged() {
     final status = _controller?.connectivity.status ?? NetworkStatus.unknown;
     if (status == _network) return;
     final wasOffline = _network == NetworkStatus.offline;
     setState(() => _network = status);
-    if (wasOffline && status == NetworkStatus.available) _retry();
+    if (wasOffline &&
+        status == NetworkStatus.available &&
+        !_checkingConnection) {
+      _retry();
+    }
   }
 
   bool _awaitingSettingsReturn = false;
@@ -88,10 +93,14 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection>
 
   Future<(NearbyStoreResult?, NearbyFailureKind?)> _load({
     bool requestPermission = true,
+    bool checkConnection = false,
   }) async {
     try {
       final store = await context.dependencies.nearbyStoreController
-          .getNearestStoreResult(requestPermission: requestPermission);
+          .getNearestStoreResult(
+            requestPermission: requestPermission,
+            checkConnection: checkConnection,
+          );
       return (store, null);
     } on NearbyFailure catch (failure) {
       return (null, failure.kind);
@@ -102,9 +111,17 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection>
 
   /// Requests the current location and nearby store again.
   void _retry({bool requestPermission = true}) {
+    final checkConnection = _controller?.connectivity.isOffline == true;
+    if (checkConnection && _checkingConnection) return;
+    _checkingConnection = checkConnection;
+    final request = _load(
+      requestPermission: requestPermission,
+      checkConnection: checkConnection,
+    );
     setState(() {
-      _storeFuture = _load(requestPermission: requestPermission);
+      _storeFuture = request;
     });
+    request.whenComplete(() => _checkingConnection = false);
   }
 
   Future<void> _openSettings(NearbyFailureKind kind) async {
@@ -217,8 +234,8 @@ class _NearbyStoreCard extends StatelessWidget {
                   ? 'This store and its distance may have changed. We’ll check again when you reconnect.'
                   : 'We couldn’t update this match. Store details and distance may have changed.',
               icon: offline ? Icons.wifi_off_rounded : Icons.history_rounded,
-              actionLabel: offline ? null : 'Try again',
-              onAction: offline ? null : onRetry,
+              actionLabel: offline ? 'Check connection' : 'Try again',
+              onAction: onRetry,
               backgroundColor: WhyNotColors.background,
             ),
             const SizedBox(height: 16),
@@ -451,7 +468,7 @@ class _NearbyStoreErrorCard extends StatelessWidget {
         offline
             ? 'Connect to search near your current location. We’ll try again when you’re back.'
             : 'We couldn’t reach nearby stores just now. Give it another try.',
-        'Try again',
+        offline ? 'Check connection' : 'Try again',
         offline ? Icons.wifi_off_rounded : Icons.cloud_off_outlined,
       ),
     };

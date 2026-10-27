@@ -31,6 +31,7 @@ class _RecommendationCatalogScreenState
   RecommendationController? _controller;
   StreamSubscription<String>? _invalidationSubscription;
   NetworkStatus _network = NetworkStatus.unknown;
+  bool _checkingConnection = false;
 
   Future<
     ({List<RecommendationCatalogItem> items, bool fromCache, Object? error})
@@ -38,9 +39,13 @@ class _RecommendationCatalogScreenState
   _request(
     RecommendationController controller, {
     bool forceRefresh = false,
+    bool checkConnection = false,
   }) async {
     try {
-      final result = await controller.getCatalog(forceRefresh: forceRefresh);
+      final result = await controller.getCatalog(
+        forceRefresh: forceRefresh,
+        checkConnection: checkConnection,
+      );
       return (items: result.items, fromCache: result.fromCache, error: null);
     } catch (error) {
       return (
@@ -57,7 +62,9 @@ class _RecommendationCatalogScreenState
     final wasOffline = _network == NetworkStatus.offline;
     setState(() {
       _network = status;
-      if (wasOffline && status == NetworkStatus.available) {
+      if (wasOffline &&
+          status == NetworkStatus.available &&
+          !_checkingConnection) {
         _load = _request(_controller!, forceRefresh: true);
       }
     });
@@ -101,6 +108,20 @@ class _RecommendationCatalogScreenState
         forceRefresh: true,
       );
     });
+  }
+
+  void _checkConnection() {
+    if (_checkingConnection) return;
+    _checkingConnection = true;
+    final request = _request(
+      context.dependencies.recommendationController,
+      forceRefresh: true,
+      checkConnection: true,
+    );
+    setState(() {
+      _load = request;
+    });
+    request.whenComplete(() => _checkingConnection = false);
   }
 
   Future<void> _open(RecommendationCatalogItem item) async {
@@ -173,12 +194,14 @@ class _RecommendationCatalogScreenState
             );
           }
           if (offline && previous == null) {
-            return const ConnectivityEmptyState(
+            return ConnectivityEmptyState(
               label: 'Offline',
               title: 'Your picks will be here',
               message:
                   'Connect to discover new picks. We’ll load them when you’re back online.',
               icon: Icons.wifi_off_rounded,
+              actionLabel: 'Check connection',
+              onAction: _checkConnection,
             );
           }
           final usePrevious =
@@ -204,8 +227,16 @@ class _RecommendationCatalogScreenState
                   icon: offline
                       ? Icons.wifi_off_rounded
                       : Icons.history_rounded,
-                  actionLabel: !offline && error != null ? 'Try again' : null,
-                  onAction: !offline && error != null ? _refresh : null,
+                  actionLabel: offline
+                      ? 'Check connection'
+                      : error != null
+                      ? 'Try again'
+                      : null,
+                  onAction: offline
+                      ? _checkConnection
+                      : error != null
+                      ? _refresh
+                      : null,
                 ),
                 const SizedBox(height: 18),
               ] else ...[

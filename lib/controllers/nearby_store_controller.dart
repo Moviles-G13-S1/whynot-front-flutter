@@ -49,6 +49,7 @@ class NearbyStoreController {
 
   Future<NearbyStoreResult> getNearestStoreResult({
     bool requestPermission = true,
+    bool checkConnection = false,
   }) async {
     final userId = _authRepository?.currentUser?.id;
     if (_observedUserId != userId) {
@@ -61,7 +62,7 @@ class NearbyStoreController {
     if (_authRepository?.currentUser?.id != userId) {
       throw const NearbyFailure(NearbyFailureKind.nearbyServiceUnavailable);
     }
-    if (connectivity.isOffline) {
+    if (connectivity.isOffline && !checkConnection) {
       final previous = _safePrevious(location, userId);
       if (previous != null) return NearbyStoreResult(previous, stale: true);
       throw const NearbyFailure(NearbyFailureKind.nearbyServiceUnavailable);
@@ -77,6 +78,7 @@ class NearbyStoreController {
       _lastStore = store;
       _lastLocation = location;
       _lastUserId = userId;
+      if (checkConnection) connectivity.confirmReachable();
       return NearbyStoreResult(store);
     } catch (_) {
       if (_authRepository?.currentUser?.id != userId) {
