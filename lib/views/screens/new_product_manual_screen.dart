@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -7,6 +9,9 @@ import '../../app/whynot_theme.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../../models/product.dart';
 import '../../models/input_policy.dart';
+
+import '../../models/local_product_draft.dart';
+import '../../infrastructure/repositories/sqlite_product_draft_store.dart';
 
 class NewProductManualScreen extends StatefulWidget {
   const NewProductManualScreen({super.key});
@@ -33,6 +38,21 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
   bool _isLoadingWishlists = false;
   bool _isSaving = false;
 
+  // Juliana - Sprint 3: local draft caching and memory management.
+  Timer? _draftDebounce;
+  SqliteProductDraftStore? _draftStore;
+  String? _draftUserId;
+
+  // Fixed when Add Item was opened inside a particular wishlist.
+  // Null when opened using the black central + button.
+  String? _originWishlistId;
+
+  Future<void> _pendingDraftWrites = Future<void>.value();
+
+  bool _restoringDraft = false;
+  bool _hasEditedDraft = false;
+  bool _savedRemotely = false;
+
   @override
   void initState() {
     super.initState();
@@ -54,7 +74,8 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
     final arguments =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
-    _selectedWishlistId = arguments?['wishlistId'] as String?;
+    _originWishlistId = arguments?['wishlistId'] as String?;
+    _selectedWishlistId = _originWishlistId;
     _selectedCategoryId = arguments?['categoryId'] as String?;
     _selectedWishlistName = arguments?['categoryName'] as String?;
     _selectedWishlistEmoji = arguments?['emoji'] as String?;
@@ -62,10 +83,22 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
     if (_selectedWishlistId == null) {
       _loadWishlists();
     }
+    _draftStore = context.dependencies.productDraftStore;
+    _draftUserId = context.dependencies.productController.currentUserId;
+
+    if (_draftUserId != null) {
+      unawaited(_restoreLocalDraft(_draftUserId!));
+    }
   }
 
   @override
   void dispose() {
+    _draftDebounce?.cancel();
+
+    // Preserve the latest changes when leaving the form.
+    if (_hasEditedDraft && !_savedRemotely) {
+      _saveLocalDraft();
+    }
     _nameController.dispose();
     _brandController.dispose();
     _priceController.dispose();
@@ -76,8 +109,95 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
   }
 
   void _refresh() {
-    if (mounted) {
-      setState(() {});
+    if (!mounted) return;
+
+    setState(() {});
+    _scheduleDraftSave();
+  }
+
+  void _scheduleDraftSave() {
+    if (_restoringDraft || _savedRemotely || _draftUserId == null) {
+      return;
+    }
+
+    _hasEditedDraft = true;
+
+    _draftDebounce?.cancel();
+
+    _draftDebounce = Timer(const Duration(milliseconds: 500), _saveLocalDraft);
+  }
+
+  void _saveLocalDraft() {
+    final store = _draftStore;
+    final userId = _draftUserId;
+
+    if (store == null || userId == null || _savedRemotely) {
+      return;
+    }
+
+    final draft = LocalProductDraft(
+      userId: userId,
+      wishlistId: _selectedWishlistId,
+      categoryId: _selectedCategoryId,
+      wishlistName: _selectedWishlistName,
+      wishlistEmoji: _selectedWishlistEmoji,
+      name: _nameController.text,
+      brand: _brandController.text,
+      priceText: _priceController.text,
+      imageUrl: _imageUrlController.text,
+      productUrl: _productUrlController.text,
+    );
+
+    // Serialize writes so an older autosave cannot overwrite a newer one.
+    _pendingDraftWrites = _pendingDraftWrites
+        .then((_) => store.save(draft, originWishlistId: _originWishlistId))
+        .catchError((Object error, StackTrace stackTrace) {
+          debugPrint('Could not save local product draft: $error');
+        });
+  }
+
+  Future<void> _restoreLocalDraft(String userId) async {
+    final store = _draftStore;
+    if (store == null) return;
+
+    try {
+      final draft = await store.load(
+        userId,
+        originWishlistId: _originWishlistId,
+      );
+
+      // Never replace changes the user made while SQLite was loading.
+      if (!mounted || draft == null || _hasEditedDraft || _savedRemotely) {
+        return;
+      }
+
+      _restoringDraft = true;
+
+      try {
+        _nameController.text = draft.name;
+        _brandController.text = draft.brand;
+        _priceController.text = draft.priceText;
+        _imageUrlController.text = draft.imageUrl;
+        _productUrlController.text = draft.productUrl;
+
+        // A wishlist selected through navigation takes precedence.
+        // A wishlist opened from its Add Item button always wins over
+        // previously saved form values. Only central + can restore a choice.
+        if (_originWishlistId == null && _selectedWishlistId == null) {
+          _selectedWishlistId = draft.wishlistId;
+          _selectedCategoryId = draft.categoryId;
+          _selectedWishlistName = draft.wishlistName;
+          _selectedWishlistEmoji = draft.wishlistEmoji;
+        }
+      } finally {
+        _restoringDraft = false;
+      }
+
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (error) {
+      debugPrint('Could not restore local product draft: $error');
     }
   }
 
@@ -163,7 +283,23 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
           productUrl: _productUrlController.text.trim(),
         ),
       );
+      // Firebase confirmed the product creation.
+      _savedRemotely = true;
+      _draftDebounce?.cancel();
 
+      // Let previously scheduled local writes finish before deleting.
+      await _pendingDraftWrites;
+
+      try {
+        final userId = _draftUserId;
+        if (userId != null) {
+          await _draftStore?.clear(userId, originWishlistId: _originWishlistId);
+        }
+      } catch (error) {
+        // A local cleanup failure must not turn a successful
+        // Firebase save into an apparent product-save failure.
+        debugPrint('Could not clear saved product draft: $error');
+      }
       if (!mounted) return;
 
       Navigator.pushReplacementNamed(
@@ -386,6 +522,7 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
                           _selectedWishlistName = name;
                           _selectedWishlistEmoji = wishlist['emoji'];
                         });
+                        _scheduleDraftSave();
                       },
                       borderRadius: BorderRadius.circular(18),
                       child: Padding(

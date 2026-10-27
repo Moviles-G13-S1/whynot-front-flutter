@@ -27,6 +27,7 @@ import '../infrastructure/repositories/firebase_user_repository.dart';
 import '../infrastructure/repositories/firebase_profile_photo_repository.dart';
 import '../infrastructure/repositories/firebase_wishlist_repository.dart';
 import '../infrastructure/repositories/geolocator_location_repository.dart';
+import '../infrastructure/repositories/sqlite_product_draft_store.dart';
 
 /// Composition root for application dependencies.
 ///
@@ -45,7 +46,8 @@ class AppDependencies {
     required this.cityController,
     required this.recommendationController,
     required this.nearbyStoreController,
-  });
+    SqliteProductDraftStore? productDraftStore,
+  }) : productDraftStore = productDraftStore ?? SqliteProductDraftStore();
 
   /// Creates the production/default dependency graph.
   ///
@@ -127,4 +129,10 @@ class AppDependencies {
 
   /// Controller for the location-based Context-Aware feature.
   final NearbyStoreController nearbyStoreController;
+
+  /// Shared local SQLite storage for unfinished product forms.
+  ///
+  /// A single instance is reused across product form visits,
+  /// keeping database connections under control.
+  final SqliteProductDraftStore productDraftStore;
 }
