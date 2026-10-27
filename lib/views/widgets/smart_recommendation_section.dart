@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../app/dependencies_scope.dart';
 import '../../app/app_routes.dart';
 import '../../app/whynot_theme.dart';
+import '../../controllers/recommendation_controller.dart';
 import '../../models/product_recommendation.dart';
 import 'form_controls.dart';
 import 'recommendation_save_flow.dart';
@@ -38,6 +41,8 @@ class _SmartRecommendationSectionState
   /// It is stored in state so the Cloud Function is not called again every
   /// time the widget rebuilds.
   Future<ProductRecommendation?>? _recommendationFuture;
+  RecommendationController? _controller;
+  StreamSubscription<String>? _invalidationSubscription;
 
   @override
   void didChangeDependencies() {
@@ -45,11 +50,31 @@ class _SmartRecommendationSectionState
 
     // The controller is obtained through DependenciesScope instead of
     // accessing Firebase directly from the view.
-    _recommendationFuture ??= context.dependencies.recommendationController
-        .getRecommendation();
+    final controller = context.dependencies.recommendationController;
+    if (_controller != controller) {
+      _invalidationSubscription?.cancel();
+      _controller = controller;
+      _recommendationFuture = controller.getRecommendation();
+      _invalidationSubscription = controller.invalidations.listen((userId) {
+        if (!mounted ||
+            _isSaving ||
+            userId != context.dependencies.authController.currentUser?.id) {
+          return;
+        }
+        setState(() {
+          _recommendationFuture = controller.getRecommendation();
+        });
+      });
+    }
   }
 
-  /// Requests the recommendation again after an error.
+  @override
+  void dispose() {
+    _invalidationSubscription?.cancel();
+    super.dispose();
+  }
+
+  /// Santiago Casasbuenas: Retry deliberately bypasses the result cache.
   ///
   /// Calling setState replaces the previous Future and causes the
   /// FutureBuilder to run through the loading/result states again.
@@ -57,7 +82,7 @@ class _SmartRecommendationSectionState
     setState(() {
       _savedEventId = null;
       _recommendationFuture = context.dependencies.recommendationController
-          .getRecommendation();
+          .getRecommendation(forceRefresh: true);
     });
   }
 

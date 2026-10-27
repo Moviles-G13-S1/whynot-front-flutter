@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:whynot_mobile/app/app_routes.dart';
 import 'package:whynot_mobile/app/dependencies_scope.dart';
 import 'package:whynot_mobile/models/category.dart';
+import 'package:whynot_mobile/models/product.dart';
 import 'package:whynot_mobile/models/product_recommendation.dart';
+import 'package:whynot_mobile/models/recommendation_catalog_item.dart';
 import 'package:whynot_mobile/models/repositories/recommendation_repository.dart';
 import 'package:whynot_mobile/models/wishlist.dart';
 import 'package:whynot_mobile/views/screens/recommendation_detail_screen.dart';
@@ -41,6 +43,17 @@ class _ScriptedRecommendationRepository implements RecommendationRepository {
   }
 
   @override
+  Future<List<RecommendationCatalogItem>> getCatalog() async => const [];
+
+  @override
+  Future<ProductRecommendation> openCatalogItem(String sourceProductId) async =>
+      detailRecommendation;
+
+  @override
+  Future<String> createCatalogEvent(String sourceProductId) async =>
+      'fresh-event';
+
+  @override
   Future<void> saveRecommendation({
     required String recommendationEventId,
     required String wishlistId,
@@ -64,6 +77,54 @@ Widget _detailApp(RecommendationRepository repository) {
 }
 
 void main() {
+  testWidgets('Home pick reloads after a product is saved', (tester) async {
+    tester.view.physicalSize = const Size(390, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _ScriptedRecommendationRepository([
+      () async => detailRecommendation,
+      () async => const ProductRecommendation(
+        recommendationEventId: 'tech-event',
+        name: 'Headphones',
+        brand: 'Studio',
+        price: 30000,
+        imageUrl: '',
+        productUrl: '',
+        categoryId: 'technology',
+        reason: 'A similar user saved this.',
+      ),
+    ]);
+    final dependencies = createTestDependencies(
+      signedIn: true,
+      recommendationRepository: repository,
+    );
+    await tester.pumpWidget(
+      DependenciesScope(
+        dependencies: dependencies,
+        child: const MaterialApp(
+          home: Scaffold(body: SmartRecommendationSection()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Leather Jacket'), findsOneWidget);
+    await dependencies.productController.create(
+      const ProductDraft(
+        wishlistId: 'wishlist',
+        categoryId: 'technology',
+        name: 'Phone',
+        brand: 'Studio',
+        price: 10000,
+        imageUrl: '',
+        productUrl: '',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(repository.calls, 2);
+    expect(find.text('Headphones'), findsOneWidget);
+  });
+
   testWidgets('detail shows the recommendation content', (tester) async {
     tester.view.physicalSize = const Size(390, 1400);
     tester.view.devicePixelRatio = 1;

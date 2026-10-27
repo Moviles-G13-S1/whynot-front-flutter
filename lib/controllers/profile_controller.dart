@@ -10,6 +10,7 @@ class ProfileController {
     required AuthRepository authRepository,
     required UserRepository userRepository,
     required ProfilePhotoRepository photoRepository,
+    this.onRecommendationInputsChanged,
   }) : _authRepository = authRepository,
        _userRepository = userRepository,
        _photoRepository = photoRepository;
@@ -17,6 +18,7 @@ class ProfileController {
   final AuthRepository _authRepository;
   final UserRepository _userRepository;
   final ProfilePhotoRepository _photoRepository;
+  final void Function(String userId)? onRecommendationInputsChanged;
 
   String? get currentUserId => _authRepository.currentUser?.id;
   String? get currentUserEmail => _authRepository.currentUser?.email;
@@ -72,7 +74,7 @@ class ProfileController {
     return path;
   }
 
-  Future<void> updateCurrentProfile(UserProfileUpdate update) {
+  Future<void> updateCurrentProfile(UserProfileUpdate update) async {
     InputPolicy.noEmoji(update.name, 'Name');
     final id = currentUserId;
     if (id == null) throw StateError('No user logged in.');
@@ -84,6 +86,8 @@ class ProfileController {
         update.age > UserProfileConstraints.maximumAge) {
       throw ArgumentError.value(update.age, 'age', 'Invalid profile age.');
     }
-    return _userRepository.update(id, update);
+    await _userRepository.update(id, update);
+    // Santiago Casasbuenas: Age, gender, and category affect matching.
+    onRecommendationInputsChanged?.call(id);
   }
 }

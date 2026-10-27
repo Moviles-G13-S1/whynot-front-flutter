@@ -56,6 +56,10 @@ AppDependencies createTestDependencies({
 
   final recommendations =
       recommendationRepository ?? InMemoryRecommendationRepository();
+  final recommendationController = RecommendationController(
+    recommendationRepository: recommendations,
+    authRepository: auth,
+  );
 
   final location = InMemoryLocationRepository();
   final nearbyStores = InMemoryNearbyStoreRepository();
@@ -63,20 +67,27 @@ AppDependencies createTestDependencies({
   final wishlistController = WishlistController(
     authRepository: auth,
     wishlistRepository: wishlistRepository,
+    onRecommendationInputsChanged: recommendationController.invalidateForUser,
   );
 
   return AppDependencies(
-    authController: AuthController(authRepository: auth, userRepository: users),
+    authController: AuthController(
+      authRepository: auth,
+      userRepository: users,
+      onAuthChanged: recommendationController.clearCache,
+    ),
     profileController: ProfileController(
       authRepository: auth,
       userRepository: users,
       photoRepository: InMemoryProfilePhotoRepository(),
+      onRecommendationInputsChanged: recommendationController.invalidateForUser,
     ),
     wishlistController: wishlistController,
     productController: ProductController(
       authRepository: auth,
       productRepository: productRepository,
       wishlistController: wishlistController,
+      onRecommendationInputsChanged: recommendationController.invalidateForUser,
     ),
     adminAccessController: AdminAccessController(auth),
     adminMetricsController: AdminMetricsController(
@@ -85,9 +96,7 @@ AppDependencies createTestDependencies({
     cityController: CityController(
       cityRepository: cityRepository ?? InMemoryCityRepository(),
     ),
-    recommendationController: RecommendationController(
-      recommendationRepository: recommendations,
-    ),
+    recommendationController: recommendationController,
     nearbyStoreController:
         nearbyStoreController ??
         NearbyStoreController(
