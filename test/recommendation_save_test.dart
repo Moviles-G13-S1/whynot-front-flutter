@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 import 'package:whynot_mobile/app/dependencies_scope.dart';
 import 'package:whynot_mobile/models/category.dart';
 import 'package:whynot_mobile/models/product_recommendation.dart';
@@ -21,6 +22,9 @@ const recommendation = ProductRecommendation(
 );
 
 void main() {
+  setUp(
+    () => VisibilityDetectorController.instance.updateInterval = Duration.zero,
+  );
   testWidgets('saves a recommendation into a matching wishlist once', (
     tester,
   ) async {

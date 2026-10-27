@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 import 'package:whynot_mobile/app/app_routes.dart';
 import 'package:whynot_mobile/app/dependencies_scope.dart';
 import 'package:whynot_mobile/models/category.dart';
@@ -34,6 +35,13 @@ class _ScriptedRecommendationRepository implements RecommendationRepository {
   final Completer<void>? saveCompleter;
   final saves = <({String recommendationEventId, String wishlistId})>[];
   var calls = 0;
+
+  @override
+  Future<void> recordHomeCardEvent({
+    required String impressionId,
+    required String recommendationEventId,
+    required String eventType,
+  }) async {}
 
   @override
   Future<ProductRecommendation?> getRecommendation() {
@@ -77,6 +85,10 @@ Widget _detailApp(RecommendationRepository repository) {
 }
 
 void main() {
+  setUp(
+    () => VisibilityDetectorController.instance.updateInterval = Duration.zero,
+  );
+
   testWidgets('Home pick reloads after a product is saved', (tester) async {
     tester.view.physicalSize = const Size(390, 1400);
     tester.view.devicePixelRatio = 1;

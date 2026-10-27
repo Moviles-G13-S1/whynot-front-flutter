@@ -30,6 +30,13 @@ class CountingRecommendations implements RecommendationRepository {
   int saves = 0;
 
   @override
+  Future<void> recordHomeCardEvent({
+    required String impressionId,
+    required String recommendationEventId,
+    required String eventType,
+  }) async {}
+
+  @override
   Future<ProductRecommendation?> getRecommendation() {
     calls++;
     return responses.removeAt(0)();

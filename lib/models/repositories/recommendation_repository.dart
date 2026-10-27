@@ -18,6 +18,13 @@ abstract interface class RecommendationRepository {
   /// was available.
   Future<ProductRecommendation?> getRecommendation();
 
+  /// Records one Home card exposure or its paired detail navigation.
+  Future<void> recordHomeCardEvent({
+    required String impressionId,
+    required String recommendationEventId,
+    required String eventType,
+  });
+
   /// Lists eligible products without creating save events for unseen rows.
   Future<List<RecommendationCatalogItem>> getCatalog();
 
