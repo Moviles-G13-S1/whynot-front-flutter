@@ -164,8 +164,11 @@ class _WhyNotAppState extends State<WhyNotApp> {
 
   /// Allows opening one screen directly during browser-based visual reviews.
   String get _initialRoute {
+    final sessionRoute = _dependencies.authController.currentUser == null
+        ? AppRoutes.login
+        : AppRoutes.home;
     if (!kIsWeb) {
-      return AppRoutes.login;
+      return sessionRoute;
     }
 
     return switch (Uri.base.queryParameters['screen']) {
@@ -213,7 +216,7 @@ class _WhyNotAppState extends State<WhyNotApp> {
 
       'edit-product' => AppRoutes.editProduct,
 
-      _ => AppRoutes.login,
+      _ => sessionRoute,
     };
   }
 }

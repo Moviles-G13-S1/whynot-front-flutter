@@ -13,7 +13,7 @@ class FirebaseUserRepository implements UserRepository {
   Stream<UserProfile?> watch(String userId) => _firestore
       .collection('users')
       .doc(userId)
-      .snapshots()
+      .snapshots(includeMetadataChanges: true)
       .map((document) => _fromDocument(document));
 
   @override
@@ -78,6 +78,8 @@ class FirebaseUserRepository implements UserRepository {
       photoPath: data['photoPath'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+      fromCache: document.metadata.isFromCache,
+      hasPendingWrites: document.metadata.hasPendingWrites,
     );
   }
 }

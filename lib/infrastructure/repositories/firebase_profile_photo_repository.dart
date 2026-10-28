@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
@@ -73,6 +74,9 @@ class FirebaseProfilePhotoRepository implements ProfilePhotoRepository {
   // Santiago Casasbuenas: Resolve the uploaded image for native and web rendering.
   Future<String> getDownloadUrl(String path) =>
       _storage.ref(path).getDownloadURL();
+
+  Future<Uint8List?> downloadBytes(String path) =>
+      _storage.ref(path).getData(maxBytes).timeout(const Duration(seconds: 12));
 
   @override
   // Santiago Casasbuenas: Remove a replaced or rolled-back image.

@@ -5,6 +5,7 @@ import 'package:whynot_mobile/controllers/admin_access_controller.dart';
 import 'package:whynot_mobile/controllers/admin_metrics_controller.dart';
 import 'package:whynot_mobile/controllers/auth_controller.dart';
 import 'package:whynot_mobile/controllers/city_controller.dart';
+import 'package:whynot_mobile/controllers/connectivity_status.dart';
 import 'package:whynot_mobile/models/auth_user.dart';
 import 'package:whynot_mobile/controllers/nearby_store_controller.dart';
 import 'package:whynot_mobile/controllers/product_controller.dart';
@@ -39,14 +40,19 @@ AppDependencies createTestDependencies({
   List<Wishlist> wishlists = const [],
   InMemoryWishlistRepository? wishlistRepositoryOverride,
   NearbyStoreController? nearbyStoreController,
+  ConnectivityStatus? connectivity,
+  InMemoryAuthRepository? authRepositoryOverride,
+  InMemoryUserRepository? userRepositoryOverride,
 }) {
-  final auth = InMemoryAuthRepository(
-    user: signedIn
-        ? const AuthUser(id: 'test-user', email: 'user@example.com')
-        : null,
-  );
+  final auth =
+      authRepositoryOverride ??
+      InMemoryAuthRepository(
+        user: signedIn
+            ? const AuthUser(id: 'test-user', email: 'user@example.com')
+            : null,
+      );
 
-  final users = InMemoryUserRepository();
+  final users = userRepositoryOverride ?? InMemoryUserRepository();
   users.profiles.addAll({for (final profile in profiles) profile.id: profile});
 
   final wishlistRepository =
@@ -59,6 +65,7 @@ AppDependencies createTestDependencies({
   final recommendationController = RecommendationController(
     recommendationRepository: recommendations,
     authRepository: auth,
+    connectivity: connectivity,
   );
 
   final location = InMemoryLocationRepository();
@@ -75,11 +82,13 @@ AppDependencies createTestDependencies({
       authRepository: auth,
       userRepository: users,
       onAuthChanged: recommendationController.clearCache,
+      connectivity: recommendationController.connectivity,
     ),
     profileController: ProfileController(
       authRepository: auth,
       userRepository: users,
       photoRepository: InMemoryProfilePhotoRepository(),
+      connectivity: recommendationController.connectivity,
       onRecommendationInputsChanged: recommendationController.invalidateForUser,
     ),
     wishlistController: wishlistController,
@@ -102,6 +111,7 @@ AppDependencies createTestDependencies({
         NearbyStoreController(
           locationRepository: location,
           nearbyStoreRepository: nearbyStores,
+          connectivity: recommendationController.connectivity,
         ),
   );
 }

@@ -29,7 +29,9 @@ class WishlistController {
       yield const [];
       return;
     }
-    final categories = await _wishlistRepository.getCategories();
+    final categories = await _wishlistRepository.getCategories().timeout(
+      const Duration(seconds: 12),
+    );
     final names = {
       for (final category in categories) category.id: category.name,
     };

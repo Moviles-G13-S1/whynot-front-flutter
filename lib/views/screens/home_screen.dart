@@ -10,6 +10,7 @@ import '../../controllers/home_controller.dart';
 import '../widgets/smart_recommendation_section.dart';
 import '../widgets/home_content.dart';
 import '../widgets/form_controls.dart';
+import '../widgets/compact_connection_notice.dart';
 
 /// Main feed containing the user's wishlists and personalized features.
 ///
@@ -34,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _loads ??= HomeController(
+      connectivity: context.dependencies.connectivity,
       watchProfile: context.dependencies.profileController.watchCurrentProfile,
       watchWishlists:
           context.dependencies.wishlistController.watchCurrentSummaries,
@@ -57,6 +59,43 @@ class _HomeScreenState extends State<HomeScreen> {
     return fullName.trim().split(' ').first;
   }
 
+  Widget _dataNotice() {
+    final offline = context.dependencies.connectivity.isOffline;
+    final profile = _loads!.profile.visibleSnapshot.data;
+    final wishlists = _loads!.wishlists.visibleSnapshot.data ?? const [];
+    final pending =
+        profile?.hasPendingWrites == true ||
+        wishlists.any((item) => item.wishlist.hasPendingWrites);
+    final cached =
+        profile?.fromCache == true ||
+        wishlists.any((item) => item.wishlist.fromCache);
+    final failed =
+        _loads!.profile.snapshot.hasError ||
+        _loads!.wishlists.snapshot.hasError;
+    if (!offline && !pending && !cached && !failed) {
+      return const SizedBox.shrink();
+    }
+    return CompactConnectionNotice(
+      title: pending
+          ? 'Your changes are still saving'
+          : offline
+          ? 'You’re offline'
+          : 'Saved information',
+      message: pending
+          ? 'We’ll let you know when saving is complete.'
+          : offline
+          ? 'Showing your saved information while offline.'
+          : 'Updates resume when you reconnect to Wi-Fi or mobile data.',
+      icon: pending
+          ? Icons.cloud_upload_outlined
+          : offline
+          ? Icons.wifi_off_rounded
+          : Icons.history_rounded,
+      actionLabel: failed ? 'Try again' : null,
+      onAction: failed ? _loads!.retryFailed : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final profileController = context.dependencies.profileController;
@@ -70,12 +109,20 @@ class _HomeScreenState extends State<HomeScreen> {
           physics: const BouncingScrollPhysics(),
           slivers: [
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(18, 42, 0, 132),
+              padding: const EdgeInsets.fromLTRB(20, 42, 20, 132),
               sliver: SliverList.list(
                 children: [
                   const BrandMark(),
 
                   const SizedBox(height: 46),
+                  AnimatedBuilder(
+                    animation: Listenable.merge([
+                      _loads!.profile,
+                      _loads!.wishlists,
+                      context.dependencies.connectivity,
+                    ]),
+                    builder: (context, _) => _dataNotice(),
+                  ),
 
                   // --------------------------------------------------
                   // USER GREETING
@@ -86,8 +133,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     AnimatedBuilder(
                       animation: _loads!.profile,
                       builder: (context, _) {
-                        final snapshot = _loads!.profile.snapshot;
-                        if (snapshot.hasError) {
+                        final section = _loads!.profile;
+                        final snapshot = section.visibleSnapshot;
+                        if (section.snapshot.hasError && !section.hasValue) {
                           return TextButton(
                             onPressed: _loads!.profile.start,
                             child: const Text(
@@ -98,11 +146,16 @@ class _HomeScreenState extends State<HomeScreen> {
                         final fullName = snapshot.data?.name;
                         final firstName = _firstName(fullName);
 
-                        return Text(
-                          firstName.isEmpty
-                              ? 'Good Morning'
-                              : 'Good Morning, $firstName',
-                          style: WhyNotTextStyles.serif(size: 27),
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              firstName.isEmpty
+                                  ? 'Good Morning'
+                                  : 'Good Morning, $firstName',
+                              style: WhyNotTextStyles.serif(size: 27),
+                            ),
+                          ],
                         );
                       },
                     )
@@ -140,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   AnimatedBuilder(
                     animation: _loads!.wishlists,
                     builder: (context, _) => WishlistRail(
-                      snapshot: _loads!.wishlists.snapshot,
+                      snapshot: _loads!.wishlists.visibleSnapshot,
                       onRetry: _loads!.wishlists.start,
                     ),
                   ),
@@ -192,8 +245,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 16),
 
                   const Padding(
-                    padding: EdgeInsets.only(right: 30),
-                    child: NearbyStoreSection(),
+                    padding: EdgeInsets.zero,
+                    child: NearbyStoreSection(showConnectionNotice: false),
                   ),
 
                   const SizedBox(height: 54),
@@ -220,8 +273,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 17),
 
                   const Padding(
-                    padding: EdgeInsets.only(right: 35),
-                    child: SmartRecommendationSection(),
+                    padding: EdgeInsets.zero,
+                    child: SmartRecommendationSection(
+                      showConnectionNotice: false,
+                    ),
                   ),
                 ],
               ),

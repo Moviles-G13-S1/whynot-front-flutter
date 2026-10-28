@@ -25,7 +25,8 @@ import 'connectivity_message.dart';
 ///
 /// The user's coordinates are only used for the request and are not persisted.
 class NearbyStoreSection extends StatefulWidget {
-  const NearbyStoreSection({super.key});
+  const NearbyStoreSection({this.showConnectionNotice = true, super.key});
+  final bool showConnectionNotice;
 
   @override
   State<NearbyStoreSection> createState() => _NearbyStoreSectionState();
@@ -165,6 +166,15 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection>
         // Location permission, device location, or backend request failed.
         final kind = snapshot.data?.$2;
         if (kind != null) {
+          if (!widget.showConnectionNotice &&
+              kind == NearbyFailureKind.nearbyServiceUnavailable) {
+            return Center(
+              child: TextButton(
+                onPressed: _retry,
+                child: const Text('Nearby stores unavailable. Try again'),
+              ),
+            );
+          }
           return _NearbyStoreErrorCard(
             kind: kind,
             offline: _controller?.connectivity.isOffline == true,
@@ -193,6 +203,7 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection>
           stale: result!.stale,
           offline: _controller?.connectivity.isOffline == true,
           onRetry: _retry,
+          showConnectionNotice: widget.showConnectionNotice,
           onOpen: () => Navigator.pushNamed(
             context,
             AppRoutes.nearbyStoreDetail,
@@ -212,6 +223,7 @@ class _NearbyStoreCard extends StatelessWidget {
     required this.stale,
     required this.offline,
     required this.onRetry,
+    required this.showConnectionNotice,
     required this.onOpen,
   });
 
@@ -220,6 +232,7 @@ class _NearbyStoreCard extends StatelessWidget {
   final bool stale;
   final bool offline;
   final VoidCallback onRetry;
+  final bool showConnectionNotice;
   final VoidCallback onOpen;
 
   @override
@@ -230,13 +243,14 @@ class _NearbyStoreCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onOpen,
+        borderRadius: BorderRadius.circular(18),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (stale) ...[
+              if (stale && showConnectionNotice) ...[
                 ConnectivityNotice(
                   label: offline ? 'Offline · outdated' : 'May be outdated',
                   title: 'Last nearby match',

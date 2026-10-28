@@ -12,6 +12,14 @@ class LiveSection<T> extends ChangeNotifier {
   AsyncSnapshot<T> snapshot = AsyncSnapshot<T>.nothing();
   int _generation = 0;
   bool _disposed = false;
+  bool hasValue = false;
+  T? _lastValue;
+
+  /// Keep the most recent data visible during failed reads and retries.
+  /// Owned by this screen; no data is shared between accounts.
+  AsyncSnapshot<T> get visibleSnapshot => hasValue
+      ? AsyncSnapshot<T>.withData(ConnectionState.active, _lastValue as T)
+      : snapshot;
 
   void start() {
     if (_disposed) return;
@@ -33,6 +41,8 @@ class LiveSection<T> extends ChangeNotifier {
       _subscription = _source().listen(
         (data) {
           if (_disposed || generation != _generation) return;
+          hasValue = true;
+          _lastValue = data;
           snapshot = AsyncSnapshot.withData(ConnectionState.active, data);
           notifyListeners();
         },

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/services.dart';
 
 import '../../app/app_routes.dart';
@@ -13,6 +14,9 @@ import '../widgets/profile_controls.dart';
 import '../../models/user_profile.dart';
 import '../../models/input_policy.dart';
 import '../../models/profile_photo.dart';
+import '../../models/network_failure.dart';
+import '../../controllers/connection_recovery.dart';
+import '../widgets/offline_notice.dart';
 
 /// Form for editing the fields displayed in the profile summary.
 class EditProfileScreen extends StatefulWidget {
@@ -45,6 +49,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String? _photoPath;
   ProfilePhoto? _photoPreview;
   bool _profileRequested = false;
+  bool _loadFailed = false;
+  bool _citiesFailed = false;
+  ConnectionRecovery? _recovery;
+  List<String> _lastInputs = const [];
 
   List<TextEditingController> get _controllers => [
     _nameController,
@@ -75,6 +83,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _recovery ??= ConnectionRecovery(context.dependencies.connectivity, () {
+      if (_loadFailed && !_isLoading) {
+        _loadProfile();
+      } else if (_citiesFailed && !_isLoading) {
+        _reloadCities();
+      }
+    });
     if (!_profileRequested) {
       _profileRequested = true;
       _loadProfile();
@@ -83,6 +98,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   // Santiago Casasbuenas: Load the current photo path with profile fields.
   Future<void> _loadProfile() async {
+    setState(() {
+      _isLoading = true;
+      _loadFailed = false;
+    });
     final profileController = context.dependencies.profileController;
     if (profileController.currentUserId == null) {
       if (mounted) {
@@ -92,11 +111,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
 
     try {
-      final cities = await context.dependencies.cityController.getCities();
-      final profile = await profileController.getCurrentProfile();
+      // City failure must not discard a successfully loaded profile.
+      final citiesFuture = context.dependencies.cityController.getCities().then(
+        (cities) {
+          _citiesFailed = cities.isEmpty;
+          return cities;
+        },
+        onError: (Object _) {
+          _citiesFailed = true;
+          return <City>[];
+        },
+      );
+      final profileFuture = profileController.getCurrentProfile();
+      final results = await (citiesFuture, profileFuture).wait;
+      final cities = results.$1;
+      final profile = results.$2;
+      if (!mounted) return;
       if (profile == null) {
         if (mounted) {
-          setState(() => _isLoading = false);
+          setState(() {
+            _isLoading = false;
+            _loadFailed = true;
+          });
         }
         return;
       }
@@ -132,7 +168,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     } catch (_) {
       if (!mounted) return;
 
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _loadFailed = true;
+      });
 
       ScaffoldMessenger.of(
         context,
@@ -141,6 +180,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   void _refresh() {
+    // DropdownMenu also updates cursor/selection during layout. Only text
+    // changes affect save eligibility and require rebuilding this form.
+    final inputs = _controllers.map((controller) => controller.text).toList();
+    if (listEquals(inputs, _lastInputs)) return;
+    _lastInputs = inputs;
     if (mounted) {
       setState(() {});
     }
@@ -148,6 +192,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   void dispose() {
+    _recovery?.dispose();
     for (final controller in _controllers) {
       controller.dispose();
     }
@@ -219,17 +264,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Profile updated')));
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Profile updated')));
 
       Navigator.pop(context);
     } on InputPolicyException catch (error) {
       if (mounted) _showMessage(error.message);
+    } on NetworkFailure catch (error) {
+      if (mounted) _showMessage(error.message);
     } catch (_) {
       if (!mounted) return;
 
-      _showMessage('Could not update profile. Please try again.');
+      _showMessage(
+        'Could not confirm your profile update. Your inputs are still here. Check your connection and try again.',
+      );
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -264,6 +313,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (mounted) {
         _showMessage(error.message);
       }
+    } on NetworkFailure catch (error) {
+      if (mounted) _showMessage(error.message);
     } catch (_) {
       if (mounted) {
         _showMessage('Could not update photo. Please try again.');
@@ -282,6 +333,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _reloadCities() async {
+    try {
+      final cities = await context.dependencies.cityController.getCities();
+      if (!mounted) return;
+      setState(() {
+        _cities = cities;
+        _citiesFailed = cities.isEmpty;
+        final selected = cities.where((city) => city.id == _cityId).firstOrNull;
+        if (selected != null && _cityController.text.isEmpty) {
+          _cityController.text = selected.name;
+        }
+      });
+    } catch (_) {
+      if (mounted) {
+        _showMessage(
+          'Cities are unavailable. Your edits are still here. Try again when connected.',
+        );
+      }
+    }
   }
 
   /// Keeps bottom navigation consistent with the other profile screens.
@@ -304,6 +376,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    if (_loadFailed) {
+      return Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Profile is unavailable. Connect and try again.'),
+                TextButton(
+                  onPressed: _loadProfile,
+                  child: const Text('Retry profile'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Back to profile'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -312,6 +407,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              OfflineNotice(
+                message: _isSaving
+                    ? 'Your submitted changes are waiting for server confirmation. Keep this form open; confirmation resumes when connected.'
+                    : 'You can edit the available information here. Reconnect before saving; your unsaved inputs stay in this open form.',
+              ),
+              if (_citiesFailed)
+                TextButton(
+                  onPressed: _reloadCities,
+                  child: const Text('Cities unavailable. Retry cities'),
+                ),
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton(
@@ -334,6 +439,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   photoPath: _photoPath,
                   loadPhotoUrl:
                       context.dependencies.profileController.getPhotoUrl,
+                  loadPhotoBytes:
+                      context.dependencies.profileController.getPhotoBytes,
+                  connectivity: context.dependencies.connectivity,
+                  cacheManager: context.dependencies.photoCacheManager,
                   preview: _photoPreview?.bytes,
                 ),
               ),

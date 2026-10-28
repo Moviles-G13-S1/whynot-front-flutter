@@ -63,6 +63,12 @@ Future<void> main() async {
     );
   }
 
+  // Persist previously read records and supported pending Firestore writes.
+  // Cached data is labeled in the UI; persistence cannot authenticate offline.
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+  );
+
   WhyNotTheme.configureSystemUi();
 
   runApp(const WhyNotApp());

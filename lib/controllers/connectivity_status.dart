@@ -23,6 +23,13 @@ class ConnectivityStatus extends ChangeNotifier with WidgetsBindingObserver {
   NetworkStatus get status => _status;
   bool get isOffline => _status == NetworkStatus.offline;
 
+  /// Recheck a possibly stale offline signal before a user-initiated action.
+  /// Available transport is permission to try, not proof of backend access.
+  Future<bool> canAttemptNetwork() async {
+    if (isOffline) await refresh();
+    return !isOffline;
+  }
+
   /// Recheck the device transport when the app becomes active again.
   Future<void> refresh() async {
     final version = _backendConfirmationVersion;

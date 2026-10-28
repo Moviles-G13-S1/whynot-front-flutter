@@ -4,6 +4,10 @@ import '../models/repositories/auth_repository.dart';
 import '../models/user_profile.dart';
 import '../models/input_policy.dart';
 import '../models/repositories/user_repository.dart';
+import '../models/network_failure.dart';
+import 'connectivity_status.dart';
+import 'dart:typed_data';
+import 'profile_photo_cache.dart';
 
 class ProfileController {
   const ProfileController({
@@ -11,6 +15,8 @@ class ProfileController {
     required UserRepository userRepository,
     required ProfilePhotoRepository photoRepository,
     this.onRecommendationInputsChanged,
+    this.connectivity,
+    this.photoCache,
   }) : _authRepository = authRepository,
        _userRepository = userRepository,
        _photoRepository = photoRepository;
@@ -19,6 +25,14 @@ class ProfileController {
   final UserRepository _userRepository;
   final ProfilePhotoRepository _photoRepository;
   final void Function(String userId)? onRecommendationInputsChanged;
+  final ConnectivityStatus? connectivity;
+  final ProfilePhotoCache? photoCache;
+
+  Future<void> _requireNetwork() async {
+    if (connectivity != null && !await connectivity!.canAttemptNetwork()) {
+      throw const NetworkFailure();
+    }
+  }
 
   String? get currentUserId => _authRepository.currentUser?.id;
   String? get currentUserEmail => _authRepository.currentUser?.email;
@@ -33,7 +47,9 @@ class ProfileController {
 
   Future<UserProfile?> getCurrentProfile() {
     final id = currentUserId;
-    return id == null ? Future.value() : _userRepository.get(id);
+    return id == null
+        ? Future.value()
+        : _userRepository.get(id).timeout(const Duration(seconds: 12));
   }
 
   // Santiago Casasbuenas: Select a profile image through the injected photo repository.
@@ -45,11 +61,30 @@ class ProfileController {
     if (id == null || !path.startsWith('profilePhotos/$id/')) {
       throw StateError('Photo does not belong to the current user.');
     }
-    return _photoRepository.getDownloadUrl(path);
+    if (connectivity?.isOffline == true) {
+      return Future.error(const NetworkFailure());
+    }
+    return _photoRepository
+        .getDownloadUrl(path)
+        .timeout(const Duration(seconds: 12));
+  }
+
+  Future<Uint8List?> getPhotoBytes(String path) {
+    final id = currentUserId;
+    if (id == null || !path.startsWith('profilePhotos/$id/')) {
+      throw StateError('Photo does not belong to the current user.');
+    }
+    return photoCache?.load(
+          id,
+          path,
+          allowNetwork: connectivity?.isOffline != true,
+        ) ??
+        Future.value(null);
   }
 
   // Santiago Casasbuenas: Upload, save the path, and clean up replaced or failed uploads.
   Future<String> savePhoto(ProfilePhoto photo) async {
+    await _requireNetwork();
     final id = currentUserId;
     if (id == null) throw StateError('No user logged in.');
     final previous = (await _userRepository.get(id))?.photoPath;
@@ -64,6 +99,7 @@ class ProfileController {
       }
       rethrow;
     }
+    await photoCache?.remember(id, path, photo.bytes);
     if (previous != null && previous.startsWith('profilePhotos/$id/')) {
       try {
         await _photoRepository.delete(previous);
@@ -75,6 +111,7 @@ class ProfileController {
   }
 
   Future<void> updateCurrentProfile(UserProfileUpdate update) async {
+    await _requireNetwork();
     InputPolicy.noEmoji(update.name, 'Name');
     final id = currentUserId;
     if (id == null) throw StateError('No user logged in.');

@@ -8,6 +8,7 @@ import '../../models/category_catalog.dart';
 import '../../models/city.dart';
 import '../../controllers/live_section.dart';
 import '../../controllers/profile_load_controller.dart';
+import '../widgets/profile_data_notice.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../widgets/form_controls.dart';
 import '../widgets/profile_controls.dart';
@@ -26,7 +27,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (context.dependencies.profileController.currentUserId == null) return;
     _loads ??= ProfileLoadController(
+      connectivity: context.dependencies.connectivity,
       watchProfile: context.dependencies.profileController.watchCurrentProfile,
       getCities: context.dependencies.cityController.getCities,
     );
@@ -69,14 +72,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: controller.currentUserId == null
             ? const Center(child: Text('No user logged in.'))
             : AnimatedBuilder(
-                animation: _loads!.profile,
+                animation: Listenable.merge([
+                  _loads!.profile,
+                  context.dependencies.connectivity,
+                ]),
                 builder: (context, _) {
-                  final snapshot = _loads!.profile.snapshot;
+                  final section = _loads!.profile;
+                  final snapshot = section.visibleSnapshot;
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  if (snapshot.hasError) {
+                  if (section.snapshot.hasError && !section.hasValue) {
                     return Center(
                       child: TextButton(
                         onPressed: _loads!.profile.start,
@@ -86,7 +93,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   }
 
                   if (!snapshot.hasData) {
-                    return const Center(child: Text('Profile not found.'));
+                    return Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            context.dependencies.connectivity.isOffline
+                                ? 'No profile available offline on this device.'
+                                : 'Profile not found.',
+                          ),
+                          TextButton(
+                            onPressed: section.start,
+                            child: const Text('Retry profile'),
+                          ),
+                        ],
+                      ),
+                    );
                   }
 
                   final profile = snapshot.data!;
@@ -102,9 +124,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     padding: const EdgeInsets.fromLTRB(24, 39, 24, 130),
                     child: Column(
                       children: [
+                        ProfileDataNotice(
+                          profile: profile,
+                          offline: context.dependencies.connectivity.isOffline,
+                          failed: section.snapshot.hasError,
+                          onRetry: section.start,
+                        ),
                         ProfileAvatar(
                           photoPath: profile.photoPath,
                           loadPhotoUrl: controller.getPhotoUrl,
+                          loadPhotoBytes: controller.getPhotoBytes,
+                          connectivity: context.dependencies.connectivity,
+                          cacheManager: context.dependencies.photoCacheManager,
                         ),
                         const SizedBox(height: 31),
 
@@ -196,8 +227,8 @@ class _ProfileCityValue extends StatelessWidget {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: cities,
     builder: (context, _) {
-      final snapshot = cities.snapshot;
-      if (snapshot.hasError) {
+      final snapshot = cities.visibleSnapshot;
+      if (cities.snapshot.hasError && !cities.hasValue) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

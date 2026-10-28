@@ -413,18 +413,7 @@ class _RecommendationDetailContent extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 28),
-              if (!isSaved && offline) ...[
-                ConnectivityNotice(
-                  label: 'Offline',
-                  title: 'Save it when you’re back',
-                  message:
-                      'Saving is unavailable offline. We’ll check this pick again when you reconnect.',
-                  icon: Icons.wifi_off_rounded,
-                  actionLabel: 'Check connection',
-                  onAction: onRetry,
-                ),
-                const SizedBox(height: 18),
-              ] else if (preparationFailed) ...[
+              if (!offline && preparationFailed) ...[
                 const ConnectivityNotice(
                   label: 'One more check',
                   title: 'Let’s confirm this pick',
@@ -436,8 +425,8 @@ class _RecommendationDetailContent extends StatelessWidget {
               ],
               PillButton(
                 height: 44,
-                label: offline
-                    ? 'Save when online'
+                label: offline && !isSaved
+                    ? 'Save this product'
                     : isPreparingSave
                     ? 'Checking availability...'
                     : preparationFailed
@@ -453,6 +442,17 @@ class _RecommendationDetailContent extends StatelessWidget {
                     ? onRetry
                     : onSave,
               ),
+              if (!isSaved && offline)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text(
+                    'Saving is unavailable offline.',
+                    textAlign: TextAlign.center,
+                    style: WhyNotTextStyles.muted(
+                      size: 12,
+                    ).copyWith(height: 1.5),
+                  ),
+                ),
               if (isSaved) ...[
                 const SizedBox(height: 10),
                 Row(

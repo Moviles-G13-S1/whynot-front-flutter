@@ -8,6 +8,7 @@ import '../../models/input_policy.dart';
 import '../../models/repositories/auth_repository.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/form_controls.dart';
+import '../widgets/offline_notice.dart';
 
 /// Entry screen for returning users.
 class LoginScreen extends StatefulWidget {
@@ -34,6 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// Sends the login intent through the authentication controller.
   Future<void> _login() async {
+    if (_isLoading) return;
     FocusScope.of(context).unfocus();
 
     final email = _emailController.text.trim();
@@ -69,6 +71,11 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       switch (error.code) {
+        case 'network-request-failed':
+          _showMessage(
+            'Login needs an internet connection. Your inputs are still here. Reconnect and try again.',
+          );
+          break;
         case 'invalid-email':
           setState(() => _emailError = 'Enter a valid email address.');
           break;
@@ -131,6 +138,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Text('Log in', style: WhyNotTextStyles.muted(size: 15)),
               ),
               const SizedBox(height: 20),
+              const OfflineNotice(
+                compact: true,
+                message: 'Reconnect to log in. Your inputs will stay here.',
+              ),
               FormSurface(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,

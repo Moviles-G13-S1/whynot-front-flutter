@@ -8,5 +8,6 @@ class CityController {
 
   final CityRepository _cityRepository;
 
-  Future<List<City>> getCities() => _cityRepository.getCities();
+  Future<List<City>> getCities() =>
+      _cityRepository.getCities().timeout(const Duration(seconds: 12));
 }

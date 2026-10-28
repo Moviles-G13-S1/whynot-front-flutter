@@ -7,6 +7,8 @@ class Wishlist {
     this.emoji,
     this.createdAt,
     this.updatedAt,
+    this.fromCache = false,
+    this.hasPendingWrites = false,
   });
 
   final String id;
@@ -16,6 +18,8 @@ class Wishlist {
   final String? emoji;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final bool fromCache;
+  final bool hasPendingWrites;
 }
 
 class WishlistSummary {
