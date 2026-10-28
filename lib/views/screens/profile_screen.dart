@@ -6,14 +6,37 @@ import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../models/category_catalog.dart';
 import '../../models/city.dart';
+import '../../controllers/live_section.dart';
+import '../../controllers/profile_load_controller.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../widgets/form_controls.dart';
 import '../widgets/profile_controls.dart';
-import '../../models/user_profile.dart';
 
 /// Read-only summary of the current user's account data.
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  ProfileLoadController? _loads;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loads ??= ProfileLoadController(
+      watchProfile: context.dependencies.profileController.watchCurrentProfile,
+      getCities: context.dependencies.cityController.getCities,
+    );
+  }
+
+  @override
+  void dispose() {
+    _loads?.dispose();
+    super.dispose();
+  }
 
   Future<void> _logOut(BuildContext context) async {
     try {
@@ -45,15 +68,21 @@ class ProfileScreen extends StatelessWidget {
         bottom: false,
         child: controller.currentUserId == null
             ? const Center(child: Text('No user logged in.'))
-            : StreamBuilder<UserProfile?>(
-                stream: controller.watchCurrentProfile(),
-                builder: (context, snapshot) {
+            : AnimatedBuilder(
+                animation: _loads!.profile,
+                builder: (context, _) {
+                  final snapshot = _loads!.profile.snapshot;
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
                   if (snapshot.hasError) {
-                    return const Center(child: Text('Could not load profile.'));
+                    return Center(
+                      child: TextButton(
+                        onPressed: _loads!.profile.start,
+                        child: const Text('Could not load profile. Try again'),
+                      ),
+                    );
                   }
 
                   if (!snapshot.hasData) {
@@ -97,7 +126,10 @@ class ProfileScreen extends StatelessWidget {
                                   value: 'Not selected',
                                 )
                               else
-                                _ProfileCityValue(cityId: profile.cityId!),
+                                _ProfileCityValue(
+                                  cityId: profile.cityId!,
+                                  cities: _loads!.cities,
+                                ),
                               ProfileValue(
                                 label: 'Password',
                                 value: '********',
@@ -154,30 +186,31 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
-class _ProfileCityValue extends StatefulWidget {
-  const _ProfileCityValue({required this.cityId});
+class _ProfileCityValue extends StatelessWidget {
+  const _ProfileCityValue({required this.cityId, required this.cities});
 
   final String cityId;
+  final LiveSection<List<City>> cities;
 
   @override
-  State<_ProfileCityValue> createState() => _ProfileCityValueState();
-}
-
-class _ProfileCityValueState extends State<_ProfileCityValue> {
-  late Future<List<City>> _cities;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _cities = context.dependencies.cityController.getCities();
-  }
-
-  @override
-  Widget build(BuildContext context) => FutureBuilder<List<City>>(
-    future: _cities,
-    builder: (context, snapshot) {
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: cities,
+    builder: (context, _) {
+      final snapshot = cities.snapshot;
+      if (snapshot.hasError) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const ProfileValue(label: 'City', value: 'City unavailable'),
+            TextButton(
+              onPressed: cities.start,
+              child: const Text('Retry city'),
+            ),
+          ],
+        );
+      }
       final city = snapshot.data
-          ?.where((item) => item.id == widget.cityId)
+          ?.where((item) => item.id == cityId)
           .firstOrNull;
 
       return ProfileValue(
