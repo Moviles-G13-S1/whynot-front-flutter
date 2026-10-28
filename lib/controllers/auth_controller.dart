@@ -3,27 +3,43 @@ import '../models/repositories/user_repository.dart';
 import '../models/repositories/auth_repository.dart';
 import '../models/auth_user.dart';
 import '../models/input_policy.dart';
+import 'connectivity_status.dart';
 
 class AuthController {
   const AuthController({
     required AuthRepository authRepository,
     required UserRepository userRepository,
     this.onAuthChanged,
+    this.connectivity,
+    this.onSessionEnded,
   }) : _authRepository = authRepository,
        _userRepository = userRepository;
 
   final AuthRepository _authRepository;
   final UserRepository _userRepository;
   final void Function()? onAuthChanged;
+  final ConnectivityStatus? connectivity;
+  final Future<void> Function(String userId)? onSessionEnded;
+
+  Future<void> _requireNetwork() async {
+    if (connectivity != null && !await connectivity!.canAttemptNetwork()) {
+      throw const AuthFailure('network-request-failed');
+    }
+  }
 
   AuthUser? get currentUser => _authRepository.currentUser;
 
   Future<void> signIn({required String email, required String password}) async {
+    final previousId = currentUser?.id;
+    await _requireNetwork();
     InputPolicy.noEmoji(email, 'Email');
     InputPolicy.noEmoji(password, 'Password');
     await _authRepository.signIn(email: email, password: password);
     // Santiago Casasbuenas: Do not reuse another session's recommendation.
     onAuthChanged?.call();
+    if (previousId != null && previousId != currentUser?.id) {
+      await onSessionEnded?.call(previousId);
+    }
   }
 
   Future<void> createAccount({
@@ -35,6 +51,7 @@ class AuthController {
     required String preferredCategoryId,
     required String cityId,
   }) async {
+    await _requireNetwork();
     InputPolicy.noEmoji(name, 'Name');
     InputPolicy.noEmoji(email, 'Email');
     InputPolicy.noEmoji(password, 'Password');
@@ -50,11 +67,15 @@ class AuthController {
       throw const AuthFailure('invalid-age');
     }
 
+    final previousId = currentUser?.id;
     final user = await _authRepository.createUser(
       email: email,
       password: password,
     );
     onAuthChanged?.call();
+    if (previousId != null && previousId != user.id) {
+      await onSessionEnded?.call(previousId);
+    }
     try {
       await _userRepository.create(
         UserProfile(
@@ -80,15 +101,18 @@ class AuthController {
   }
 
   Future<void> signOut() async {
+    final userId = currentUser?.id;
     await _authRepository.signOut();
     // Santiago Casasbuenas: Discard recommendation data after sign-out.
     onAuthChanged?.call();
+    if (userId != null) await onSessionEnded?.call(userId);
   }
 
   Future<void> changePassword({
     required String currentPassword,
     required String newPassword,
-  }) {
+  }) async {
+    await _requireNetwork();
     InputPolicy.noEmoji(currentPassword, 'Current password');
     InputPolicy.noEmoji(newPassword, 'New password');
     if (newPassword.length < InputPolicy.minimumPasswordLength) {

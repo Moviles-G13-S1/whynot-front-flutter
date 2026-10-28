@@ -13,6 +13,9 @@ import '../../models/user_profile.dart';
 import '../../models/input_policy.dart';
 import '../widgets/account_field.dart';
 import '../../models/repositories/auth_repository.dart';
+import '../../controllers/connection_recovery.dart';
+import '../widgets/offline_notice.dart';
+import '../../models/network_failure.dart';
 
 /// Registration form for new WhyNot users.
 class CreateAccountScreen extends StatefulWidget {
@@ -36,6 +39,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   bool _citiesLoading = true;
   bool _citiesRequested = false;
   bool _citiesError = false;
+  ConnectionRecovery? _recovery;
   bool _isLoading = false;
   String? _nameError;
   String? _emailError;
@@ -48,6 +52,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _recovery ??= ConnectionRecovery(context.dependencies.connectivity, () {
+      if (_citiesError && !_citiesLoading) _loadCities();
+    });
     if (!_citiesRequested) {
       _citiesRequested = true;
       _loadCities();
@@ -55,6 +62,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   }
 
   Future<void> _loadCities() async {
+    setState(() => _citiesLoading = true);
     try {
       final cities = await context.dependencies.cityController.getCities();
       if (!mounted) return;
@@ -74,6 +82,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
   @override
   void dispose() {
+    _recovery?.dispose();
     _nameController.dispose();
     _emailController.dispose();
     _ageController.dispose();
@@ -83,6 +92,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   }
 
   Future<void> _createAccount() async {
+    if (_isLoading) return;
     FocusScope.of(context).unfocus();
 
     final name = _nameController.text.trim();
@@ -151,10 +161,17 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);
     } on InputPolicyException catch (error) {
       if (mounted) _showMessage(error.message);
+    } on NetworkFailure catch (error) {
+      if (mounted) _showMessage(error.message);
     } on AuthFailure catch (error) {
       if (!mounted) return;
 
       switch (error.code) {
+        case 'network-request-failed':
+          _showMessage(
+            'Registration needs an internet connection. Your inputs are still here. Reconnect and try again.',
+          );
+          break;
         case 'invalid-name':
           setState(
             () => _nameError =
@@ -266,6 +283,10 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const OfflineNotice(
+                message:
+                    'Creating an account needs an internet connection. Your inputs stay in this form. If you already submitted, wait for confirmation before trying again.',
+              ),
               Align(
                 alignment: Alignment.centerLeft,
                 child: IconButton(

@@ -90,7 +90,7 @@ class FirebaseWishlistRepository implements WishlistRepository {
   Stream<List<Wishlist>> watchByOwner(String ownerId) => _firestore
       .collection('wishlists')
       .where('ownerId', isEqualTo: ownerId)
-      .snapshots()
+      .snapshots(includeMetadataChanges: true)
       .map((snapshot) => snapshot.docs.map(_fromDocument).toList());
 
   @override
@@ -266,6 +266,8 @@ class FirebaseWishlistRepository implements WishlistRepository {
       emoji: data['emoji'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+      fromCache: document.metadata.isFromCache,
+      hasPendingWrites: document.metadata.hasPendingWrites,
     );
   }
 }

@@ -20,6 +20,7 @@ abstract final class AppRoutes {
 
   static const productDetail = '/product-detail';
   static const recommendationDetail = '/recommendation-detail';
+  static const nearbyStoreDetail = '/nearby-store-detail';
   static const recommendationCatalog = '/recommendation-catalog';
   static const newProduct = '/new-product';
   static const newProductManual = '/new-product-manual';

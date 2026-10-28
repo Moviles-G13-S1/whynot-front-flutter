@@ -28,7 +28,11 @@ import 'connectivity_message.dart';
 ///
 /// The backend returns at most one recommendation for the current user.
 class SmartRecommendationSection extends StatefulWidget {
-  const SmartRecommendationSection({super.key});
+  const SmartRecommendationSection({
+    this.showConnectionNotice = true,
+    super.key,
+  });
+  final bool showConnectionNotice;
 
   @override
   State<SmartRecommendationSection> createState() =>
@@ -256,27 +260,30 @@ class _SmartRecommendationSectionState
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ConnectivityNotice(
-                label: offline ? 'Offline · outdated' : 'May be outdated',
-                title: 'Keeping your last pick',
-                message: offline
-                    ? 'This pick may have changed. We’ll look for a new one when you reconnect.'
-                    : error != null
-                    ? 'We couldn’t update your pick just now. You can try again.'
-                    : 'Checking for a new pick while you browse.',
-                icon: offline ? Icons.wifi_off_rounded : Icons.history_rounded,
-                actionLabel: offline
-                    ? 'Check connection'
-                    : error != null
-                    ? 'Try again'
-                    : null,
-                onAction: offline
-                    ? _retry
-                    : error != null
-                    ? _retry
-                    : null,
-              ),
-              const SizedBox(height: 12),
+              if (widget.showConnectionNotice)
+                ConnectivityNotice(
+                  label: offline ? 'Offline · outdated' : 'May be outdated',
+                  title: 'Keeping your last pick',
+                  message: offline
+                      ? 'This pick may have changed. We’ll look for a new one when you reconnect.'
+                      : error != null
+                      ? 'We couldn’t update your pick just now. You can try again.'
+                      : 'Checking for a new pick while you browse.',
+                  icon: offline
+                      ? Icons.wifi_off_rounded
+                      : Icons.history_rounded,
+                  actionLabel: offline
+                      ? 'Check connection'
+                      : error != null
+                      ? 'Try again'
+                      : null,
+                  onAction: offline
+                      ? _retry
+                      : error != null
+                      ? _retry
+                      : null,
+                ),
+              if (widget.showConnectionNotice) const SizedBox(height: 12),
               VisibilityDetector(
                 key: ValueKey(
                   'home-recommendation-${previous.recommendationEventId}',
@@ -300,7 +307,19 @@ class _SmartRecommendationSectionState
             ],
           );
         }
-        if (offline) return _RecommendationOfflineCard(onRetry: _retry);
+        if (offline) {
+          if (!widget.showConnectionNotice) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Text(
+                'Connect to Wi-Fi or mobile data to see your next pick.',
+                textAlign: TextAlign.center,
+                style: WhyNotTextStyles.muted(size: 13),
+              ),
+            );
+          }
+          return _RecommendationOfflineCard(onRetry: _retry);
+        }
         // The recommendation is currently being requested.
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const _RecommendationLoadingCard();
@@ -448,10 +467,6 @@ class _RecommendationCard extends StatelessWidget {
                           ? 'Saved'
                           : isSaving
                           ? 'Saving...'
-                          : saveDisabled && offline
-                          ? 'Save when online'
-                          : saveDisabled
-                          ? 'Check before saving'
                           : 'Save this product',
                       onPressed: isSaving || isSaved || saveDisabled
                           ? null
@@ -460,12 +475,17 @@ class _RecommendationCard extends StatelessWidget {
                   ),
                 ),
                 if (saveDisabled)
-                  Text(
-                    offline
-                        ? 'Saving is unavailable offline.'
-                        : 'Open this pick to check availability before saving.',
-                    textAlign: TextAlign.center,
-                    style: WhyNotTextStyles.muted(size: 11),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                    child: Text(
+                      offline
+                          ? 'Saving is unavailable offline.'
+                          : 'Open this pick to check availability before saving.',
+                      textAlign: TextAlign.center,
+                      style: WhyNotTextStyles.muted(
+                        size: 12,
+                      ).copyWith(height: 1.5),
+                    ),
                   ),
               ],
             ),

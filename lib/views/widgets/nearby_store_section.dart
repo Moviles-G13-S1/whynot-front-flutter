@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/dependencies_scope.dart';
+import '../../app/app_routes.dart';
 import '../../app/whynot_theme.dart';
 import '../../models/nearby_store.dart';
 import '../../models/nearby_failure.dart';
@@ -24,7 +25,8 @@ import 'connectivity_message.dart';
 ///
 /// The user's coordinates are only used for the request and are not persisted.
 class NearbyStoreSection extends StatefulWidget {
-  const NearbyStoreSection({super.key});
+  const NearbyStoreSection({this.showConnectionNotice = true, super.key});
+  final bool showConnectionNotice;
 
   @override
   State<NearbyStoreSection> createState() => _NearbyStoreSectionState();
@@ -164,6 +166,15 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection>
         // Location permission, device location, or backend request failed.
         final kind = snapshot.data?.$2;
         if (kind != null) {
+          if (!widget.showConnectionNotice &&
+              kind == NearbyFailureKind.nearbyServiceUnavailable) {
+            return Center(
+              child: TextButton(
+                onPressed: _retry,
+                child: const Text('Nearby stores unavailable. Try again'),
+              ),
+            );
+          }
           return _NearbyStoreErrorCard(
             kind: kind,
             offline: _controller?.connectivity.isOffline == true,
@@ -192,6 +203,12 @@ class _NearbyStoreSectionState extends State<NearbyStoreSection>
           stale: result!.stale,
           offline: _controller?.connectivity.isOffline == true,
           onRetry: _retry,
+          showConnectionNotice: widget.showConnectionNotice,
+          onOpen: () => Navigator.pushNamed(
+            context,
+            AppRoutes.nearbyStoreDetail,
+            arguments: result,
+          ),
         );
       },
     );
@@ -206,6 +223,8 @@ class _NearbyStoreCard extends StatelessWidget {
     required this.stale,
     required this.offline,
     required this.onRetry,
+    required this.showConnectionNotice,
+    required this.onOpen,
   });
 
   final NearbyStore store;
@@ -213,87 +232,96 @@ class _NearbyStoreCard extends StatelessWidget {
   final bool stale;
   final bool offline;
   final VoidCallback onRetry;
+  final bool showConnectionNotice;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: WhyNotColors.card,
+    return Material(
+      color: WhyNotColors.card,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpen,
         borderRadius: BorderRadius.circular(18),
-      ),
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (stale) ...[
-            ConnectivityNotice(
-              label: offline ? 'Offline · outdated' : 'May be outdated',
-              title: 'Last nearby match',
-              message: offline
-                  ? 'This store and its distance may have changed. We’ll check again when you reconnect.'
-                  : 'We couldn’t update this match. Store details and distance may have changed.',
-              icon: offline ? Icons.wifi_off_rounded : Icons.history_rounded,
-              actionLabel: offline ? 'Check connection' : 'Try again',
-              onAction: onRetry,
-              backgroundColor: WhyNotColors.background,
-            ),
-            const SizedBox(height: 16),
-          ],
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _StoreImage(imageUrl: store.imageUrl),
+              if (stale && showConnectionNotice) ...[
+                ConnectivityNotice(
+                  label: offline ? 'Offline · outdated' : 'May be outdated',
+                  title: 'Last nearby match',
+                  message: offline
+                      ? 'This store and its distance may have changed. We’ll check again when you reconnect.'
+                      : 'We couldn’t update this match. Store details and distance may have changed.',
+                  icon: offline
+                      ? Icons.wifi_off_rounded
+                      : Icons.history_rounded,
+                  actionLabel: offline ? 'Check connection' : 'Try again',
+                  onAction: onRetry,
+                  backgroundColor: WhyNotColors.background,
+                ),
+                const SizedBox(height: 16),
+              ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _StoreImage(imageUrl: store.imageUrl),
 
-              const SizedBox(width: 16),
+                  const SizedBox(width: 16),
 
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        store.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: WhyNotTextStyles.serif(size: 20),
-                      ),
-
-                      const SizedBox(height: 7),
-
-                      Text(
-                        store.address,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: WhyNotTextStyles.muted(size: 11),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      Row(
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(
-                            Icons.location_on_outlined,
-                            size: 15,
-                            color: WhyNotColors.muted,
-                          ),
-                          const SizedBox(width: 4),
                           Text(
-                            stale
-                                ? 'Last checked · $formattedDistance'
-                                : formattedDistance,
-                            style: WhyNotTextStyles.muted(size: 12),
+                            store.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: WhyNotTextStyles.serif(size: 20),
+                          ),
+
+                          const SizedBox(height: 7),
+
+                          Text(
+                            store.address,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: WhyNotTextStyles.muted(size: 11),
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.location_on_outlined,
+                                size: 15,
+                                color: WhyNotColors.muted,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                stale
+                                    ? 'Last checked · $formattedDistance'
+                                    : formattedDistance,
+                                style: WhyNotTextStyles.muted(size: 12),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

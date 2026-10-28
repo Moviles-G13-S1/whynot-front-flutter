@@ -8,6 +8,7 @@ import '../../models/repositories/auth_repository.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../widgets/form_controls.dart';
 import '../widgets/profile_controls.dart';
+import '../widgets/offline_notice.dart';
 
 /// Form for validating and replacing the current password.
 class ChangePasswordScreen extends StatefulWidget {
@@ -80,6 +81,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   }
 
   Future<void> _updatePassword() async {
+    if (_isUpdating) return;
     FocusScope.of(context).unfocus();
 
     if (context.dependencies.authController.currentUser == null) {
@@ -250,6 +252,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const OfflineNotice(
+                message:
+                    'Changing your password requires internet access. Your inputs remain in this form so you can try again after reconnecting.',
+              ),
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton(

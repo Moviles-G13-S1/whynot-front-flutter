@@ -25,6 +25,7 @@ import '../views/screens/new_wishlist_screen.dart';
 
 import '../views/screens/product_detail_screen.dart';
 import '../views/screens/recommendation_detail_screen.dart';
+import '../views/screens/nearby_store_detail_screen.dart';
 import '../views/screens/recommendation_catalog_screen.dart';
 import '../views/screens/new_product_manual_screen.dart';
 import '../views/screens/edit_product_screen.dart';
@@ -76,6 +77,7 @@ class _WhyNotAppState extends State<WhyNotApp> {
 
           // Home
           AppRoutes.home: (_) => const HomeScreen(),
+          AppRoutes.nearbyStoreDetail: (_) => const NearbyStoreDetailScreen(),
 
           // Wishlists
           AppRoutes.wishlists: (_) => const WishlistsScreen(),
@@ -162,8 +164,11 @@ class _WhyNotAppState extends State<WhyNotApp> {
 
   /// Allows opening one screen directly during browser-based visual reviews.
   String get _initialRoute {
+    final sessionRoute = _dependencies.authController.currentUser == null
+        ? AppRoutes.login
+        : AppRoutes.home;
     if (!kIsWeb) {
-      return AppRoutes.login;
+      return sessionRoute;
     }
 
     return switch (Uri.base.queryParameters['screen']) {
@@ -200,6 +205,7 @@ class _WhyNotAppState extends State<WhyNotApp> {
       'product-detail' => AppRoutes.productDetail,
 
       'recommendation-detail' => AppRoutes.recommendationDetail,
+      'nearby-store-detail' => AppRoutes.nearbyStoreDetail,
       'recommendation-catalog' => AppRoutes.recommendationCatalog,
 
       // Both browser preview URLs now open
@@ -210,7 +216,7 @@ class _WhyNotAppState extends State<WhyNotApp> {
 
       'edit-product' => AppRoutes.editProduct,
 
-      _ => AppRoutes.login,
+      _ => sessionRoute,
     };
   }
 }

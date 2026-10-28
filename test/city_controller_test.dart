@@ -55,36 +55,39 @@ void main() {
     expect(cities.calls, 1);
   });
 
-  testWidgets('profile does not request cities without a selected city', (
-    tester,
-  ) async {
-    final cities = _CountingCityRepository();
-    final dependencies = createTestDependencies(
-      signedIn: true,
-      cityRepository: cities,
-      profiles: const [
-        UserProfile(
-          id: 'test-user',
-          name: 'Test User',
-          email: 'user@example.com',
-          gender: 'Female',
-          age: 22,
-          preferredCategoryId: 'fashion',
+  testWidgets(
+    'profile preloads cities concurrently even without a selected city',
+    (tester) async {
+      final cities = _CountingCityRepository();
+      final dependencies = createTestDependencies(
+        signedIn: true,
+        cityRepository: cities,
+        profiles: const [
+          UserProfile(
+            id: 'test-user',
+            name: 'Test User',
+            email: 'user@example.com',
+            gender: 'Female',
+            age: 22,
+            preferredCategoryId: 'fashion',
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        DependenciesScope(
+          dependencies: dependencies,
+          child: const MaterialApp(home: ProfileScreen()),
         ),
-      ],
-    );
+      );
+      await tester.pumpAndSettle();
 
-    await tester.pumpWidget(
-      DependenciesScope(
-        dependencies: dependencies,
-        child: const MaterialApp(home: ProfileScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Not selected'), findsWidgets);
-    expect(cities.calls, 0);
-  });
+      expect(find.text('Not selected'), findsWidgets);
+      // The Sprint 3 load coordinator prefetches the catalog before the profile
+      // arrives, so a missing city does not make that request sequential again.
+      expect(cities.calls, 1);
+    },
+  );
 
   testWidgets('profile does not request cities while signed out', (
     tester,

@@ -6,6 +6,11 @@ import '../controllers/connectivity_status.dart';
 import '../controllers/nearby_store_controller.dart';
 import '../controllers/product_controller.dart';
 import '../controllers/profile_controller.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import '../models/repositories/profile_photo_cache_store.dart';
+import '../controllers/profile_photo_cache.dart';
+import '../infrastructure/repositories/profile_photo_cache_stores.dart';
 import '../controllers/recommendation_controller.dart';
 import '../controllers/wishlist_controller.dart';
 
@@ -48,7 +53,12 @@ class AppDependencies {
     required this.recommendationController,
     required this.nearbyStoreController,
     SqliteProductDraftStore? productDraftStore,
-  }) : productDraftStore = productDraftStore ?? SqliteProductDraftStore();
+    BaseCacheManager? Function()? photoCacheManager,
+  }) : productDraftStore = productDraftStore ?? SqliteProductDraftStore(),
+       _photoCacheManager = photoCacheManager;
+
+  final BaseCacheManager? Function()? _photoCacheManager;
+  BaseCacheManager? get photoCacheManager => _photoCacheManager?.call();
 
   /// Creates the production/default dependency graph.
   ///
@@ -67,6 +77,15 @@ class AppDependencies {
     final RecommendationRepository recommendationRepository =
         FirebaseRecommendationRepository();
     final connectivity = ConnectivityStatus();
+    final photoRepository = FirebaseProfilePhotoRepository();
+    final ProfilePhotoCacheStore photoStore = kIsWeb
+        ? SqliteProfilePhotoCacheStore()
+        : ManagedProfilePhotoCacheStore();
+    final photoCache = ProfilePhotoCache(
+      store: photoStore,
+      download: photoRepository.downloadBytes,
+      currentUserId: () => authRepository.currentUser?.id,
+    );
     // Santiago Casasbuenas: One cache-owning controller is shared by both
     // recommendation views and by mutation/auth invalidation callbacks.
     final recommendationController = RecommendationController(
@@ -88,15 +107,25 @@ class AppDependencies {
     );
 
     return AppDependencies(
+      photoCacheManager: () {
+        final id = authRepository.currentUser?.id;
+        return id != null && photoStore is ManagedProfilePhotoCacheStore
+            ? photoStore.managerFor(id)
+            : null;
+      },
       authController: AuthController(
         authRepository: authRepository,
         userRepository: userRepository,
         onAuthChanged: recommendationController.clearCache,
+        connectivity: connectivity,
+        onSessionEnded: photoCache.clear,
       ),
       profileController: ProfileController(
         authRepository: authRepository,
         userRepository: userRepository,
-        photoRepository: FirebaseProfilePhotoRepository(),
+        photoRepository: photoRepository,
+        photoCache: photoCache,
+        connectivity: connectivity,
         onRecommendationInputsChanged:
             recommendationController.invalidateForUser,
       ),
@@ -128,6 +157,9 @@ class AppDependencies {
   final AdminAccessController adminAccessController;
   final AdminMetricsController adminMetricsController;
   final CityController cityController;
+
+  /// Shared transport status for auth, Home, Profile and smart features.
+  ConnectivityStatus get connectivity => recommendationController.connectivity;
 
   /// Controller for the demographic Smart Recommendation feature.
   final RecommendationController recommendationController;

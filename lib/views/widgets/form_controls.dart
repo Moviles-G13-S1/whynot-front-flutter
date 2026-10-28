@@ -260,6 +260,7 @@ class DesignDropdown extends StatelessWidget {
     return SizedBox(
       height: 36,
       child: DropdownButtonFormField<String>(
+        isExpanded: true,
         initialValue: value,
         onChanged: onChanged,
         icon: Icon(
@@ -289,7 +290,12 @@ class DesignDropdown extends StatelessWidget {
           ),
         ),
         items: items
-            .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+            .map(
+              (item) => DropdownMenuItem(
+                value: item,
+                child: Text(item, maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+            )
             .toList(),
       ),
     );

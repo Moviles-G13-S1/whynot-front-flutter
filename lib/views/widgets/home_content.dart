@@ -102,6 +102,17 @@ class WishlistRail extends StatelessWidget {
     final wishlists = wishlistSnapshot.data ?? const [];
 
     if (wishlists.isEmpty) {
+      if (context.dependencies.connectivity.isOffline) {
+        return SizedBox(
+          height: 230,
+          child: Center(
+            child: Text(
+              'No wishlists available offline on this device. Connect to refresh.',
+              style: WhyNotTextStyles.muted(size: 13),
+            ),
+          ),
+        );
+      }
       return SizedBox(
         height: 230,
         child: Center(
