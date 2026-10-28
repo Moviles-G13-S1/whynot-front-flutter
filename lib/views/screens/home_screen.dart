@@ -6,7 +6,7 @@ import '../../app/whynot_theme.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/nearby_store_section.dart';
-import '../../models/user_profile.dart';
+import '../../controllers/home_controller.dart';
 import '../widgets/smart_recommendation_section.dart';
 import '../widgets/home_content.dart';
 import '../widgets/form_controls.dart';
@@ -20,8 +20,31 @@ import '../widgets/form_controls.dart';
 ///
 /// - Context-Aware nearby store recommendation.
 /// - Smart demographic product recommendation.
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  HomeController? _loads;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loads ??= HomeController(
+      watchProfile: context.dependencies.profileController.watchCurrentProfile,
+      watchWishlists:
+          context.dependencies.wishlistController.watchCurrentSummaries,
+    );
+  }
+
+  @override
+  void dispose() {
+    _loads?.dispose();
+    super.dispose();
+  }
 
   /// Extracts the first name from the user's full profile name.
   ///
@@ -60,9 +83,18 @@ class HomeScreen extends StatelessWidget {
                   //
                   // Uses the real profile stored for the authenticated user.
                   if (profileController.currentUserId != null)
-                    StreamBuilder<UserProfile?>(
-                      stream: profileController.watchCurrentProfile(),
-                      builder: (context, snapshot) {
+                    AnimatedBuilder(
+                      animation: _loads!.profile,
+                      builder: (context, _) {
+                        final snapshot = _loads!.profile.snapshot;
+                        if (snapshot.hasError) {
+                          return TextButton(
+                            onPressed: _loads!.profile.start,
+                            child: const Text(
+                              'Could not load your profile. Try again',
+                            ),
+                          );
+                        }
                         final fullName = snapshot.data?.name;
                         final firstName = _firstName(fullName);
 
@@ -105,7 +137,13 @@ class HomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 29),
 
-                  const WishlistRail(),
+                  AnimatedBuilder(
+                    animation: _loads!.wishlists,
+                    builder: (context, _) => WishlistRail(
+                      snapshot: _loads!.wishlists.snapshot,
+                      onRetry: _loads!.wishlists.start,
+                    ),
+                  ),
 
                   const SizedBox(height: 18),
 

@@ -48,7 +48,10 @@ class HomeSectionHeader extends StatelessWidget {
 
 /// Horizontally scrolling preview of the current user's real wishlists.
 class WishlistRail extends StatelessWidget {
-  const WishlistRail({super.key});
+  const WishlistRail({this.snapshot, this.onRetry, super.key});
+
+  final AsyncSnapshot<List<WishlistSummary>>? snapshot;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -66,82 +69,88 @@ class WishlistRail extends StatelessWidget {
       );
     }
 
+    if (snapshot != null) return _buildRail(context, snapshot!);
     return StreamBuilder<List<WishlistSummary>>(
       stream: wishlistController.watchCurrentSummaries(),
-      builder: (context, wishlistSnapshot) {
-        if (wishlistSnapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox(
-            height: 230,
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
+      builder: _buildRail,
+    );
+  }
 
-        if (wishlistSnapshot.hasError) {
-          return SizedBox(
-            height: 230,
-            child: Center(
-              child: Text(
-                'Could not load wishlists.',
+  Widget _buildRail(
+    BuildContext context,
+    AsyncSnapshot<List<WishlistSummary>> wishlistSnapshot,
+  ) {
+    if (wishlistSnapshot.connectionState == ConnectionState.waiting) {
+      return const SizedBox(
+        height: 230,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (wishlistSnapshot.hasError) {
+      return SizedBox(
+        height: 230,
+        child: Center(
+          child: TextButton(
+            onPressed: onRetry,
+            child: const Text('Could not load wishlists. Try again'),
+          ),
+        ),
+      );
+    }
+
+    final wishlists = wishlistSnapshot.data ?? const [];
+
+    if (wishlists.isEmpty) {
+      return SizedBox(
+        height: 230,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Create your first wishlist.',
                 style: WhyNotTextStyles.muted(size: 13),
               ),
-            ),
-          );
-        }
-
-        final wishlists = wishlistSnapshot.data ?? const [];
-
-        if (wishlists.isEmpty) {
-          return SizedBox(
-            height: 230,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Create your first wishlist.',
-                    style: WhyNotTextStyles.muted(size: 13),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: 190,
-                    child: PillButton(
-                      label: 'Create a wishlist',
-                      onPressed: () =>
-                          Navigator.pushNamed(context, AppRoutes.newWishlist),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        return SizedBox(
-          height: 230,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.only(right: 18),
-            itemCount: wishlists.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 17),
-            itemBuilder: (context, index) {
-              final summary = wishlists[index];
-              final wishlist = summary.wishlist;
-
-              return SizedBox(
-                width: 131,
-                child: _HomeWishlistCard(
-                  wishlistId: wishlist.id,
-                  categoryId: wishlist.categoryId,
-                  categoryName: summary.categoryName,
-                  imageUrl: wishlist.imageUrl,
-                  emoji: wishlist.emoji,
+              const SizedBox(height: 16),
+              SizedBox(
+                width: 190,
+                child: PillButton(
+                  label: 'Create a wishlist',
+                  onPressed: () =>
+                      Navigator.pushNamed(context, AppRoutes.newWishlist),
                 ),
-              );
-            },
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 230,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.only(right: 18),
+        itemCount: wishlists.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 17),
+        itemBuilder: (context, index) {
+          final summary = wishlists[index];
+          final wishlist = summary.wishlist;
+
+          return SizedBox(
+            width: 131,
+            child: _HomeWishlistCard(
+              wishlistId: wishlist.id,
+              categoryId: wishlist.categoryId,
+              categoryName: summary.categoryName,
+              imageUrl: wishlist.imageUrl,
+              emoji: wishlist.emoji,
+            ),
+          );
+        },
+      ),
     );
   }
 }
