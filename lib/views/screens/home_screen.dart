@@ -35,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _loads ??= HomeController(
+      errorReporter: context.dependencies.errorReporter,
       connectivity: context.dependencies.connectivity,
       watchProfile: context.dependencies.profileController.watchCurrentProfile,
       watchWishlists:

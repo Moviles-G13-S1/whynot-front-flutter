@@ -9,6 +9,9 @@ import 'package:flutter/material.dart';
 import 'app/whynot_app.dart';
 import 'app/whynot_theme.dart';
 import 'firebase_options.dart';
+import 'dart:async';
+import 'app/app_dependencies.dart';
+import 'app/application_error_handlers.dart';
 
 /// Opt in to local Firebase services with --dart-define=USE_FIREBASE_EMULATORS=true.
 const bool _useFirebaseEmulators = bool.fromEnvironment(
@@ -71,5 +74,11 @@ Future<void> main() async {
 
   WhyNotTheme.configureSystemUi();
 
-  runApp(const WhyNotApp());
+  final dependencies = AppDependencies.firebase();
+  final reporter = dependencies.errorReporter;
+  if (reporter != null) {
+    installApplicationErrorHandlers(reporter);
+    unawaited(reporter.flush());
+  }
+  runApp(WhyNotApp(dependencies: dependencies));
 }

@@ -8,6 +8,7 @@ import '../models/network_failure.dart';
 import 'connectivity_status.dart';
 import 'dart:typed_data';
 import 'profile_photo_cache.dart';
+import 'application_error_reporter.dart';
 
 class ProfileController {
   const ProfileController({
@@ -17,6 +18,7 @@ class ProfileController {
     this.onRecommendationInputsChanged,
     this.connectivity,
     this.photoCache,
+    this.errorReporter,
   }) : _authRepository = authRepository,
        _userRepository = userRepository,
        _photoRepository = photoRepository;
@@ -27,6 +29,15 @@ class ProfileController {
   final void Function(String userId)? onRecommendationInputsChanged;
   final ConnectivityStatus? connectivity;
   final ProfilePhotoCache? photoCache;
+  final ApplicationErrorReporter? errorReporter;
+
+  Future<T> _track<T>(String operation, Future<T> Function() action) =>
+      errorReporter?.run(
+        feature: 'profile',
+        operation: operation,
+        action: action,
+      ) ??
+      action();
 
   Future<void> _requireNetwork() async {
     if (connectivity != null && !await connectivity!.canAttemptNetwork()) {
@@ -49,7 +60,10 @@ class ProfileController {
     final id = currentUserId;
     return id == null
         ? Future.value()
-        : _userRepository.get(id).timeout(const Duration(seconds: 12));
+        : _track(
+            'load_profile',
+            () => _userRepository.get(id).timeout(const Duration(seconds: 12)),
+          );
   }
 
   // Santiago Casasbuenas: Select a profile image through the injected photo repository.
@@ -64,9 +78,12 @@ class ProfileController {
     if (connectivity?.isOffline == true) {
       return Future.error(const NetworkFailure());
     }
-    return _photoRepository
-        .getDownloadUrl(path)
-        .timeout(const Duration(seconds: 12));
+    return _track(
+      'load_photo',
+      () => _photoRepository
+          .getDownloadUrl(path)
+          .timeout(const Duration(seconds: 12)),
+    );
   }
 
   Future<Uint8List?> getPhotoBytes(String path) {
@@ -83,34 +100,37 @@ class ProfileController {
   }
 
   // Santiago Casasbuenas: Upload, save the path, and clean up replaced or failed uploads.
-  Future<String> savePhoto(ProfilePhoto photo) async {
-    await _requireNetwork();
-    final id = currentUserId;
-    if (id == null) throw StateError('No user logged in.');
-    final previous = (await _userRepository.get(id))?.photoPath;
-    final path = await _photoRepository.upload(id, photo);
-    try {
-      await _userRepository.updatePhotoPath(id, path);
-    } catch (_) {
-      try {
-        await _photoRepository.delete(path);
-      } catch (_) {
-        /* Preserve original error. */
-      }
-      rethrow;
-    }
-    await photoCache?.remember(id, path, photo.bytes);
-    if (previous != null && previous.startsWith('profilePhotos/$id/')) {
-      try {
-        await _photoRepository.delete(previous);
-      } catch (_) {
-        /* Old file can be cleaned up later. */
-      }
-    }
-    return path;
-  }
+  Future<String> savePhoto(ProfilePhoto photo) =>
+      _track('save_photo', () async {
+        await _requireNetwork();
+        final id = currentUserId;
+        if (id == null) throw StateError('No user logged in.');
+        final previous = (await _userRepository.get(id))?.photoPath;
+        final path = await _photoRepository.upload(id, photo);
+        try {
+          await _userRepository.updatePhotoPath(id, path);
+        } catch (_) {
+          try {
+            await _photoRepository.delete(path);
+          } catch (_) {
+            /* Preserve original error. */
+          }
+          rethrow;
+        }
+        await photoCache?.remember(id, path, photo.bytes);
+        if (previous != null && previous.startsWith('profilePhotos/$id/')) {
+          try {
+            await _photoRepository.delete(previous);
+          } catch (_) {
+            /* Old file can be cleaned up later. */
+          }
+        }
+        return path;
+      });
 
-  Future<void> updateCurrentProfile(UserProfileUpdate update) async {
+  Future<void> updateCurrentProfile(
+    UserProfileUpdate update,
+  ) => _track('update_profile', () async {
     await _requireNetwork();
     InputPolicy.noEmoji(update.name, 'Name');
     final id = currentUserId;
@@ -126,5 +146,5 @@ class ProfileController {
     await _userRepository.update(id, update);
     // Santiago Casasbuenas: Age, gender, and category affect matching.
     onRecommendationInputsChanged?.call(id);
-  }
+  });
 }
