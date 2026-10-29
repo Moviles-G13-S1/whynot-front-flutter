@@ -10,6 +10,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../models/repositories/profile_photo_cache_store.dart';
 import '../controllers/profile_photo_cache.dart';
+import '../controllers/application_error_reporter.dart';
+import '../infrastructure/repositories/firebase_application_error_sink.dart';
+import '../infrastructure/repositories/sqlite_application_error_queue.dart';
 import '../infrastructure/repositories/profile_photo_cache_stores.dart';
 import '../controllers/recommendation_controller.dart';
 import '../controllers/wishlist_controller.dart';
@@ -54,10 +57,12 @@ class AppDependencies {
     required this.nearbyStoreController,
     SqliteProductDraftStore? productDraftStore,
     BaseCacheManager? Function()? photoCacheManager,
+    this.errorReporter,
   }) : productDraftStore = productDraftStore ?? SqliteProductDraftStore(),
        _photoCacheManager = photoCacheManager;
 
   final BaseCacheManager? Function()? _photoCacheManager;
+  final ApplicationErrorReporter? errorReporter;
   BaseCacheManager? get photoCacheManager => _photoCacheManager?.call();
 
   /// Creates the production/default dependency graph.
@@ -77,6 +82,12 @@ class AppDependencies {
     final RecommendationRepository recommendationRepository =
         FirebaseRecommendationRepository();
     final connectivity = ConnectivityStatus();
+    final errorReporter = ApplicationErrorReporter(
+      queue: SqliteApplicationErrorQueue(),
+      sink: FirebaseApplicationErrorSink(),
+      currentUserId: () => authRepository.currentUser?.id,
+      connectivity: connectivity,
+    );
     final photoRepository = FirebaseProfilePhotoRepository();
     final ProfilePhotoCacheStore photoStore = kIsWeb
         ? SqliteProfilePhotoCacheStore()
@@ -107,6 +118,7 @@ class AppDependencies {
     );
 
     return AppDependencies(
+      errorReporter: errorReporter,
       photoCacheManager: () {
         final id = authRepository.currentUser?.id;
         return id != null && photoStore is ManagedProfilePhotoCacheStore
@@ -119,12 +131,14 @@ class AppDependencies {
         onAuthChanged: recommendationController.clearCache,
         connectivity: connectivity,
         onSessionEnded: photoCache.clear,
+        errorReporter: errorReporter,
       ),
       profileController: ProfileController(
         authRepository: authRepository,
         userRepository: userRepository,
         photoRepository: photoRepository,
         photoCache: photoCache,
+        errorReporter: errorReporter,
         connectivity: connectivity,
         onRecommendationInputsChanged:
             recommendationController.invalidateForUser,

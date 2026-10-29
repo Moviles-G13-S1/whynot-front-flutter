@@ -5,7 +5,8 @@ import 'package:flutter/widgets.dart';
 /// One independently retryable subscription owned by a screen's controller.
 /// Starting a section never waits for another section to finish loading.
 class LiveSection<T> extends ChangeNotifier {
-  LiveSection(this._source);
+  LiveSection(this._source, {this.onError});
+  final void Function(Object error)? onError;
 
   final Stream<T> Function() _source;
   StreamSubscription<T>? _subscription;
@@ -48,6 +49,7 @@ class LiveSection<T> extends ChangeNotifier {
         },
         onError: (Object error, StackTrace stack) {
           if (_disposed || generation != _generation) return;
+          onError?.call(error);
           snapshot = AsyncSnapshot.withError(
             ConnectionState.active,
             error,
@@ -63,6 +65,7 @@ class LiveSection<T> extends ChangeNotifier {
       );
     } catch (error, stack) {
       if (_disposed || generation != _generation) return;
+      onError?.call(error);
       snapshot = AsyncSnapshot.withError(ConnectionState.active, error, stack);
       notifyListeners();
     }

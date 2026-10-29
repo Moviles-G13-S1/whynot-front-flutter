@@ -29,6 +29,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.didChangeDependencies();
     if (context.dependencies.profileController.currentUserId == null) return;
     _loads ??= ProfileLoadController(
+      errorReporter: context.dependencies.errorReporter,
       connectivity: context.dependencies.connectivity,
       watchProfile: context.dependencies.profileController.watchCurrentProfile,
       getCities: context.dependencies.cityController.getCities,
