@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import '../../app/app_routes.dart';
 import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
+import '../../controllers/connectivity_status.dart';
+import '../widgets/connectivity_message.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../../models/product.dart';
 import '../../models/input_policy.dart';
@@ -37,11 +39,16 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
   bool _initialized = false;
   bool _isLoadingWishlists = false;
   bool _isSaving = false;
+  bool _savedRemotely = false;
 
   // Juliana - Sprint 3: local draft caching and memory management.
   Timer? _draftDebounce;
   SqliteProductDraftStore? _draftStore;
   String? _draftUserId;
+  // Juliana - Sprint 3: Eventual Connectivity.
+  ConnectivityStatus? _connectivity;
+  NetworkStatus _network = NetworkStatus.unknown;
+  bool _connectionRestored = false;
 
   // Fixed when Add Item was opened inside a particular wishlist.
   // Null when opened using the black central + button.
@@ -51,7 +58,6 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
 
   bool _restoringDraft = false;
   bool _hasEditedDraft = false;
-  bool _savedRemotely = false;
 
   @override
   void initState() {
@@ -70,6 +76,10 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
 
     if (_initialized) return;
     _initialized = true;
+
+    _connectivity = context.dependencies.connectivity;
+    _network = _connectivity!.status;
+    _connectivity!.addListener(_onConnectivityChanged);
 
     final arguments =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
@@ -91,8 +101,27 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
     }
   }
 
+  void _onConnectivityChanged() {
+    final status = _connectivity?.status ?? NetworkStatus.unknown;
+
+    if (!mounted || status == _network) return;
+
+    final wasOffline = _network == NetworkStatus.offline;
+
+    setState(() {
+      _network = status;
+
+      if (status == NetworkStatus.offline) {
+        _connectionRestored = false;
+      } else if (wasOffline && status == NetworkStatus.available) {
+        _connectionRestored = true;
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _connectivity?.removeListener(_onConnectivityChanged);
     _draftDebounce?.cancel();
 
     // Preserve the latest changes when leaving the form.
@@ -272,6 +301,22 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
     setState(() => _isSaving = true);
 
     try {
+      // Check connectivity again before attempting the remote save.
+      await _connectivity?.refresh();
+      if (!mounted) return;
+
+      if (_connectivity?.isOffline == true) {
+        // Keep the product draft locally.
+        _draftDebounce?.cancel();
+        _saveLocalDraft();
+
+        if (mounted) {
+          _showMessage('You are offline. Your draft is saved locally.');
+        }
+
+        return;
+      }
+
       await context.dependencies.productController.create(
         ProductDraft(
           wishlistId: _selectedWishlistId!,
@@ -554,12 +599,46 @@ class _NewProductManualScreenState extends State<NewProductManualScreen> {
                 ),
 
               const SizedBox(height: 44),
-
+              // Juliana - Sprint 3: Eventual Connectivity.
+              if (_network == NetworkStatus.offline) ...[
+                ConnectivityNotice(
+                  label: 'Offline',
+                  title: "You're offline",
+                  message:
+                      'Your draft is saved locally. You can continue editing '
+                      'and save your product when you reconnect.',
+                  icon: Icons.wifi_off_rounded,
+                  actionLabel: 'Check connection',
+                  onAction: () {
+                    final connectivity = _connectivity;
+                    if (connectivity != null) {
+                      unawaited(connectivity.refresh());
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+              ] else if (_connectionRestored &&
+                  _network == NetworkStatus.available) ...[
+                const ConnectivityNotice(
+                  label: 'Connection',
+                  title: 'Connection detected!',
+                  message:
+                      'You can now try saving your product. '
+                      'Your draft is still available.',
+                  icon: Icons.wifi_rounded,
+                ),
+                const SizedBox(height: 16),
+              ],
               SizedBox(
                 width: double.infinity,
                 height: 44,
                 child: FilledButton(
-                  onPressed: _canSave && !_isSaving ? _saveItem : null,
+                  onPressed:
+                      _canSave &&
+                          !_isSaving &&
+                          _network != NetworkStatus.offline
+                      ? _saveItem
+                      : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.black,
                     disabledBackgroundColor: Colors.black.withValues(
