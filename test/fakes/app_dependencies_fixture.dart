@@ -17,6 +17,7 @@ import 'package:whynot_mobile/controllers/wishlist_controller.dart';
 import 'package:whynot_mobile/models/category.dart';
 import 'package:whynot_mobile/models/repositories/city_repository.dart';
 import 'package:whynot_mobile/models/repositories/recommendation_repository.dart';
+import 'package:whynot_mobile/models/repositories/recent_recommendation_store.dart';
 import 'package:whynot_mobile/models/wishlist.dart';
 
 import 'in_memory_admin_metrics_repository.dart';
@@ -37,6 +38,7 @@ AppDependencies createTestDependencies({
   int recommendedProductSaves = 0,
   CityRepository? cityRepository,
   RecommendationRepository? recommendationRepository,
+  RecentRecommendationStore? recentRecommendations,
   List<Wishlist> wishlists = const [],
   InMemoryWishlistRepository? wishlistRepositoryOverride,
   NearbyStoreController? nearbyStoreController,
@@ -64,6 +66,7 @@ AppDependencies createTestDependencies({
       recommendationRepository ?? InMemoryRecommendationRepository();
   final recommendationController = RecommendationController(
     recommendationRepository: recommendations,
+    recentRecommendations: recentRecommendations,
     authRepository: auth,
     connectivity: connectivity,
   );
@@ -81,7 +84,7 @@ AppDependencies createTestDependencies({
     authController: AuthController(
       authRepository: auth,
       userRepository: users,
-      onAuthChanged: recommendationController.clearCache,
+      onAuthChanged: recommendationController.handleAuthChange,
       connectivity: recommendationController.connectivity,
     ),
     profileController: ProfileController(
@@ -89,14 +92,16 @@ AppDependencies createTestDependencies({
       userRepository: users,
       photoRepository: InMemoryProfilePhotoRepository(),
       connectivity: recommendationController.connectivity,
-      onRecommendationInputsChanged: recommendationController.invalidateForUser,
+      onRecommendationInputsChanged:
+          recommendationController.invalidateAfterHistoryInputsChanged,
     ),
     wishlistController: wishlistController,
     productController: ProductController(
       authRepository: auth,
       productRepository: productRepository,
       wishlistController: wishlistController,
-      onRecommendationInputsChanged: recommendationController.invalidateForUser,
+      onRecommendationInputsChanged:
+          recommendationController.invalidateAfterHistoryInputsChanged,
     ),
     adminAccessController: AdminAccessController(auth),
     adminMetricsController: AdminMetricsController(

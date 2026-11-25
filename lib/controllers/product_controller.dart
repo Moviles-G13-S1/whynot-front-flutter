@@ -20,7 +20,7 @@ class ProductController {
   final AuthRepository _authRepository;
   final ProductRepository _productRepository;
   final WishlistController _wishlistController;
-  final void Function(String userId)? onRecommendationInputsChanged;
+  final FutureOr<void> Function(String userId)? onRecommendationInputsChanged;
 
   String? get currentUserId => _authRepository.currentUser?.id;
 
@@ -66,8 +66,8 @@ class ProductController {
 
     // The product was successfully saved.
     // Santiago Casasbuenas: Product changes can change the recommended pick.
-    onRecommendationInputsChanged?.call(ownerId);
     unawaited(_recordSaveAttempt(ownerId: ownerId, success: true));
+    await onRecommendationInputsChanged?.call(ownerId);
   }
 
   /// Analytics must never prevent a product from being saved.
@@ -89,7 +89,7 @@ class ProductController {
     _validateDraft(draft);
     final id = currentUserId;
     await _productRepository.update(productId, draft);
-    if (id != null) onRecommendationInputsChanged?.call(id);
+    if (id != null) await onRecommendationInputsChanged?.call(id);
   }
 
   void _validateDraft(ProductDraft draft) {
@@ -108,12 +108,12 @@ class ProductController {
   Future<void> markPurchased(String productId) async {
     final id = currentUserId;
     await _productRepository.markPurchased(productId);
-    if (id != null) onRecommendationInputsChanged?.call(id);
+    if (id != null) await onRecommendationInputsChanged?.call(id);
   }
 
   Future<void> delete(String productId) async {
     final id = currentUserId;
     await _productRepository.delete(productId);
-    if (id != null) onRecommendationInputsChanged?.call(id);
+    if (id != null) await onRecommendationInputsChanged?.call(id);
   }
 }

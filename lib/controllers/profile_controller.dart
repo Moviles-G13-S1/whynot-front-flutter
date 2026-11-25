@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../models/profile_photo.dart';
 import '../models/repositories/profile_photo_repository.dart';
 import '../models/repositories/auth_repository.dart';
@@ -26,7 +27,7 @@ class ProfileController {
   final AuthRepository _authRepository;
   final UserRepository _userRepository;
   final ProfilePhotoRepository _photoRepository;
-  final void Function(String userId)? onRecommendationInputsChanged;
+  final FutureOr<void> Function(String userId)? onRecommendationInputsChanged;
   final ConnectivityStatus? connectivity;
   final ProfilePhotoCache? photoCache;
   final ApplicationErrorReporter? errorReporter;
@@ -145,6 +146,6 @@ class ProfileController {
     }
     await _userRepository.update(id, update);
     // Santiago Casasbuenas: Age, gender, and category affect matching.
-    onRecommendationInputsChanged?.call(id);
+    await onRecommendationInputsChanged?.call(id);
   });
 }

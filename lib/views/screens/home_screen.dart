@@ -205,13 +205,27 @@ class _HomeScreenState extends State<HomeScreen> {
                   // recommendation fetch and a cached revisit visible.
                   Padding(
                     padding: const EdgeInsets.only(right: 18),
-                    child: PillButton(
-                      label: 'Explore recommendations',
-                      height: 44,
-                      onPressed: () => Navigator.pushNamed(
-                        context,
-                        AppRoutes.recommendationCatalog,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        PillButton(
+                          label: 'Explore recommendations',
+                          height: 44,
+                          onPressed: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.recommendationCatalog,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        PillButton(
+                          label: 'Recently viewed',
+                          height: 44,
+                          onPressed: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.recentlyViewed,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 
