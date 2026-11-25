@@ -21,8 +21,10 @@ Configuration:
 - `stalePeriod` and putFile `maxAge`: 30 days; the immutable path determines
   replacement. A previously available image may still be shown offline.
 - Maximum image size: 5 MiB, matching upload validation.
-- A confirmed upload seeds the cache with its already available bytes, replacing
-  the old row/file. A rejected profile-photo update does not replace the cache.
+- A confirmed upload seeds the cache with the available avatar bytes, replacing
+  the old row/file. Native selections can supply a
+  [worker-generated thumbnail](profile-photo-isolate.md). Other paths use the
+  picked or downloaded bytes. A rejected profile-photo update keeps the old entry.
 - Sign-out/account switching clears that owner's managed files and in-memory
   bytes. Cleanup is best effort if local storage fails; it must not prevent
   Firebase sign-out. Session versions block late downloads from repopulating it.

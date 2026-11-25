@@ -24,6 +24,7 @@ dependencies:
   sqflite_common_ffi_web: ^1.2.0
   cached_network_image: ^3.4.1
   flutter_cache_manager: ^3.4.1
+  image: ^4.13.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

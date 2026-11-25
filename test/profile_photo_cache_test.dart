@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as image;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:whynot_mobile/controllers/profile_photo_cache.dart';
 import 'package:whynot_mobile/controllers/auth_controller.dart';
@@ -251,7 +252,7 @@ void main() {
   );
 
   test(
-    'confirmed upload replaces local bytes; rejected upload retains previous cache',
+    'confirmed upload caches the thumbnail; a rejected update keeps the old bytes',
     () async {
       final auth = InMemoryAuthRepository(
         user: const AuthUser(id: 'alice', email: 'alice@example.com'),
@@ -273,10 +274,12 @@ void main() {
         photoPath: alicePath,
       );
       final rejectedUsers = RejectPhotoUsers()..profiles['alice'] = user;
+      final thumbnail = image.encodePng(image.Image(width: 1, height: 1));
       final photo = ProfilePhoto(
         bytes: imageBytes,
         contentType: 'image/png',
         extension: 'png',
+        thumbnailBytes: thumbnail,
       );
       final rejected = ProfileController(
         authRepository: auth,
@@ -286,6 +289,7 @@ void main() {
       );
       await expectLater(rejected.savePhoto(photo), throwsStateError);
       expect(store.rows['alice']!.path, alicePath);
+      expect(store.rows['alice']!.bytes, imageBytes);
       final users = InMemoryUserRepository()..profiles['alice'] = user;
       final controller = ProfileController(
         authRepository: auth,
@@ -296,7 +300,8 @@ void main() {
       final savedPath = await controller.savePhoto(photo);
       expect(store.rows['alice']!.path, savedPath);
       expect(await store.read('alice', alicePath), isNull);
-      expect(await controller.getPhotoBytes(savedPath), imageBytes);
+      expect(await controller.getPhotoBytes(savedPath), thumbnail);
+      expect(await store.read('alice', savedPath), thumbnail);
     },
   );
 

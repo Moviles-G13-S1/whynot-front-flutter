@@ -2,10 +2,12 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:image_picker/image_picker.dart';
 
 import '../../models/profile_photo.dart';
 import '../../models/repositories/profile_photo_repository.dart';
+import 'profile_photo_thumbnail.dart';
 
 class FirebaseProfilePhotoRepository implements ProfilePhotoRepository {
   FirebaseProfilePhotoRepository({
@@ -50,10 +52,19 @@ class FirebaseProfilePhotoRepository implements ProfilePhotoRepository {
     if (!jpeg && !png) {
       throw const FormatException('Choose a JPEG or PNG image.');
     }
+    // Santiago Casasbuenas: Send only image data to the native worker. Keep
+    // picker and storage calls on the main isolate. Web skips the extra work.
+    final thumbnailBytes = kIsWeb
+        ? null
+        : await compute(createProfilePhotoThumbnail, (
+            bytes: bytes,
+            jpeg: jpeg,
+          ), debugLabel: 'profile-photo-thumbnail');
     return ProfilePhoto(
       bytes: bytes,
       contentType: jpeg ? 'image/jpeg' : 'image/png',
       extension: jpeg ? 'jpg' : 'png',
+      thumbnailBytes: thumbnailBytes,
     );
   }
 
