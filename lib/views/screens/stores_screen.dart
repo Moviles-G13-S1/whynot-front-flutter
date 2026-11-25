@@ -22,15 +22,28 @@ String formatStorePrice(double price) {
       : '$sign\$$grouped,${cents.toString().padLeft(2, '0')}';
 }
 
-/// Arguments for [AppRoutes.storeDetail].
-class StoreDetailArguments {
-  const StoreDetailArguments({
-    required this.group,
-    required this.mayBeOutdated,
-  });
+/// How long ago the server last confirmed the data, for connection notices.
+String describeSyncAge(DateTime then, DateTime now) {
+  final age = now.difference(then);
+  if (age.inMinutes < 1) return 'just now';
+  if (age.inHours < 1) return '${age.inMinutes} min ago';
+  if (age.inDays < 1) return '${age.inHours} h ago';
+  return age.inDays == 1 ? 'yesterday' : '${age.inDays} days ago';
+}
 
-  final StoreGroup group;
-  final bool mayBeOutdated;
+/// "Last updated 2 h ago." when known, else an empty string.
+String lastUpdatedLabel(StoresController controller, DateTime now) {
+  final at = controller.confirmedAt;
+  return at == null ? '' : 'Last updated ${describeSyncAge(at, now)}.';
+}
+
+/// Arguments for [AppRoutes.storeDetail]. The store page follows the same
+/// controller, so it updates with new products and connection changes.
+class StoreDetailArguments {
+  const StoreDetailArguments({required this.domain, required this.controller});
+
+  final String domain;
+  final StoresController controller;
 }
 
 /// Santiago Casasbuenas: Sprint 4. The user's saved products grouped by the
@@ -64,7 +77,7 @@ class _StoresScreenState extends State<StoresScreen> {
   StoresController _createController() {
     final dependencies = context.dependencies;
     return StoresController(
-      watchProducts: dependencies.productController.watchCurrentProducts,
+      watchProducts: dependencies.productController.watchCurrentOwnerProducts,
       currentUserId: () => dependencies.productController.currentUserId,
       connectivity: dependencies.connectivity,
       store: dependencies.storeSummaryStore,
@@ -101,17 +114,26 @@ class _StoresScreenState extends State<StoresScreen> {
     final summary = controller.summary;
     final notice = _notice(controller);
     if (summary == null) {
+      // Offline with nothing stored: say so instead of "no products".
+      if (controller.waitingForConnection) {
+        return [
+          CompactConnectionNotice(
+            title: 'You’re offline',
+            message:
+                'Your stores will appear when you reconnect to Wi-Fi or '
+                'mobile data.',
+            icon: Icons.wifi_off_rounded,
+            actionLabel: 'Try again',
+            onAction: controller.retry,
+          ),
+        ];
+      }
       if (controller.error != null) {
         return [
-          ?notice,
           CompactConnectionNotice(
             title: 'Couldn’t load your stores',
-            message: controller.isOffline
-                ? 'Connect to Wi-Fi or mobile data to group your products.'
-                : 'Something went wrong while loading your products.',
-            icon: controller.isOffline
-                ? Icons.wifi_off_rounded
-                : Icons.error_outline_rounded,
+            message: 'Something went wrong while loading your products.',
+            icon: Icons.error_outline_rounded,
             actionLabel: 'Try again',
             onAction: controller.retry,
           ),
@@ -153,8 +175,8 @@ class _StoresScreenState extends State<StoresScreen> {
               context,
               AppRoutes.storeDetail,
               arguments: StoreDetailArguments(
-                group: group,
-                mayBeOutdated: controller.mayBeOutdated,
+                domain: group.domain,
+                controller: controller,
               ),
             ),
           ),
@@ -172,38 +194,51 @@ class _StoresScreenState extends State<StoresScreen> {
     ];
   }
 
-  Widget? _notice(StoresController controller) {
-    if (controller.hasPendingWrites) {
-      return const CompactConnectionNotice(
-        title: 'Your changes are still saving',
-        message: 'Stores include them; they sync when you reconnect.',
-        icon: Icons.cloud_upload_outlined,
-      );
-    }
-    if (controller.isOffline) {
-      return CompactConnectionNotice(
-        title: 'You’re offline',
-        message: controller.summary == null
-            ? 'Your stores will appear when you reconnect.'
-            : 'Showing your saved stores. They may be outdated.',
-        icon: Icons.wifi_off_rounded,
-        actionLabel: controller.summary == null ? null : 'Try again',
-        onAction: controller.summary == null ? null : controller.retry,
-      );
-    }
-    if (controller.mayBeOutdated) {
-      return CompactConnectionNotice(
-        title: 'Saved information',
-        message: controller.source == StoresSource.device
-            ? 'Showing the stores saved on this device while we update them.'
-            : 'Updates resume when you reconnect to Wi-Fi or mobile data.',
-        icon: Icons.history_rounded,
-        actionLabel: controller.error != null ? 'Try again' : null,
-        onAction: controller.error != null ? controller.retry : null,
-      );
-    }
-    return null;
+  Widget? _notice(StoresController controller) =>
+      storesNotice(controller, DateTime.now());
+}
+
+/// The connection notice shared by the store list and the store page.
+///
+/// Order: unsynced changes, offline, a failed refresh, then data that is
+/// still being confirmed by the server.
+Widget? storesNotice(StoresController controller, DateTime now) {
+  final updated = lastUpdatedLabel(controller, now);
+  if (controller.hasPendingWrites) {
+    return const CompactConnectionNotice(
+      title: 'Your changes are still saving',
+      message: 'Stores include them; they sync when you reconnect.',
+      icon: Icons.cloud_upload_outlined,
+    );
   }
+  if (controller.isOffline) {
+    if (controller.summary == null) return null;
+    return CompactConnectionNotice(
+      title: 'You’re offline',
+      message: 'Showing your saved stores; they may be outdated. $updated'
+          .trim(),
+      icon: Icons.wifi_off_rounded,
+      actionLabel: 'Try again',
+      onAction: controller.retry,
+    );
+  }
+  if (controller.error != null && controller.summary != null) {
+    return CompactConnectionNotice(
+      title: 'Couldn’t refresh your stores',
+      message: 'Showing what was loaded before. $updated'.trim(),
+      icon: Icons.error_outline_rounded,
+      actionLabel: 'Try again',
+      onAction: controller.retry,
+    );
+  }
+  if (controller.mayBeOutdated) {
+    return CompactConnectionNotice(
+      title: 'Saved information',
+      message: 'Updating your stores. $updated'.trim(),
+      icon: Icons.history_rounded,
+    );
+  }
+  return null;
 }
 
 class _Overview extends StatelessWidget {

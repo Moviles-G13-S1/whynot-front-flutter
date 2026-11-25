@@ -107,10 +107,20 @@ class ProductDetailScreen extends StatelessWidget {
                   }
 
                   if (!snapshot.hasData) {
+                    // Santiago Casasbuenas: Offline, a product this device
+                    // never loaded is unknown, not missing.
+                    final offline = context.dependencies.connectivity.isOffline;
                     return Center(
-                      child: Text(
-                        'Product not found.',
-                        style: WhyNotTextStyles.muted(size: 14),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Text(
+                          offline
+                              ? 'This product isn’t saved on this device yet. '
+                                    'Connect to Wi-Fi or mobile data to see it.'
+                              : 'Product not found.',
+                          textAlign: TextAlign.center,
+                          style: WhyNotTextStyles.muted(size: 14),
+                        ),
                       ),
                     );
                   }

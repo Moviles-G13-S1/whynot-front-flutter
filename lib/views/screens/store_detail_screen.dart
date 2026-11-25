@@ -9,73 +9,109 @@ import 'stores_screen.dart';
 
 /// Santiago Casasbuenas: Sprint 4. The saved products from one online store.
 class StoreDetailScreen extends StatelessWidget {
-  const StoreDetailScreen({super.key});
+  const StoreDetailScreen({this.loadImages = true, super.key});
+
+  /// Widget tests turn network images off.
+  final bool loadImages;
 
   @override
   Widget build(BuildContext context) {
     final arguments = ModalRoute.of(context)?.settings.arguments;
     if (arguments is! StoreDetailArguments) {
-      return Scaffold(
-        backgroundColor: WhyNotColors.background,
-        appBar: AppBar(backgroundColor: WhyNotColors.background),
-        body: const Center(child: Text('This store is unavailable.')),
-      );
+      return _unavailable('This store is unavailable.');
     }
-    final group = arguments.group;
-    return Scaffold(
-      backgroundColor: WhyNotColors.background,
-      appBar: AppBar(
-        backgroundColor: WhyNotColors.background,
-        title: Text(group.name, style: WhyNotTextStyles.serif(size: 28)),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
-        children: [
-          Row(
+    final controller = arguments.controller;
+    // Follows the list's controller: new products, reconnects and errors
+    // update this page too.
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final group = controller.groupFor(arguments.domain);
+        if (group == null) {
+          return _unavailable(
+            controller.summary == null
+                ? 'This store will appear when your products load.'
+                : 'No saved products from this store right now.',
+            notice: storesNotice(controller, DateTime.now()),
+          );
+        }
+        final notice = storesNotice(controller, DateTime.now());
+        return Scaffold(
+          backgroundColor: WhyNotColors.background,
+          appBar: AppBar(
+            backgroundColor: WhyNotColors.background,
+            title: Text(group.name, style: WhyNotTextStyles.serif(size: 28)),
+          ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
             children: [
-              StoreLogo(domain: group.domain, name: group.name, size: 52),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(group.domain, style: WhyNotTextStyles.muted(size: 13)),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${group.productCount} saved · '
-                      '${formatStorePrice(group.pendingValue)} still to buy',
-                      style: WhyNotTextStyles.muted(size: 13),
+              ?notice,
+              Row(
+                children: [
+                  StoreLogo(
+                    domain: group.domain,
+                    name: group.name,
+                    size: 52,
+                    loadImage: loadImages,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          group.domain,
+                          style: WhyNotTextStyles.muted(size: 13),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${group.productCount} saved · '
+                          '${formatStorePrice(group.pendingValue)} still to buy',
+                          style: WhyNotTextStyles.muted(size: 13),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 18),
+              for (final product in group.products) ...[
+                _StoreProductTile(
+                  key: ValueKey('store-product-${product.id}'),
+                  product: product,
+                  loadImage: loadImages,
+                ),
+                const SizedBox(height: 10),
+              ],
             ],
           ),
-          if (arguments.mayBeOutdated) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Saved information. Details may be outdated.',
-              style: WhyNotTextStyles.muted(size: 12),
-            ),
-          ],
-          const SizedBox(height: 18),
-          for (final product in group.products) ...[
-            _StoreProductTile(
-              key: ValueKey('store-product-${product.id}'),
-              product: product,
-            ),
-            const SizedBox(height: 10),
-          ],
-        ],
-      ),
+        );
+      },
     );
   }
+
+  Widget _unavailable(String message, {Widget? notice}) => Scaffold(
+    backgroundColor: WhyNotColors.background,
+    appBar: AppBar(backgroundColor: WhyNotColors.background),
+    body: ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+      children: [
+        ?notice,
+        Text(message, style: WhyNotTextStyles.muted(size: 13)),
+      ],
+    ),
+  );
 }
 
 class _StoreProductTile extends StatelessWidget {
-  const _StoreProductTile({required this.product, super.key});
+  const _StoreProductTile({
+    required this.product,
+    required this.loadImage,
+    super.key,
+  });
 
   final StoreProduct product;
+  final bool loadImage;
 
   @override
   Widget build(BuildContext context) {
@@ -102,7 +138,7 @@ class _StoreProductTile extends StatelessWidget {
               height: 64,
               // Disk-cached thumbnails stay visible offline; failures show the
               // placeholder instead of a broken image.
-              child: image.isEmpty
+              child: image.isEmpty || !loadImage
                   ? placeholder
                   : CachedNetworkImage(
                       imageUrl: image,

@@ -36,6 +36,14 @@ class ProductController {
         : _productRepository.watchByOwner(ownerId);
   }
 
+  /// Santiago Casasbuenas: Current user's products with their cache state.
+  Stream<OwnerProducts> watchCurrentOwnerProducts() {
+    final ownerId = currentUserId;
+    return ownerId == null
+        ? Stream.value(const OwnerProducts(products: []))
+        : _productRepository.watchOwnerProducts(ownerId);
+  }
+
   Stream<Product?> watch(String productId) =>
       _productRepository.watch(productId);
 

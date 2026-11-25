@@ -4,6 +4,9 @@ abstract interface class ProductRepository {
   Stream<List<Product>> watchAll();
   Stream<List<Product>> watchByWishlist(String wishlistId);
   Stream<List<Product>> watchByOwner(String ownerId);
+
+  /// Like [watchByOwner], also reporting whether the server confirmed it.
+  Stream<OwnerProducts> watchOwnerProducts(String ownerId);
   Stream<Product?> watch(String productId);
 
   Future<Product?> get(String productId);

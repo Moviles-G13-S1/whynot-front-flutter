@@ -36,10 +36,11 @@ Future<StoreSummary> groupOnBackgroundIsolate(StoreGroupingInput input) =>
 ///   immediately on the next visit, before Firestore answers.
 /// - Eventual connectivity: offline, the view groups the products Firestore
 ///   cached; with no cache it falls back to the device copy, and a new server
-///   snapshot replaces both once the connection returns.
+///   snapshot replaces both once the connection returns. An empty cache is
+///   never shown as "no products"; the view waits for the connection.
 class StoresController extends ChangeNotifier {
   StoresController({
-    required Stream<List<Product>> Function() watchProducts,
+    required Stream<OwnerProducts> Function() watchProducts,
     required String? Function() currentUserId,
     required this.connectivity,
     StoreSummaryStore? store,
@@ -53,14 +54,14 @@ class StoresController extends ChangeNotifier {
     connectivity.addListener(_onConnectivityChanged);
   }
 
-  final Stream<List<Product>> Function() _watchProducts;
+  final Stream<OwnerProducts> Function() _watchProducts;
   final String? Function() _currentUserId;
   final ConnectivityStatus connectivity;
   final StoreSummaryStore? _store;
   final StoreGrouper _grouper;
   final DateTime Function() _now;
 
-  StreamSubscription<List<Product>>? _subscription;
+  StreamSubscription<OwnerProducts>? _subscription;
   int _generation = 0;
   int _groupingTicket = 0;
   bool _disposed = false;
@@ -72,11 +73,20 @@ class StoresController extends ChangeNotifier {
   bool hasPendingWrites = false;
   Object? error;
 
+  /// When the server last confirmed this account's products, if known.
+  DateTime? confirmedAt;
+
+  /// Firestore answered, but only with an empty cache: nothing is known yet.
+  bool cacheWasEmpty = false;
+
   /// The user whose grouping is visible; never shown to another account.
   String? _userId;
 
   bool get isOffline => connectivity.isOffline;
   bool get isLoading => summary == null && error == null;
+
+  /// Offline with neither cached products nor a device copy to show.
+  bool get waitingForConnection => summary == null && isOffline;
 
   /// The visible grouping may not match the server.
   bool get mayBeOutdated =>
@@ -92,7 +102,10 @@ class StoresController extends ChangeNotifier {
     if (userId != _userId) {
       summary = null;
       source = StoresSource.none;
+      confirmedAt = null;
+      hasPendingWrites = false;
     }
+    cacheWasEmpty = false;
     _userId = userId;
     _wasOffline = isOffline;
     _notify();
@@ -100,7 +113,7 @@ class StoresController extends ChangeNotifier {
 
     unawaited(_readDeviceCopy(generation, userId));
     _subscription = _watchProducts().listen(
-      (products) => unawaited(_group(generation, userId, products)),
+      (snapshot) => unawaited(_group(generation, userId, snapshot)),
       onError: (Object failure) {
         if (_disposed || generation != _generation) return;
         error = failure;
@@ -128,11 +141,17 @@ class StoresController extends ChangeNotifier {
     try {
       final saved = await store.read(userId);
       if (_disposed || generation != _generation || saved == null) return;
-      // Server data is always newer; so is a cached grouping with products.
       if (source == StoresSource.live) return;
-      if (source == StoresSource.cache && summary!.totalProducts > 0) return;
-      summary = saved;
-      source = StoresSource.device;
+      // The copy is the last server-confirmed state, even behind a cache.
+      final savedAt = saved.computedAt;
+      if (confirmedAt == null || savedAt.isAfter(confirmedAt!)) {
+        confirmedAt = savedAt;
+      }
+      // A cached grouping with products is newer than the copy.
+      if (source != StoresSource.cache || summary!.totalProducts == 0) {
+        summary = saved;
+        source = StoresSource.device;
+      }
       _notify();
     } catch (_) {
       // The device copy is optional; Firestore still loads the view.
@@ -142,8 +161,9 @@ class StoresController extends ChangeNotifier {
   Future<void> _group(
     int generation,
     String userId,
-    List<Product> products,
+    OwnerProducts snapshot,
   ) async {
+    final products = snapshot.products;
     if (_disposed || generation != _generation) return;
     final ticket = ++_groupingTicket;
     grouping = true;
@@ -162,20 +182,20 @@ class StoresController extends ChangeNotifier {
     if (_disposed || generation != _generation || ticket != _groupingTicket) {
       return;
     }
-    // An empty list carries no cache flag; offline it is treated as cached.
-    final fromCache = products.isEmpty
-        ? isOffline
-        : products.any((item) => item.fromCache);
-    // An empty cached result says nothing; keep the device copy instead.
-    if (fromCache && products.isEmpty && source == StoresSource.device) {
-      grouping = false;
+    final fromCache = snapshot.fromCache;
+    grouping = false;
+    // An empty cache only means Firestore has nothing stored yet. It must not
+    // read as "no products": keep the device copy, or wait for the server.
+    if (fromCache && products.isEmpty && source != StoresSource.cache) {
+      cacheWasEmpty = true;
       _notify();
       return;
     }
     summary = result;
     source = fromCache ? StoresSource.cache : StoresSource.live;
-    hasPendingWrites = products.any((item) => item.hasPendingWrites);
-    grouping = false;
+    hasPendingWrites = snapshot.hasPendingWrites;
+    cacheWasEmpty = false;
+    if (!fromCache) confirmedAt = result.computedAt;
     error = null;
     _notify();
     // Only server-confirmed groupings are saved as the device copy.

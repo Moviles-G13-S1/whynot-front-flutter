@@ -13,8 +13,6 @@ class Product {
     this.purchasedAt,
     this.createdAt,
     this.updatedAt,
-    this.fromCache = false,
-    this.hasPendingWrites = false,
   });
 
   final String id;
@@ -30,12 +28,6 @@ class Product {
   final DateTime? purchasedAt;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-
-  /// Firestore served this product from the device cache.
-  final bool fromCache;
-
-  /// A local change to this product has not reached the server yet.
-  final bool hasPendingWrites;
 }
 
 class ProductDraft {
@@ -56,4 +48,24 @@ class ProductDraft {
   final double price;
   final String imageUrl;
   final String productUrl;
+}
+
+/// Santiago Casasbuenas: One user's products plus the query's cache state.
+///
+/// The flags belong to the whole query, so an empty list still says whether
+/// it came from the device cache or from the server.
+class OwnerProducts {
+  const OwnerProducts({
+    required this.products,
+    this.fromCache = false,
+    this.hasPendingWrites = false,
+  });
+
+  final List<Product> products;
+
+  /// Firestore answered from its offline cache, not the server.
+  final bool fromCache;
+
+  /// Some local change has not reached the server yet.
+  final bool hasPendingWrites;
 }

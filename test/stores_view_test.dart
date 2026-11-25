@@ -11,6 +11,8 @@ import 'package:whynot_mobile/infrastructure/storage/whynot_local_database.dart'
 import 'package:whynot_mobile/models/product.dart';
 import 'package:whynot_mobile/models/repositories/store_summary_store.dart';
 import 'package:whynot_mobile/models/store_summary.dart';
+import 'package:whynot_mobile/app/app_routes.dart';
+import 'package:whynot_mobile/views/screens/store_detail_screen.dart';
 import 'package:whynot_mobile/views/screens/stores_screen.dart';
 import 'package:whynot_mobile/views/widgets/store_logo.dart';
 
@@ -20,7 +22,6 @@ Product _product(
   String brand = 'Brand',
   double price = 100,
   bool purchased = false,
-  bool fromCache = false,
 }) => Product(
   id: id,
   ownerId: 'user-1',
@@ -32,8 +33,23 @@ Product _product(
   imageUrl: '',
   productUrl: url,
   purchased: purchased,
-  fromCache: fromCache,
 );
+
+OwnerProducts _live(List<Product> products) =>
+    OwnerProducts(products: products);
+
+OwnerProducts _cached(List<Product> products, {bool pending = false}) =>
+    OwnerProducts(
+      products: products,
+      fromCache: true,
+      hasPendingWrites: pending,
+    );
+
+StoreSummary _saved(String domain, String brand, DateTime at) =>
+    groupProductsByStore((
+      products: [_product('old', url: domain, brand: brand)],
+      computedAt: at,
+    ));
 
 StoreSummary _sync(StoreGroupingInput input) => groupProductsByStore(input);
 
@@ -227,7 +243,7 @@ void main() {
 
   group('StoresController', () {
     late ConnectivityStatus connectivity;
-    late StreamController<List<Product>> products;
+    late StreamController<OwnerProducts> products;
     late _MemoryStore store;
 
     StoresController create({StoreGrouper grouper = _syncGrouper}) {
@@ -245,25 +261,24 @@ void main() {
     setUp(() {
       connectivity = ConnectivityStatus(observe: false)
         ..setStatus(NetworkStatus.available);
-      products = StreamController<List<Product>>.broadcast();
+      products = StreamController<OwnerProducts>.broadcast();
       store = _MemoryStore();
     });
 
     test('shows the device copy first, then the server grouping', () async {
-      store.saved['user-1'] = groupProductsByStore((
-        products: [_product('old', url: 'hm.com', brand: 'H&M')],
-        computedAt: DateTime(2026),
-      ));
+      store.saved['user-1'] = _saved('hm.com', 'H&M', DateTime(2026));
       final controller = create()..start();
       await pumpEventQueue();
       expect(controller.source, StoresSource.device);
       expect(controller.mayBeOutdated, isTrue);
+      expect(controller.confirmedAt, DateTime(2026));
 
-      products.add([_product('1', url: 'zara.com', brand: 'Zara')]);
+      products.add(_live([_product('1', url: 'zara.com', brand: 'Zara')]));
       await pumpEventQueue();
       expect(controller.source, StoresSource.live);
       expect(controller.summary!.groups.single.domain, 'zara.com');
       expect(controller.mayBeOutdated, isFalse);
+      expect(controller.confirmedAt!.isAfter(DateTime(2026)), isTrue);
       expect(store.saved['user-1']!.groups.single.domain, 'zara.com');
     });
 
@@ -271,7 +286,7 @@ void main() {
       'cached products are shown but never saved as the device copy',
       () async {
         final controller = create()..start();
-        products.add([_product('1', url: 'zara.com', fromCache: true)]);
+        products.add(_cached([_product('1', url: 'zara.com')]));
         await pumpEventQueue();
         expect(controller.source, StoresSource.cache);
         expect(controller.mayBeOutdated, isTrue);
@@ -279,19 +294,60 @@ void main() {
       },
     );
 
-    test('offline with an empty cache keeps the device copy', () async {
-      connectivity.setStatus(NetworkStatus.offline);
-      store.saved['user-1'] = groupProductsByStore((
-        products: [_product('old', url: 'hm.com', brand: 'H&M')],
-        computedAt: DateTime(2026),
-      ));
+    test('an empty cache keeps the device copy', () async {
+      store.saved['user-1'] = _saved('hm.com', 'H&M', DateTime(2026));
       final controller = create()..start();
       await pumpEventQueue();
-      products.add(const []);
+      products.add(_cached(const []));
       await pumpEventQueue();
       expect(controller.source, StoresSource.device);
       expect(controller.summary!.groups.single.domain, 'hm.com');
+      expect(store.writes, 0);
     });
+
+    test(
+      'offline with nothing stored waits instead of showing no products',
+      () async {
+        connectivity.setStatus(NetworkStatus.offline);
+        final controller = create()..start();
+        products.add(_cached(const []));
+        await pumpEventQueue();
+        expect(controller.summary, isNull);
+        expect(controller.cacheWasEmpty, isTrue);
+        expect(controller.waitingForConnection, isTrue);
+        expect(store.writes, 0);
+      },
+    );
+
+    test('an empty server answer is a real empty state and is saved', () async {
+      final controller = create()..start();
+      products.add(_cached(const []));
+      products.add(_live(const []));
+      await pumpEventQueue();
+      expect(controller.source, StoresSource.live);
+      expect(controller.summary!.totalProducts, 0);
+      expect(store.saved['user-1']!.totalProducts, 0);
+    });
+
+    test('pending writes are reported', () async {
+      final controller = create()..start();
+      products.add(_cached([_product('1', url: 'zara.com')], pending: true));
+      await pumpEventQueue();
+      expect(controller.hasPendingWrites, isTrue);
+    });
+
+    test(
+      'a failed refresh keeps the last grouping and reports the error',
+      () async {
+        final controller = create()..start();
+        products.add(_live([_product('1', url: 'zara.com')]));
+        await pumpEventQueue();
+        products.addError(StateError('permission-denied'));
+        await pumpEventQueue();
+        expect(controller.summary!.groups.single.domain, 'zara.com');
+        expect(controller.error, isNotNull);
+      },
+    );
 
     test('a slow older grouping never replaces a newer one', () async {
       final pending = <Completer<StoreSummary>>[];
@@ -302,8 +358,8 @@ void main() {
           return (pending..add(Completer())).last.future;
         },
       )..start();
-      products.add([_product('1', url: 'hm.com')]);
-      products.add([_product('2', url: 'zara.com')]);
+      products.add(_live([_product('1', url: 'hm.com')]));
+      products.add(_live([_product('2', url: 'zara.com')]));
       await pumpEventQueue();
 
       pending[1].complete(groupProductsByStore(inputs[1]));
@@ -333,45 +389,141 @@ void main() {
     });
   });
 
-  testWidgets('Stores screen lists stores and flags offline data', (
-    tester,
-  ) async {
-    final connectivity = ConnectivityStatus(observe: false)
-      ..setStatus(NetworkStatus.offline);
-    final products = StreamController<List<Product>>();
-    final controller = StoresController(
-      watchProducts: () => products.stream,
-      currentUserId: () => 'user-1',
-      connectivity: connectivity,
-      grouper: _syncGrouper,
-    );
-    addTearDown(controller.dispose);
-
-    await tester.pumpWidget(
-      MaterialApp(home: StoresScreen(controller: controller, loadLogos: false)),
-    );
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  test('sync age reads naturally', () {
+    final now = DateTime(2026, 11, 25, 12);
+    expect(describeSyncAge(now, now), 'just now');
     expect(
-      find.text('Your stores will appear when you reconnect.'),
-      findsOneWidget,
+      describeSyncAge(now.subtract(const Duration(minutes: 5)), now),
+      '5 min ago',
     );
-
-    products.add([
-      _product('1', url: 'zara.com', brand: 'Zara', price: 50, fromCache: true),
-      _product('2', url: 'zara.com', brand: 'Zara', price: 70, fromCache: true),
-      _product('3', fromCache: true),
-    ]);
-    await tester.pump();
-
-    expect(find.text('Zara'), findsOneWidget);
-    expect(find.byType(StoreLogo), findsOneWidget);
-    expect(find.text('2 products'), findsOneWidget);
-    expect(find.text('\$120'), findsOneWidget);
-    expect(find.text('1 product has no usable store link.'), findsOneWidget);
     expect(
-      find.text('Showing your saved stores. They may be outdated.'),
-      findsOneWidget,
+      describeSyncAge(now.subtract(const Duration(hours: 2)), now),
+      '2 h ago',
     );
+    expect(
+      describeSyncAge(now.subtract(const Duration(days: 1)), now),
+      'yesterday',
+    );
+    expect(
+      describeSyncAge(now.subtract(const Duration(days: 3)), now),
+      '3 days ago',
+    );
+  });
+
+  group('Stores screens', () {
+    late ConnectivityStatus connectivity;
+    late StreamController<OwnerProducts> products;
+    late StoresController controller;
+
+    setUp(() {
+      connectivity = ConnectivityStatus(observe: false)
+        ..setStatus(NetworkStatus.offline);
+      products = StreamController<OwnerProducts>.broadcast();
+      controller = StoresController(
+        watchProducts: () => products.stream,
+        currentUserId: () => 'user-1',
+        connectivity: connectivity,
+        grouper: _syncGrouper,
+      );
+      addTearDown(controller.dispose);
+    });
+
+    Future<void> pumpStores(WidgetTester tester) => tester.pumpWidget(
+      MaterialApp(
+        home: StoresScreen(controller: controller, loadLogos: false),
+        routes: {
+          AppRoutes.storeDetail: (_) =>
+              const StoreDetailScreen(loadImages: false),
+        },
+      ),
+    );
+
+    testWidgets('offline with nothing stored asks to reconnect', (
+      tester,
+    ) async {
+      await pumpStores(tester);
+      products.add(_cached(const []));
+      await tester.pump();
+
+      expect(
+        find.text(
+          'Your stores will appear when you reconnect to Wi-Fi or mobile data.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('You haven’t saved any products yet.'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('lists cached stores with an offline notice', (tester) async {
+      await pumpStores(tester);
+      products.add(
+        _cached([
+          _product('1', url: 'zara.com', brand: 'Zara', price: 50),
+          _product('2', url: 'zara.com', brand: 'Zara', price: 70),
+          _product('3'),
+        ]),
+      );
+      await tester.pump();
+
+      expect(find.text('Zara'), findsOneWidget);
+      expect(find.byType(StoreLogo), findsOneWidget);
+      expect(find.text('2 products'), findsOneWidget);
+      expect(find.text('\$120'), findsOneWidget);
+      expect(find.text('1 product has no usable store link.'), findsOneWidget);
+      expect(
+        find.text('Showing your saved stores; they may be outdated.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the store page updates when the server answers', (
+      tester,
+    ) async {
+      await pumpStores(tester);
+      products.add(_cached([_product('1', url: 'zara.com', brand: 'Zara')]));
+      await tester.pump();
+      await tester.tap(find.text('Zara'));
+      await tester.pumpAndSettle();
+      expect(find.text('Product 1'), findsOneWidget);
+      expect(find.text('You’re offline'), findsOneWidget);
+
+      connectivity.setStatus(NetworkStatus.available);
+      products.add(
+        _live([
+          _product('1', url: 'zara.com', brand: 'Zara'),
+          _product('2', url: 'zara.com', brand: 'Zara'),
+        ]),
+      );
+      await tester.pump();
+      expect(find.text('Product 2'), findsOneWidget);
+      expect(find.text('2 saved · \$200 still to buy'), findsOneWidget);
+      expect(find.text('You’re offline'), findsNothing);
+
+      products.add(_live(const []));
+      // Grouping is asynchronous: one frame for the event, one for the result.
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.text('No saved products from this store right now.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a failed refresh shows Try again over the loaded stores', (
+      tester,
+    ) async {
+      connectivity.setStatus(NetworkStatus.available);
+      await pumpStores(tester);
+      products.add(_live([_product('1', url: 'zara.com', brand: 'Zara')]));
+      await tester.pump();
+      products.addError(StateError('unavailable'));
+      await tester.pump();
+
+      expect(find.text('Couldn’t refresh your stores'), findsOneWidget);
+      expect(find.text('Try again'), findsOneWidget);
+      expect(find.text('Zara'), findsOneWidget);
+    });
   });
 }
 

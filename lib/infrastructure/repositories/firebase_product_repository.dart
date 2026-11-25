@@ -27,10 +27,23 @@ class FirebaseProductRepository implements ProductRepository {
   Stream<List<Product>> watchByOwner(String ownerId) => _firestore
       .collection('products')
       .where('ownerId', isEqualTo: ownerId)
-      // Santiago Casasbuenas: Also emit when cached products are confirmed by
-      // the server, so views can drop their "saved information" notice.
-      .snapshots(includeMetadataChanges: true)
+      .snapshots()
       .map((snapshot) => snapshot.docs.map(_fromQueryDocument).toList());
+
+  // Santiago Casasbuenas: Metadata changes also emit, so a cached answer is
+  // followed by the server's confirmation even when the products are equal.
+  @override
+  Stream<OwnerProducts> watchOwnerProducts(String ownerId) => _firestore
+      .collection('products')
+      .where('ownerId', isEqualTo: ownerId)
+      .snapshots(includeMetadataChanges: true)
+      .map(
+        (snapshot) => OwnerProducts(
+          products: snapshot.docs.map(_fromQueryDocument).toList(),
+          fromCache: snapshot.metadata.isFromCache,
+          hasPendingWrites: snapshot.metadata.hasPendingWrites,
+        ),
+      );
 
   @override
   Stream<Product?> watch(String productId) => _firestore
@@ -117,31 +130,14 @@ class FirebaseProductRepository implements ProductRepository {
 
   Product _fromQueryDocument(
     QueryDocumentSnapshot<Map<String, dynamic>> document,
-  ) => _product(
-    document.id,
-    document.data(),
-    fromCache: document.metadata.isFromCache,
-    hasPendingWrites: document.metadata.hasPendingWrites,
-  );
+  ) => _product(document.id, document.data());
 
   Product? _fromDocument(DocumentSnapshot<Map<String, dynamic>> document) {
     final data = document.data();
-    return data == null
-        ? null
-        : _product(
-            document.id,
-            data,
-            fromCache: document.metadata.isFromCache,
-            hasPendingWrites: document.metadata.hasPendingWrites,
-          );
+    return data == null ? null : _product(document.id, data);
   }
 
-  Product _product(
-    String id,
-    Map<String, dynamic> data, {
-    bool fromCache = false,
-    bool hasPendingWrites = false,
-  }) => Product(
+  Product _product(String id, Map<String, dynamic> data) => Product(
     id: id,
     ownerId: data['ownerId'] as String? ?? '',
     wishlistId: data['wishlistId'] as String? ?? '',
@@ -155,7 +151,5 @@ class FirebaseProductRepository implements ProductRepository {
     purchasedAt: (data['purchasedAt'] as Timestamp?)?.toDate(),
     createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
     updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
-    fromCache: fromCache,
-    hasPendingWrites: hasPendingWrites,
   );
 }
