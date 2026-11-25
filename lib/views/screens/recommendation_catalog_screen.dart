@@ -7,9 +7,11 @@ import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../controllers/recommendation_controller.dart';
 import '../../controllers/connectivity_status.dart';
+import '../../models/catalog_product_details.dart';
 import '../../models/recommendation_catalog_item.dart';
 import '../../models/repositories/recommendation_repository.dart';
 import '../widgets/connectivity_message.dart';
+import '../widgets/recommendation_product_card.dart';
 
 /// Browse a short-lived catalog snapshot and show which opened products occupy
 /// the separate five-slot detail LRU.
@@ -30,6 +32,8 @@ class _RecommendationCatalogScreenState
   String? _openingId;
   RecommendationController? _controller;
   StreamSubscription<String>? _invalidationSubscription;
+  StreamSubscription<void>? _sessionSubscription;
+  String? _catalogUserId;
   NetworkStatus _network = NetworkStatus.unknown;
   bool _checkingConnection = false;
 
@@ -76,11 +80,20 @@ class _RecommendationCatalogScreenState
     final controller = context.dependencies.recommendationController;
     if (_controller != controller) {
       _invalidationSubscription?.cancel();
+      _sessionSubscription?.cancel();
       _controller?.connectivity.removeListener(_networkChanged);
       _controller = controller;
       _network = controller.connectivity.status;
       controller.connectivity.addListener(_networkChanged);
+      _catalogUserId = controller.currentUserId;
       _load = _request(controller);
+      _sessionSubscription = controller.historyChanges.listen((_) {
+        if (!mounted || _catalogUserId == controller.currentUserId) return;
+        setState(() {
+          _catalogUserId = controller.currentUserId;
+          _load = _request(controller);
+        });
+      });
       _invalidationSubscription = controller.invalidations.listen((userId) {
         if (!mounted ||
             userId != context.dependencies.authController.currentUser?.id) {
@@ -96,6 +109,7 @@ class _RecommendationCatalogScreenState
   @override
   void dispose() {
     _invalidationSubscription?.cancel();
+    _sessionSubscription?.cancel();
     _controller?.connectivity.removeListener(_networkChanged);
     super.dispose();
   }
@@ -129,8 +143,9 @@ class _RecommendationCatalogScreenState
     setState(() => _openingId = item.sourceProductId);
     try {
       // Show the product immediately; only saving waits for the fresh event.
-      final opening = context.dependencies.recommendationController
-          .beginCatalogOpen(item);
+      final controller = context.dependencies.recommendationController;
+      if (_catalogUserId != controller.currentUserId) return;
+      final opening = controller.beginCatalogOpen(item);
       await Navigator.pushNamed(
         context,
         AppRoutes.recommendationDetail,
@@ -170,6 +185,9 @@ class _RecommendationCatalogScreenState
       body: FutureBuilder<({List<RecommendationCatalogItem> items, bool fromCache, Object? error})>(
         future: _load,
         builder: (context, snapshot) {
+          if (_catalogUserId != _controller?.currentUserId) {
+            return const SizedBox.shrink();
+          }
           final offline = _controller?.connectivity.isOffline == true;
           final previous = _controller?.staleCatalog;
           if (snapshot.connectionState != ConnectionState.done &&
@@ -269,117 +287,20 @@ class _RecommendationCatalogScreenState
               if (result.items.isEmpty)
                 const Text('No new recommendations yet. Try again later.'),
               for (final item in result.items) ...[
-                _CatalogCard(
-                  item: item,
+                RecommendationProductCard(
+                  sourceProductId: item.sourceProductId,
+                  details: CatalogProductDetails.fromCatalogItem(item),
                   cached: context.dependencies.recommendationController
                       .isCatalogProductCached(item.sourceProductId),
-                  opening: _openingId == item.sourceProductId,
-                  onTap: () => _open(item),
+                  onTap: _openingId == item.sourceProductId
+                      ? null
+                      : () => _open(item),
                 ),
                 const SizedBox(height: 12),
               ],
             ],
           );
         },
-      ),
-    );
-  }
-}
-
-class _CatalogCard extends StatelessWidget {
-  const _CatalogCard({
-    required this.item,
-    required this.cached,
-    required this.opening,
-    required this.onTap,
-  });
-
-  final RecommendationCatalogItem item;
-  final bool cached;
-  final bool opening;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: WhyNotColors.card,
-      borderRadius: BorderRadius.circular(16),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: opening ? null : onTap,
-        child: Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 74,
-                    height: 78,
-                    child: item.imageUrl.isEmpty
-                        ? const Icon(Icons.image_outlined)
-                        : Image.network(
-                            item.imageUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) =>
-                                const Icon(Icons.image_outlined),
-                          ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.name,
-                          style: WhyNotTextStyles.serif(size: 20),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          item.brand,
-                          style: WhyNotTextStyles.muted(size: 12),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item.categoryId,
-                          style: WhyNotTextStyles.muted(size: 11),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          item.reason,
-                          style: WhyNotTextStyles.muted(size: 11),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'COP ${item.price.round()}',
-                          style: WhyNotTextStyles.muted(size: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right),
-                ],
-              ),
-            ),
-            if (cached)
-              Positioned(
-                right: 9,
-                bottom: 9,
-                child: Semantics(
-                  label: 'Product details cached',
-                  child: Container(
-                    key: Key('catalog-cached-dot-${item.sourceProductId}'),
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.grey,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }
