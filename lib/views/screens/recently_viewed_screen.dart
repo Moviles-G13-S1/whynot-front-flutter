@@ -7,6 +7,7 @@ import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../controllers/recommendation_controller.dart';
 import '../../models/recent_recommendation.dart';
+import '../widgets/recommendation_product_card.dart';
 
 /// Santiago Casasbuenas: Browse local history independently of the online catalog.
 class RecentlyViewedScreen extends StatefulWidget {
@@ -153,28 +154,20 @@ class _RecentlyViewedScreenState extends State<RecentlyViewedScreen> {
                     style: WhyNotTextStyles.muted(size: 12),
                   ),
                   const SizedBox(height: 8),
-                  Material(
-                    color: WhyNotColors.card,
-                    borderRadius: BorderRadius.circular(16),
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
-                      children: [
-                        for (final entry in entries)
-                          ListTile(
-                            key: ValueKey('recent-${entry.sourceProductId}'),
-                            leading: const Icon(Icons.history_rounded),
-                            title: Text(entry.details.name),
-                            subtitle: entry.details.brand.isEmpty
-                                ? null
-                                : Text(entry.details.brand),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: _opening
-                                ? null
-                                : () => _open(entry.sourceProductId),
-                          ),
-                      ],
+                  for (final entry in entries) ...[
+                    RecommendationProductCard(
+                      key: ValueKey('recent-${entry.sourceProductId}'),
+                      sourceProductId: entry.sourceProductId,
+                      details: entry.details,
+                      cached: _controller!.isCatalogProductCached(
+                        entry.sourceProductId,
+                      ),
+                      onTap: _opening
+                          ? null
+                          : () => _open(entry.sourceProductId),
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                  ],
                 ],
               ],
             ),

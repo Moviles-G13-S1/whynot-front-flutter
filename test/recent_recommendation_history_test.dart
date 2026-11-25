@@ -19,6 +19,7 @@ import 'package:whynot_mobile/models/user_profile.dart';
 import 'package:whynot_mobile/models/wishlist.dart';
 import 'package:whynot_mobile/views/screens/recently_viewed_screen.dart';
 import 'package:whynot_mobile/views/widgets/form_controls.dart';
+import 'package:whynot_mobile/views/widgets/recommendation_product_card.dart';
 
 import 'fakes/app_dependencies_fixture.dart';
 import 'fakes/in_memory_recommendation_repository.dart';
@@ -430,6 +431,22 @@ void main() {
     expect(historyRow, findsNothing);
     await tester.tap(find.widgetWithText(PillButton, 'Recently viewed'));
     await tester.pumpAndSettle();
+    expect(tester.widget(historyRow), isA<RecommendationProductCard>());
+    expect(
+      find.descendant(of: historyRow, matching: find.text('COP 20000')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: historyRow, matching: find.text('fashion')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: historyRow,
+        matching: find.byIcon(Icons.image_outlined),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(historyRow);
     await tester.pumpAndSettle();
     expect(find.text('Stored coat'), findsOneWidget);
