@@ -45,7 +45,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   bool _isLoading = true;
   bool _isSaving = false;
-  bool _isUploadingPhoto = false;
+  bool _isChangingPhoto = false;
   String? _photoPath;
   ProfilePhoto? _photoPreview;
   bool _profileRequested = false;
@@ -288,26 +288,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   // Santiago Casasbuenas: Preview the selected image and report upload results.
   Future<void> _changePhoto() async {
-    if (_isUploadingPhoto) return;
+    if (_isChangingPhoto) return;
     final controller = context.dependencies.profileController;
-    if (controller.currentUserId == null) {
+    final userId = controller.currentUserId;
+    if (userId == null) {
       _showMessage('No user logged in.');
       return;
     }
+    setState(() => _isChangingPhoto = true);
     try {
       final photo = await controller.pickPhoto();
-      if (photo == null || !mounted) return;
-      setState(() {
-        _photoPreview = photo;
-        _isUploadingPhoto = true;
-      });
+      if (photo == null || !mounted || controller.currentUserId != userId) {
+        return;
+      }
+      setState(() => _photoPreview = photo);
       final path = await controller.savePhoto(photo);
       if (!mounted) return;
-      setState(() {
-        _photoPreview = null;
-        _photoPath = path;
-        _isUploadingPhoto = false;
-      });
+      setState(() => _photoPath = path);
       _showMessage('Photo updated');
     } on FormatException catch (error) {
       if (mounted) {
@@ -323,7 +320,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (mounted) {
         setState(() {
           _photoPreview = null;
-          _isUploadingPhoto = false;
+          _isChangingPhoto = false;
         });
       }
     }
@@ -443,16 +440,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       context.dependencies.profileController.getPhotoBytes,
                   connectivity: context.dependencies.connectivity,
                   cacheManager: context.dependencies.photoCacheManager,
-                  preview: _photoPreview?.bytes,
+                  preview: _photoPreview?.avatarBytes,
                 ),
               ),
               const SizedBox(height: 8),
               Center(
                 child: TextButton(
-                  onPressed: _isUploadingPhoto ? null : _changePhoto,
+                  onPressed: _isChangingPhoto ? null : _changePhoto,
                   style: linkButtonStyle(),
                   child: Text(
-                    _isUploadingPhoto ? 'Uploading photo...' : 'Change photo',
+                    !_isChangingPhoto
+                        ? 'Change photo'
+                        : _photoPreview == null
+                        ? 'Preparing photo...'
+                        : 'Uploading photo...',
                   ),
                 ),
               ),

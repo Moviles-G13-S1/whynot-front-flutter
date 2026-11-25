@@ -118,7 +118,9 @@ class ProfileController {
           }
           rethrow;
         }
-        await photoCache?.remember(id, path, photo.bytes);
+        // Santiago Casasbuenas: Cache the display bytes after confirming the
+        // original upload and its profile path.
+        await photoCache?.remember(id, path, photo.avatarBytes);
         if (previous != null && previous.startsWith('profilePhotos/$id/')) {
           try {
             await _photoRepository.delete(previous);
