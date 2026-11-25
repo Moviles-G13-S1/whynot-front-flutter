@@ -13,6 +13,8 @@ class Product {
     this.purchasedAt,
     this.createdAt,
     this.updatedAt,
+    this.fromCache = false,
+    this.hasPendingWrites = false,
   });
 
   final String id;
@@ -28,6 +30,12 @@ class Product {
   final DateTime? purchasedAt;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+
+  /// Firestore served this product from the device cache.
+  final bool fromCache;
+
+  /// A local change to this product has not reached the server yet.
+  final bool hasPendingWrites;
 }
 
 class ProductDraft {

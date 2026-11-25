@@ -37,6 +37,8 @@ import '../infrastructure/repositories/firebase_wishlist_repository.dart';
 import '../infrastructure/repositories/geolocator_location_repository.dart';
 import '../infrastructure/repositories/sqlite_product_draft_store.dart';
 import '../infrastructure/repositories/sqlite_recent_recommendation_store.dart';
+import '../infrastructure/repositories/sqlite_store_summary_store.dart';
+import '../models/repositories/store_summary_store.dart';
 import '../infrastructure/storage/whynot_local_database.dart';
 
 /// Composition root for application dependencies.
@@ -59,6 +61,7 @@ class AppDependencies {
     SqliteProductDraftStore? productDraftStore,
     BaseCacheManager? Function()? photoCacheManager,
     this.errorReporter,
+    this.storeSummaryStore,
   }) : productDraftStore = productDraftStore ?? SqliteProductDraftStore(),
        _photoCacheManager = photoCacheManager;
 
@@ -125,6 +128,7 @@ class AppDependencies {
     return AppDependencies(
       errorReporter: errorReporter,
       productDraftStore: SqliteProductDraftStore.withDatabase(localDatabase),
+      storeSummaryStore: SqliteStoreSummaryStore(localDatabase),
       photoCacheManager: () {
         final id = authRepository.currentUser?.id;
         return id != null && photoStore is ManagedProfilePhotoCacheStore
@@ -192,4 +196,7 @@ class AppDependencies {
   /// A single instance is reused across product form visits,
   /// keeping database connections under control.
   final SqliteProductDraftStore productDraftStore;
+
+  /// Santiago Casasbuenas: Device copy of the Stores grouping; tests may omit it.
+  final StoreSummaryStore? storeSummaryStore;
 }

@@ -14,6 +14,7 @@ class WhyNotLocalDatabase {
   static const _databaseName = 'whynot_product_drafts.db';
   static const productDraftsTable = 'product_drafts';
   static const recentRecommendationsTable = 'recent_recommendations';
+  static const storeSummariesTable = 'store_summaries';
 
   // Resolve the native factory only when SQLite is actually used.
   final DatabaseFactory? _injectedFactory;
@@ -49,14 +50,16 @@ class WhyNotLocalDatabase {
     return _factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 3,
+        version: 4,
         onCreate: (db, version) async {
           await _createDrafts(db);
           await _createHistory(db);
+          await _createStoreSummaries(db);
         },
         onUpgrade: (db, oldVersion, newVersion) async {
           if (oldVersion < 2) await _upgradeDraftsFromV1(db);
           if (oldVersion < 3) await _createHistory(db);
+          if (oldVersion < 4) await _createStoreSummaries(db);
         },
       ),
     );
@@ -132,6 +135,16 @@ class WhyNotLocalDatabase {
       ON $recentRecommendationsTable (user_id, open_order DESC)
     ''');
   }
+
+  // Santiago Casasbuenas: The last Stores grouping per account, so the view
+  // opens instantly and still works offline after the app restarts.
+  static Future<void> _createStoreSummaries(Database db) => db.execute('''
+    CREATE TABLE $storeSummariesTable (
+      user_id TEXT PRIMARY KEY,
+      computed_at INTEGER NOT NULL,
+      payload TEXT NOT NULL
+    )
+  ''');
 
   /// Called by the owner once its stores have finished using the connection.
   Future<void> close() async {
