@@ -126,11 +126,7 @@ class RecommendationController {
       clearCache();
       return Future.error(StateError('No user logged in.'));
     }
-    if (_activeUserId != userId) {
-      // Santiago Casasbuenas: A user switch drops all previous user data.
-      clearCache();
-      _activeUserId = userId;
-    }
+    _activateUser(userId);
     if (connectivity.isOffline && !checkConnection) {
       return Future.error(
         StateError('Offline: new recommendations unavailable.'),
@@ -192,10 +188,7 @@ class RecommendationController {
       clearCache();
       throw StateError('No user logged in.');
     }
-    if (_activeUserId != userId) {
-      clearCache();
-      _activeUserId = userId;
-    }
+    _activateUser(userId);
     if (connectivity.isOffline && !checkConnection) {
       throw StateError('Offline: new recommendations unavailable.');
     }
@@ -273,6 +266,8 @@ class RecommendationController {
   Future<List<RecentRecommendation>> readRecentRecommendations() async {
     final userId = currentUserId;
     if (userId == null || _recentRecommendations == null) return const [];
+    // Home can load history and request its top pick at the same time.
+    _activateUser(userId);
     final epoch = _epoch;
     final version = _historyVersions[userId] ?? 0;
     final entries = await _recentRecommendations.read(userId);
@@ -396,11 +391,14 @@ class RecommendationController {
   String _requireCatalogUser() {
     final userId = currentUserId;
     if (userId == null) throw StateError('No user logged in.');
-    if (_activeUserId != userId) {
-      clearCache();
-      _activeUserId = userId;
-    }
+    _activateUser(userId);
     return userId;
+  }
+
+  void _activateUser(String userId) {
+    if (_activeUserId == userId) return;
+    clearCache();
+    _activeUserId = userId;
   }
 
   CatalogOpenRequest _beginOpen(

@@ -6,6 +6,7 @@ import '../../app/whynot_theme.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/nearby_store_section.dart';
+import '../widgets/recently_viewed_section.dart';
 import '../../controllers/home_controller.dart';
 import '../widgets/smart_recommendation_section.dart';
 import '../widgets/home_content.dart';
@@ -172,6 +173,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     'What are we saving today?',
                     style: WhyNotTextStyles.muted(size: 13),
                   ),
+
+                  const SizedBox(height: 28),
+                  const RecentlyViewedSection(),
 
                   const SizedBox(height: 38),
 

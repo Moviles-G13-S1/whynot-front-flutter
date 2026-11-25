@@ -8,7 +8,6 @@ import '../../app/whynot_theme.dart';
 import '../../controllers/recommendation_controller.dart';
 import '../../controllers/connectivity_status.dart';
 import '../../models/recommendation_catalog_item.dart';
-import '../../models/recent_recommendation.dart';
 import '../../models/repositories/recommendation_repository.dart';
 import '../widgets/connectivity_message.dart';
 
@@ -31,9 +30,8 @@ class _RecommendationCatalogScreenState
   String? _openingId;
   RecommendationController? _controller;
   StreamSubscription<String>? _invalidationSubscription;
-  StreamSubscription<void>? _historySubscription;
-  Future<List<RecentRecommendation>>? _history;
-  String? _historyUserId;
+  StreamSubscription<void>? _sessionSubscription;
+  String? _catalogUserId;
   NetworkStatus _network = NetworkStatus.unknown;
   bool _checkingConnection = false;
 
@@ -80,22 +78,18 @@ class _RecommendationCatalogScreenState
     final controller = context.dependencies.recommendationController;
     if (_controller != controller) {
       _invalidationSubscription?.cancel();
-      _historySubscription?.cancel();
+      _sessionSubscription?.cancel();
       _controller?.connectivity.removeListener(_networkChanged);
       _controller = controller;
       _network = controller.connectivity.status;
       controller.connectivity.addListener(_networkChanged);
+      _catalogUserId = controller.currentUserId;
       _load = _request(controller);
-      _historyUserId = controller.currentUserId;
-      _history = controller.readRecentRecommendations();
-      _historySubscription = controller.historyChanges.listen((_) {
-        if (!mounted) return;
+      _sessionSubscription = controller.historyChanges.listen((_) {
+        if (!mounted || _catalogUserId == controller.currentUserId) return;
         setState(() {
-          if (_historyUserId != controller.currentUserId) {
-            _historyUserId = controller.currentUserId;
-            _load = _request(controller);
-          }
-          _history = controller.readRecentRecommendations();
+          _catalogUserId = controller.currentUserId;
+          _load = _request(controller);
         });
       });
       _invalidationSubscription = controller.invalidations.listen((userId) {
@@ -113,7 +107,7 @@ class _RecommendationCatalogScreenState
   @override
   void dispose() {
     _invalidationSubscription?.cancel();
-    _historySubscription?.cancel();
+    _sessionSubscription?.cancel();
     _controller?.connectivity.removeListener(_networkChanged);
     super.dispose();
   }
@@ -142,21 +136,14 @@ class _RecommendationCatalogScreenState
     request.whenComplete(() => _checkingConnection = false);
   }
 
-  Future<void> _open(
-    String sourceProductId,
-    FutureOr<CatalogOpenRequest> Function(RecommendationController) begin,
-  ) async {
+  Future<void> _open(RecommendationCatalogItem item) async {
     if (_openingId != null) return;
-    setState(() => _openingId = sourceProductId);
+    setState(() => _openingId = item.sourceProductId);
     try {
       // Show the product immediately; only saving waits for the fresh event.
       final controller = context.dependencies.recommendationController;
-      if (_historyUserId != controller.currentUserId) return;
-      final pending = begin(controller);
-      final opening = pending is Future<CatalogOpenRequest>
-          ? await pending
-          : pending;
-      if (!mounted || !controller.isCurrentCatalogOpen(opening)) return;
+      if (_catalogUserId != controller.currentUserId) return;
+      final opening = controller.beginCatalogOpen(item);
       await Navigator.pushNamed(
         context,
         AppRoutes.recommendationDetail,
@@ -175,122 +162,6 @@ class _RecommendationCatalogScreenState
       if (mounted) setState(() => _openingId = null);
     }
   }
-
-  Future<void> _clearHistory() async {
-    final controller = _controller!;
-    final userId = controller.currentUserId;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Clear recently viewed?'),
-        content: const Text(
-          'This will remove your recommendation history from this device.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Clear history'),
-          ),
-        ],
-      ),
-    );
-    if (!mounted || confirmed != true || userId != controller.currentUserId) {
-      return;
-    }
-    try {
-      await controller.clearRecentRecommendations();
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Couldn’t clear your history. Try again.'),
-        ),
-      );
-    }
-  }
-
-  Widget _catalogBody(List<Widget> catalog) => ListView(
-    padding: const EdgeInsets.fromLTRB(20, 18, 20, 36),
-    children: [
-      // Santiago Casasbuenas: SQLite history renders even while the catalog
-      // service is loading, unreachable, or empty after an offline restart.
-      FutureBuilder<List<RecentRecommendation>>(
-        future: _history,
-        builder: (context, snapshot) {
-          if (_historyUserId == null ||
-              _historyUserId != _controller?.currentUserId ||
-              snapshot.connectionState != ConnectionState.done) {
-            return const SizedBox.shrink();
-          }
-          if (snapshot.hasError) {
-            return const Padding(
-              padding: EdgeInsets.only(bottom: 18),
-              child: Text('Recently viewed is unavailable right now.'),
-            );
-          }
-          final entries = snapshot.data ?? const [];
-          if (entries.isEmpty) return const SizedBox.shrink();
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Recently viewed',
-                      style: WhyNotTextStyles.serif(size: 23),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _openingId == null ? _clearHistory : null,
-                    child: const Text('Clear history'),
-                  ),
-                ],
-              ),
-              Text(
-                'Saved on this device. Details may be outdated.',
-                style: WhyNotTextStyles.muted(size: 12),
-              ),
-              const SizedBox(height: 8),
-              Material(
-                color: WhyNotColors.card,
-                borderRadius: BorderRadius.circular(16),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  children: [
-                    for (final entry in entries)
-                      ListTile(
-                        key: ValueKey('recent-${entry.sourceProductId}'),
-                        leading: const Icon(Icons.history_rounded),
-                        title: Text(entry.details.name),
-                        subtitle: entry.details.brand.isEmpty
-                            ? null
-                            : Text(entry.details.brand),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: _openingId != null
-                            ? null
-                            : () => _open(
-                                entry.sourceProductId,
-                                (controller) => controller.beginRecentOpen(
-                                  entry.sourceProductId,
-                                ),
-                              ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
-          );
-        },
-      ),
-      ...catalog,
-    ],
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -312,7 +183,7 @@ class _RecommendationCatalogScreenState
       body: FutureBuilder<({List<RecommendationCatalogItem> items, bool fromCache, Object? error})>(
         future: _load,
         builder: (context, snapshot) {
-          if (_historyUserId != _controller?.currentUserId) {
+          if (_catalogUserId != _controller?.currentUserId) {
             return const SizedBox.shrink();
           }
           final offline = _controller?.connectivity.isOffline == true;
@@ -320,43 +191,34 @@ class _RecommendationCatalogScreenState
           if (snapshot.connectionState != ConnectionState.done &&
               previous == null &&
               !offline) {
-            return _catalogBody(const [
-              Padding(
-                padding: EdgeInsets.all(26),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            ]);
+            return const Center(child: CircularProgressIndicator());
           }
           final error = snapshot.data?.error;
           if (error != null && previous == null && !offline) {
             final unavailable = error is RecommendationCatalogUnavailable;
-            return _catalogBody([
-              ConnectivityEmptyState(
-                label: 'Could not refresh',
-                title: unavailable
-                    ? 'Your picks are on pause'
-                    : 'Picks are taking a moment',
-                message: unavailable
-                    ? 'Recommendations are unavailable in this app environment right now.'
-                    : 'We couldn’t load your picks just now. Give it another try.',
-                icon: Icons.cloud_off_outlined,
-                actionLabel: 'Try again',
-                onAction: _refresh,
-              ),
-            ]);
+            return ConnectivityEmptyState(
+              label: 'Could not refresh',
+              title: unavailable
+                  ? 'Your picks are on pause'
+                  : 'Picks are taking a moment',
+              message: unavailable
+                  ? 'Recommendations are unavailable in this app environment right now.'
+                  : 'We couldn’t load your picks just now. Give it another try.',
+              icon: Icons.cloud_off_outlined,
+              actionLabel: 'Try again',
+              onAction: _refresh,
+            );
           }
           if (offline && previous == null) {
-            return _catalogBody([
-              ConnectivityEmptyState(
-                label: 'Offline',
-                title: 'Your picks will be here',
-                message:
-                    'Connect to discover new picks. We’ll load them when you’re back online.',
-                icon: Icons.wifi_off_rounded,
-                actionLabel: 'Check connection',
-                onAction: _checkConnection,
-              ),
-            ]);
+            return ConnectivityEmptyState(
+              label: 'Offline',
+              title: 'Your picks will be here',
+              message:
+                  'Connect to discover new picks. We’ll load them when you’re back online.',
+              icon: Icons.wifi_off_rounded,
+              actionLabel: 'Check connection',
+              onAction: _checkConnection,
+            );
           }
           final usePrevious =
               previous != null &&
@@ -366,72 +228,74 @@ class _RecommendationCatalogScreenState
           final result = usePrevious
               ? (items: previous, fromCache: true, error: null)
               : snapshot.data!;
-          return _catalogBody([
-            if (usePrevious) ...[
-              ConnectivityNotice(
-                label: offline ? 'Offline · outdated' : 'May be outdated',
-                title: 'Showing your last picks',
-                message: offline
-                    ? 'These picks may have changed. We’ll look for new ones when you reconnect.'
-                    : error != null
-                    ? 'We couldn’t refresh just now. Your last picks are still here.'
-                    : 'Checking for new picks while you browse.',
-                icon: offline ? Icons.wifi_off_rounded : Icons.history_rounded,
-                actionLabel: offline
-                    ? 'Check connection'
-                    : error != null
-                    ? 'Try again'
-                    : null,
-                onAction: offline
-                    ? _checkConnection
-                    : error != null
-                    ? _refresh
-                    : null,
-              ),
-              const SizedBox(height: 18),
-            ] else ...[
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 36),
+            children: [
+              if (usePrevious) ...[
+                ConnectivityNotice(
+                  label: offline ? 'Offline · outdated' : 'May be outdated',
+                  title: 'Showing your last picks',
+                  message: offline
+                      ? 'These picks may have changed. We’ll look for new ones when you reconnect.'
+                      : error != null
+                      ? 'We couldn’t refresh just now. Your last picks are still here.'
+                      : 'Checking for new picks while you browse.',
+                  icon: offline
+                      ? Icons.wifi_off_rounded
+                      : Icons.history_rounded,
+                  actionLabel: offline
+                      ? 'Check connection'
+                      : error != null
+                      ? 'Try again'
+                      : null,
+                  onAction: offline
+                      ? _checkConnection
+                      : error != null
+                      ? _refresh
+                      : null,
+                ),
+                const SizedBox(height: 18),
+              ] else ...[
+                Text(
+                  result.fromCache
+                      ? 'Recently loaded picks'
+                      : 'Fresh picks for you',
+                  key: const Key('catalog-cache-status'),
+                  style: WhyNotTextStyles.muted(size: 13),
+                ),
+                if (result.fromCache) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Loaded during your recent visit. These picks may have changed.',
+                    style: WhyNotTextStyles.muted(size: 11),
+                  ),
+                ],
+              ],
+              const SizedBox(height: 6),
               Text(
-                result.fromCache
-                    ? 'Recently loaded picks'
-                    : 'Fresh picks for you',
-                key: const Key('catalog-cache-status'),
+                'Small dots mark details you’ve opened recently.',
+                style: WhyNotTextStyles.muted(size: 11),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Inspired by your favorite categories and people with similar tastes.',
                 style: WhyNotTextStyles.muted(size: 13),
               ),
-              if (result.fromCache) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Loaded during your recent visit. These picks may have changed.',
-                  style: WhyNotTextStyles.muted(size: 11),
+              const SizedBox(height: 22),
+              if (result.items.isEmpty)
+                const Text('No new recommendations yet. Try again later.'),
+              for (final item in result.items) ...[
+                _CatalogCard(
+                  item: item,
+                  cached: context.dependencies.recommendationController
+                      .isCatalogProductCached(item.sourceProductId),
+                  opening: _openingId == item.sourceProductId,
+                  onTap: () => _open(item),
                 ),
+                const SizedBox(height: 12),
               ],
             ],
-            const SizedBox(height: 6),
-            Text(
-              'Small dots mark details you’ve opened recently.',
-              style: WhyNotTextStyles.muted(size: 11),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Inspired by your favorite categories and people with similar tastes.',
-              style: WhyNotTextStyles.muted(size: 13),
-            ),
-            const SizedBox(height: 22),
-            if (result.items.isEmpty)
-              const Text('No new recommendations yet. Try again later.'),
-            for (final item in result.items) ...[
-              _CatalogCard(
-                item: item,
-                cached: context.dependencies.recommendationController
-                    .isCatalogProductCached(item.sourceProductId),
-                opening: _openingId == item.sourceProductId,
-                onTap: () => _open(
-                  item.sourceProductId,
-                  (controller) => controller.beginCatalogOpen(item),
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-          ]);
+          );
         },
       ),
     );

@@ -18,7 +18,7 @@ import 'package:whynot_mobile/models/recommendation_catalog_item.dart';
 import 'package:whynot_mobile/models/repositories/recent_recommendation_store.dart';
 import 'package:whynot_mobile/models/user_profile.dart';
 import 'package:whynot_mobile/models/wishlist.dart';
-import 'package:whynot_mobile/views/screens/recommendation_catalog_screen.dart';
+import 'package:whynot_mobile/views/screens/home_screen.dart';
 import 'package:whynot_mobile/views/screens/recommendation_detail_screen.dart';
 import 'package:whynot_mobile/views/widgets/form_controls.dart';
 
@@ -370,6 +370,30 @@ void main() {
     },
   );
 
+  testWidgets('Home initially shows the empty history section', (tester) async {
+    connectivity.setStatus(NetworkStatus.offline);
+    final deps = createTestDependencies(
+      authRepositoryOverride: auth,
+      recommendationRepository: catalog,
+      recentRecommendations: _WidgetHistory(),
+      connectivity: connectivity,
+    );
+
+    await tester.pumpWidget(
+      DependenciesScope(
+        dependencies: deps,
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    expect(find.text('Recently viewed'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(
+      find.text('No recently viewed recommendations yet.'),
+      findsOneWidget,
+    );
+    expect(find.text('Clear history'), findsNothing);
+  });
+
   testWidgets('offline history is visible and Save waits for a fresh event', (
     tester,
   ) async {
@@ -399,7 +423,7 @@ void main() {
       DependenciesScope(
         dependencies: deps,
         child: MaterialApp(
-          home: const RecommendationCatalogScreen(),
+          home: const HomeScreen(),
           routes: {
             AppRoutes.recommendationDetail: (_) =>
                 const RecommendationDetailScreen(),
@@ -409,7 +433,6 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Recently viewed'), findsOneWidget);
-    expect(find.text('Your picks will be here'), findsOneWidget);
     final historyRow = find.byKey(const ValueKey('recent-coat'));
     await tester.tap(historyRow);
     await tester.pumpAndSettle();
@@ -461,7 +484,12 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Recently viewed'), findsNothing);
+    expect(find.text('Recently viewed'), findsOneWidget);
+    expect(
+      find.text('No recently viewed recommendations yet.'),
+      findsOneWidget,
+    );
+    expect(find.text('Clear history'), findsNothing);
     expect(catalog.homeEvents, isEmpty);
   });
 }
