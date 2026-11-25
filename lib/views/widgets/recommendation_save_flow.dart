@@ -11,14 +11,15 @@ const _createWishlistChoice = '__create_wishlist__';
 /// dismissed dialog returns `false` without showing an error.
 Future<bool> saveRecommendationToWishlist(
   BuildContext context,
-  ProductRecommendation recommendation,
-) async {
+  ProductRecommendation recommendation, {
+  bool Function()? canSave,
+}) async {
   try {
     final wishlistController = context.dependencies.wishlistController;
     final recommendationController =
         context.dependencies.recommendationController;
     final summaries = await wishlistController.getCurrentSummaries();
-    if (!context.mounted) return false;
+    if (!context.mounted || canSave?.call() == false) return false;
 
     final matching = summaries
         .where(
@@ -55,7 +56,9 @@ Future<bool> saveRecommendationToWishlist(
         ],
       ),
     );
-    if (!context.mounted || choice == null) return false;
+    if (!context.mounted || choice == null || canSave?.call() == false) {
+      return false;
+    }
 
     final wishlistId = choice == _createWishlistChoice
         ? await wishlistController.create(
@@ -63,6 +66,7 @@ Future<bool> saveRecommendationToWishlist(
             imageUrl: '',
           )
         : choice;
+    if (!context.mounted || canSave?.call() == false) return false;
     await recommendationController.saveRecommendation(
       recommendation: recommendation,
       wishlistId: wishlistId,

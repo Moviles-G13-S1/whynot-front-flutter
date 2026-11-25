@@ -10,7 +10,7 @@ The Home pick, catalog, and catalog detail use a session-only fallback. Fresh Ho
 
 Fetching a new pick/catalog and rechecking product eligibility require internet. Catalog Refresh is disabled when confirmed offline. Catalog details open from the row preview or the five-product display LRU even offline. The Save control is disabled offline. On return, the detail requests a fresh eligibility check and saveable recommendation event before enabling Save; a failed check keeps the preview and a retry control. The Home detail similarly refreshes its recommendation after an offline interval before allowing Save. No save is queued. A previous Home card that becomes visible remains a display exposure under the Home BQ rule; ordinary rebuilds do not count again.
 
-Recommendation display fields and nearby results are held in process memory only and disappear on app termination. Images use `Image.network` with a fallback; they may fail offline and are not guaranteed after restart. This work does not add a disk image cache.
+The fallback caches and nearby results disappear on app termination. The separate [Recently viewed history](recently-viewed-recommendations.md) restores up to five opened catalog products for the signed-in account after a restart. History previews may be outdated and require a current backend eligibility check before Save becomes available. Images use `Image.network` with a fallback and may be unavailable offline.
 
 ## Nearby Stores
 

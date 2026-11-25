@@ -18,7 +18,6 @@ import '../controllers/recommendation_controller.dart';
 import '../controllers/wishlist_controller.dart';
 
 import '../models/repositories/admin_metrics_repository.dart';
-import '../models/repositories/auth_repository.dart';
 import '../models/repositories/location_repository.dart';
 import '../models/repositories/nearby_store_repository.dart';
 import '../models/repositories/product_repository.dart';
@@ -37,6 +36,8 @@ import '../infrastructure/repositories/firebase_profile_photo_repository.dart';
 import '../infrastructure/repositories/firebase_wishlist_repository.dart';
 import '../infrastructure/repositories/geolocator_location_repository.dart';
 import '../infrastructure/repositories/sqlite_product_draft_store.dart';
+import '../infrastructure/repositories/sqlite_recent_recommendation_store.dart';
+import '../infrastructure/storage/whynot_local_database.dart';
 
 /// Composition root for application dependencies.
 ///
@@ -72,7 +73,7 @@ class AppDependencies {
   /// themselves remain environment-independent.
   // Santiago Casasbuenas: Inject the profile photo repository in production.
   factory AppDependencies.firebase() {
-    final AuthRepository authRepository = FirebaseAuthRepository();
+    final authRepository = FirebaseAuthRepository();
     final UserRepository userRepository = FirebaseUserRepository();
     final WishlistRepository wishlistRepository = FirebaseWishlistRepository();
     final ProductRepository productRepository = FirebaseProductRepository();
@@ -99,8 +100,12 @@ class AppDependencies {
     );
     // Santiago Casasbuenas: One cache-owning controller is shared by both
     // recommendation views and by mutation/auth invalidation callbacks.
+    // Santiago Casasbuenas: Both SQLite stores use the same schema owner.
+    final localDatabase = WhyNotLocalDatabase.shared;
     final recommendationController = RecommendationController(
       recommendationRepository: recommendationRepository,
+      recentRecommendations: SqliteRecentRecommendationStore(localDatabase),
+      watchAuthUserIds: authRepository.watchUserIds,
       authRepository: authRepository,
       connectivity: connectivity,
     );
@@ -119,6 +124,7 @@ class AppDependencies {
 
     return AppDependencies(
       errorReporter: errorReporter,
+      productDraftStore: SqliteProductDraftStore.withDatabase(localDatabase),
       photoCacheManager: () {
         final id = authRepository.currentUser?.id;
         return id != null && photoStore is ManagedProfilePhotoCacheStore
@@ -128,7 +134,7 @@ class AppDependencies {
       authController: AuthController(
         authRepository: authRepository,
         userRepository: userRepository,
-        onAuthChanged: recommendationController.clearCache,
+        onAuthChanged: recommendationController.handleAuthChange,
         connectivity: connectivity,
         onSessionEnded: photoCache.clear,
         errorReporter: errorReporter,
@@ -141,7 +147,7 @@ class AppDependencies {
         errorReporter: errorReporter,
         connectivity: connectivity,
         onRecommendationInputsChanged:
-            recommendationController.invalidateForUser,
+            recommendationController.invalidateAfterHistoryInputsChanged,
       ),
       wishlistController: wishlistController,
       productController: ProductController(
@@ -149,7 +155,7 @@ class AppDependencies {
         productRepository: productRepository,
         wishlistController: wishlistController,
         onRecommendationInputsChanged:
-            recommendationController.invalidateForUser,
+            recommendationController.invalidateAfterHistoryInputsChanged,
       ),
       adminAccessController: AdminAccessController(authRepository),
       adminMetricsController: AdminMetricsController(adminMetricsRepository),
