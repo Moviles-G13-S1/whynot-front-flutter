@@ -4,8 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:whynot_mobile/app/app_routes.dart';
-import 'package:whynot_mobile/app/dependencies_scope.dart';
+import 'package:whynot_mobile/app/whynot_app.dart';
 import 'package:whynot_mobile/controllers/connectivity_status.dart';
 import 'package:whynot_mobile/controllers/recommendation_controller.dart';
 import 'package:whynot_mobile/infrastructure/repositories/sqlite_recent_recommendation_store.dart';
@@ -18,8 +17,7 @@ import 'package:whynot_mobile/models/recommendation_catalog_item.dart';
 import 'package:whynot_mobile/models/repositories/recent_recommendation_store.dart';
 import 'package:whynot_mobile/models/user_profile.dart';
 import 'package:whynot_mobile/models/wishlist.dart';
-import 'package:whynot_mobile/views/screens/home_screen.dart';
-import 'package:whynot_mobile/views/screens/recommendation_detail_screen.dart';
+import 'package:whynot_mobile/views/screens/recently_viewed_screen.dart';
 import 'package:whynot_mobile/views/widgets/form_controls.dart';
 
 import 'fakes/app_dependencies_fixture.dart';
@@ -370,7 +368,7 @@ void main() {
     },
   );
 
-  testWidgets('Home initially shows the empty history section', (tester) async {
+  testWidgets('the Home history button opens an empty screen', (tester) async {
     connectivity.setStatus(NetworkStatus.offline);
     final deps = createTestDependencies(
       authRepositoryOverride: auth,
@@ -379,14 +377,21 @@ void main() {
       connectivity: connectivity,
     );
 
-    await tester.pumpWidget(
-      DependenciesScope(
-        dependencies: deps,
-        child: const MaterialApp(home: HomeScreen()),
-      ),
-    );
-    expect(find.text('Recently viewed'), findsOneWidget);
+    await tester.pumpWidget(WhyNotApp(dependencies: deps));
     await tester.pumpAndSettle();
+    final historyButton = find.widgetWithText(PillButton, 'Recently viewed');
+    final explore = find.widgetWithText(PillButton, 'Explore recommendations');
+    await tester.ensureVisible(historyButton);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getTopLeft(historyButton).dy,
+      greaterThan(tester.getBottomLeft(explore).dy),
+    );
+    expect(find.text('No recently viewed recommendations yet.'), findsNothing);
+
+    await tester.tap(historyButton);
+    await tester.pumpAndSettle();
+    expect(find.byType(RecentlyViewedScreen), findsOneWidget);
     expect(
       find.text('No recently viewed recommendations yet.'),
       findsOneWidget,
@@ -419,21 +424,12 @@ void main() {
       ],
     );
 
-    await tester.pumpWidget(
-      DependenciesScope(
-        dependencies: deps,
-        child: MaterialApp(
-          home: const HomeScreen(),
-          routes: {
-            AppRoutes.recommendationDetail: (_) =>
-                const RecommendationDetailScreen(),
-          },
-        ),
-      ),
-    );
+    await tester.pumpWidget(WhyNotApp(dependencies: deps));
     await tester.pumpAndSettle();
-    expect(find.text('Recently viewed'), findsOneWidget);
     final historyRow = find.byKey(const ValueKey('recent-coat'));
+    expect(historyRow, findsNothing);
+    await tester.tap(find.widgetWithText(PillButton, 'Recently viewed'));
+    await tester.pumpAndSettle();
     await tester.tap(historyRow);
     await tester.pumpAndSettle();
     expect(find.text('Stored coat'), findsOneWidget);

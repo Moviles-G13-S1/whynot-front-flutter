@@ -8,16 +8,15 @@ import '../../app/whynot_theme.dart';
 import '../../controllers/recommendation_controller.dart';
 import '../../models/recent_recommendation.dart';
 
-/// Santiago Casasbuenas: Home loads local browsing history independently of
-/// the online recommendations. Its heading stays visible for empty histories.
-class RecentlyViewedSection extends StatefulWidget {
-  const RecentlyViewedSection({super.key});
+/// Santiago Casasbuenas: Browse local history independently of the online catalog.
+class RecentlyViewedScreen extends StatefulWidget {
+  const RecentlyViewedScreen({super.key});
 
   @override
-  State<RecentlyViewedSection> createState() => _RecentlyViewedSectionState();
+  State<RecentlyViewedScreen> createState() => _RecentlyViewedScreenState();
 }
 
-class _RecentlyViewedSectionState extends State<RecentlyViewedSection> {
+class _RecentlyViewedScreenState extends State<RecentlyViewedScreen> {
   RecommendationController? _controller;
   StreamSubscription<void>? _historySubscription;
   Future<List<RecentRecommendation>>? _history;
@@ -127,57 +126,58 @@ class _RecentlyViewedSectionState extends State<RecentlyViewedSection> {
               : snapshot.hasError
               ? 'Recently viewed is unavailable right now.'
               : 'No recently viewed recommendations yet.';
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Recently viewed',
-                      style: WhyNotTextStyles.serif(size: 23),
-                    ),
-                  ),
-                  if (entries.isNotEmpty)
-                    TextButton(
-                      onPressed: _opening ? null : _clearHistory,
-                      child: const Text('Clear history'),
-                    ),
-                ],
+          return Scaffold(
+            backgroundColor: WhyNotColors.background,
+            appBar: AppBar(
+              backgroundColor: WhyNotColors.background,
+              title: Text(
+                'Recently viewed',
+                style: WhyNotTextStyles.serif(size: 28),
               ),
-              if (entries.isEmpty) ...[
-                const SizedBox(height: 8),
-                Text(status, style: WhyNotTextStyles.muted(size: 12)),
-              ] else ...[
-                Text(
-                  'Saved on this device. Details may be outdated.',
-                  style: WhyNotTextStyles.muted(size: 12),
-                ),
-                const SizedBox(height: 8),
-                Material(
-                  color: WhyNotColors.card,
-                  borderRadius: BorderRadius.circular(16),
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    children: [
-                      for (final entry in entries)
-                        ListTile(
-                          key: ValueKey('recent-${entry.sourceProductId}'),
-                          leading: const Icon(Icons.history_rounded),
-                          title: Text(entry.details.name),
-                          subtitle: entry.details.brand.isEmpty
-                              ? null
-                              : Text(entry.details.brand),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: _opening
-                              ? null
-                              : () => _open(entry.sourceProductId),
-                        ),
-                    ],
+              actions: [
+                if (entries.isNotEmpty)
+                  TextButton(
+                    onPressed: _opening ? null : _clearHistory,
+                    child: const Text('Clear history'),
                   ),
-                ),
               ],
-            ],
+            ),
+            body: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 36),
+              children: [
+                if (entries.isEmpty)
+                  Text(status, style: WhyNotTextStyles.muted(size: 13))
+                else ...[
+                  Text(
+                    'Saved on this device. Details may be outdated.',
+                    style: WhyNotTextStyles.muted(size: 12),
+                  ),
+                  const SizedBox(height: 8),
+                  Material(
+                    color: WhyNotColors.card,
+                    borderRadius: BorderRadius.circular(16),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      children: [
+                        for (final entry in entries)
+                          ListTile(
+                            key: ValueKey('recent-${entry.sourceProductId}'),
+                            leading: const Icon(Icons.history_rounded),
+                            title: Text(entry.details.name),
+                            subtitle: entry.details.brand.isEmpty
+                                ? null
+                                : Text(entry.details.brand),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: _opening
+                                ? null
+                                : () => _open(entry.sourceProductId),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
           );
         },
       );

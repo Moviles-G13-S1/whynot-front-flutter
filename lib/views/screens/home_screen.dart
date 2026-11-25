@@ -6,7 +6,6 @@ import '../../app/whynot_theme.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/nearby_store_section.dart';
-import '../widgets/recently_viewed_section.dart';
 import '../../controllers/home_controller.dart';
 import '../widgets/smart_recommendation_section.dart';
 import '../widgets/home_content.dart';
@@ -174,9 +173,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: WhyNotTextStyles.muted(size: 13),
                   ),
 
-                  const SizedBox(height: 28),
-                  const RecentlyViewedSection(),
-
                   const SizedBox(height: 38),
 
                   // --------------------------------------------------
@@ -209,13 +205,27 @@ class _HomeScreenState extends State<HomeScreen> {
                   // recommendation fetch and a cached revisit visible.
                   Padding(
                     padding: const EdgeInsets.only(right: 18),
-                    child: PillButton(
-                      label: 'Explore recommendations',
-                      height: 44,
-                      onPressed: () => Navigator.pushNamed(
-                        context,
-                        AppRoutes.recommendationCatalog,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        PillButton(
+                          label: 'Explore recommendations',
+                          height: 44,
+                          onPressed: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.recommendationCatalog,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        PillButton(
+                          label: 'Recently viewed',
+                          height: 44,
+                          onPressed: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.recentlyViewed,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 
