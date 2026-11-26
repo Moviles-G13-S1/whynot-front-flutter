@@ -1,6 +1,7 @@
 import '../controllers/admin_access_controller.dart';
 import '../controllers/admin_metrics_controller.dart';
 import '../controllers/auth_controller.dart';
+import '../controllers/face_id_controller.dart';
 import '../controllers/city_controller.dart';
 import '../controllers/connectivity_status.dart';
 import '../controllers/nearby_store_controller.dart';
@@ -61,12 +62,14 @@ class AppDependencies {
     SqliteProductDraftStore? productDraftStore,
     BaseCacheManager? Function()? photoCacheManager,
     this.errorReporter,
+    this.faceIdController,
     this.storeSummaryStore,
   }) : productDraftStore = productDraftStore ?? SqliteProductDraftStore(),
        _photoCacheManager = photoCacheManager;
 
   final BaseCacheManager? Function()? _photoCacheManager;
   final ApplicationErrorReporter? errorReporter;
+  final FaceIdController? faceIdController;
   BaseCacheManager? get photoCacheManager => _photoCacheManager?.call();
 
   /// Creates the production/default dependency graph.
@@ -126,6 +129,7 @@ class AppDependencies {
     );
 
     return AppDependencies(
+      faceIdController: FaceIdController(),
       errorReporter: errorReporter,
       productDraftStore: SqliteProductDraftStore.withDatabase(localDatabase),
       storeSummaryStore: SqliteStoreSummaryStore(localDatabase),
