@@ -277,6 +277,15 @@ class InMemoryProductRepository implements ProductRepository {
   );
 
   @override
+  Stream<OwnerProducts> watchOwnerProducts(String ownerId) => Stream.value(
+    OwnerProducts(
+      products: _products
+          .where((product) => product.ownerId == ownerId)
+          .toList(),
+    ),
+  );
+
+  @override
   Stream<Product?> watch(String productId) => Stream.value(
     _products.where((product) => product.id == productId).firstOrNull,
   );

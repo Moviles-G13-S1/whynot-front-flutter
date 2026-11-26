@@ -225,6 +225,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             AppRoutes.recentlyViewed,
                           ),
                         ),
+                        const SizedBox(height: 12),
+                        // Santiago Casasbuenas: Sprint 4 Stores view.
+                        PillButton(
+                          label: 'Your stores',
+                          height: 44,
+                          onPressed: () =>
+                              Navigator.pushNamed(context, AppRoutes.stores),
+                        ),
                       ],
                     ),
                   ),

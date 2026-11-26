@@ -30,6 +30,21 @@ class FirebaseProductRepository implements ProductRepository {
       .snapshots()
       .map((snapshot) => snapshot.docs.map(_fromQueryDocument).toList());
 
+  // Santiago Casasbuenas: Metadata changes also emit, so a cached answer is
+  // followed by the server's confirmation even when the products are equal.
+  @override
+  Stream<OwnerProducts> watchOwnerProducts(String ownerId) => _firestore
+      .collection('products')
+      .where('ownerId', isEqualTo: ownerId)
+      .snapshots(includeMetadataChanges: true)
+      .map(
+        (snapshot) => OwnerProducts(
+          products: snapshot.docs.map(_fromQueryDocument).toList(),
+          fromCache: snapshot.metadata.isFromCache,
+          hasPendingWrites: snapshot.metadata.hasPendingWrites,
+        ),
+      );
+
   @override
   Stream<Product?> watch(String productId) => _firestore
       .collection('products')

@@ -28,6 +28,8 @@ import '../views/screens/recommendation_detail_screen.dart';
 import '../views/screens/nearby_store_detail_screen.dart';
 import '../views/screens/recommendation_catalog_screen.dart';
 import '../views/screens/recently_viewed_screen.dart';
+import '../views/screens/store_detail_screen.dart';
+import '../views/screens/stores_screen.dart';
 import '../views/screens/new_product_manual_screen.dart';
 import '../views/screens/edit_product_screen.dart';
 
@@ -80,6 +82,8 @@ class _WhyNotAppState extends State<WhyNotApp> {
           AppRoutes.home: (_) => const HomeScreen(),
           AppRoutes.nearbyStoreDetail: (_) => const NearbyStoreDetailScreen(),
           AppRoutes.recentlyViewed: (_) => const RecentlyViewedScreen(),
+          AppRoutes.stores: (_) => const StoresScreen(),
+          AppRoutes.storeDetail: (_) => const StoreDetailScreen(),
 
           // Wishlists
           AppRoutes.wishlists: (_) => const WishlistsScreen(),
@@ -210,6 +214,7 @@ class _WhyNotAppState extends State<WhyNotApp> {
       'nearby-store-detail' => AppRoutes.nearbyStoreDetail,
       'recommendation-catalog' => AppRoutes.recommendationCatalog,
       'recently-viewed' => AppRoutes.recentlyViewed,
+      'stores' => AppRoutes.stores,
 
       // Both browser preview URLs now open
       // the manual product creation screen.
