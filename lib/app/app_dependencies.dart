@@ -37,6 +37,7 @@ import '../infrastructure/repositories/firebase_profile_photo_repository.dart';
 import '../infrastructure/repositories/firebase_wishlist_repository.dart';
 import '../infrastructure/repositories/geolocator_location_repository.dart';
 import '../infrastructure/repositories/sqlite_product_draft_store.dart';
+import '../infrastructure/repositories/sqlite_search_product_store.dart';
 import '../infrastructure/repositories/sqlite_recent_recommendation_store.dart';
 import '../infrastructure/repositories/sqlite_store_summary_store.dart';
 import '../models/repositories/store_summary_store.dart';
@@ -108,6 +109,7 @@ class AppDependencies {
     // recommendation views and by mutation/auth invalidation callbacks.
     // Santiago Casasbuenas: Both SQLite stores use the same schema owner.
     final localDatabase = WhyNotLocalDatabase.shared;
+    final searchProductStore = SqliteSearchProductStore(localDatabase);
     final recommendationController = RecommendationController(
       recommendationRepository: recommendationRepository,
       recentRecommendations: SqliteRecentRecommendationStore(localDatabase),
@@ -144,7 +146,17 @@ class AppDependencies {
         userRepository: userRepository,
         onAuthChanged: recommendationController.handleAuthChange,
         connectivity: connectivity,
-        onSessionEnded: photoCache.clear,
+        onSessionEnded: (userId) async {
+          try {
+            await photoCache.clear(userId);
+          } finally {
+            try {
+              await searchProductStore.clear(userId);
+            } catch (_) {
+              // A local disk failure must not turn sign-out into a failure.
+            }
+          }
+        },
         errorReporter: errorReporter,
       ),
       profileController: ProfileController(
@@ -162,6 +174,7 @@ class AppDependencies {
         authRepository: authRepository,
         productRepository: productRepository,
         wishlistController: wishlistController,
+        searchProductStore: searchProductStore,
         onRecommendationInputsChanged:
             recommendationController.invalidateAfterHistoryInputsChanged,
       ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../app/app_routes.dart';
@@ -22,6 +24,51 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
   String _category = '';
   String? _ownerId;
   Stream<OwnerProducts>? _products;
+  Timer? _debounce;
+  bool _debouncing = false;
+  ({String ownerId, ProductSearchRequest request})? _lastRequest;
+  Future<List<Product>>? _pendingSearch;
+
+  void _scheduleSearch() {
+    _debounce?.cancel();
+    setState(() => _debouncing = true);
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() => _debouncing = false);
+    });
+  }
+
+  void _applyImmediately(VoidCallback change) {
+    _debounce?.cancel();
+    setState(() {
+      change();
+      _debouncing = false;
+    });
+  }
+
+  // Memoize only the active task, not a cache of past search results.
+  // Rebuilds with identical inputs must not spawn additional isolates.
+  Future<List<Product>> _searchFor(
+    OwnerProducts data,
+    double? min,
+    double? max,
+  ) {
+    final request = (
+      ownerId: _ownerId!,
+      request: (
+        products: data.products,
+        query: _query.text.trim().toLowerCase(),
+        categoryId: _category.isEmpty ? null : _category,
+        minPrice: min,
+        maxPrice: max,
+      ),
+    );
+    if (_lastRequest != request || _pendingSearch == null) {
+      _lastRequest = request;
+      _pendingSearch = _search.filterAsync(request.request);
+    }
+    return _pendingSearch!;
+  }
 
   @override
   void didChangeDependencies() {
@@ -29,15 +76,18 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
     final controller = context.dependencies.productController;
     final ownerId = controller.currentUserId;
     if (_ownerId != ownerId || (_products == null && ownerId != null)) {
+      _debounce?.cancel();
+      _debouncing = false;
+      _lastRequest = null;
+      _pendingSearch = null;
       _ownerId = ownerId;
-      _products = ownerId == null
-          ? null
-          : controller.watchCurrentOwnerProducts();
+      _products = ownerId == null ? null : controller.watchSearchProducts();
     }
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _query.dispose();
     _min.dispose();
     _max.dispose();
@@ -83,7 +133,7 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
         controller: controller,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         decoration: _fieldDecoration(label),
-        onChanged: (_) => setState(() {}),
+        onChanged: (_) => _scheduleSearch(),
       );
 
   Widget _filters() => Column(
@@ -95,7 +145,7 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
           'Search by name or brand',
           prefixIcon: const Icon(Icons.search, color: WhyNotColors.muted),
         ),
-        onChanged: (_) => setState(() {}),
+        onChanged: (_) => _scheduleSearch(),
       ),
       const SizedBox(height: 22),
       Text('Filters', style: WhyNotTextStyles.serif(size: 22)),
@@ -138,7 +188,8 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
                         child: Text(category.value),
                       ),
                   ],
-                  onChanged: (value) => setState(() => _category = value ?? ''),
+                  onChanged: (value) =>
+                      _applyImmediately(() => _category = value ?? ''),
                 ),
               ),
             ),
@@ -159,7 +210,7 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
         alignment: Alignment.centerRight,
         child: TextButton(
           style: linkButtonStyle(),
-          onPressed: () => setState(() {
+          onPressed: () => _applyImmediately(() {
             _query.clear();
             _min.clear();
             _max.clear();
@@ -312,89 +363,116 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
                 !snapshot.hasError &&
                 data != null;
             final fromCache = data?.fromCache ?? false;
-            final results =
-                invalid || _ownerId == null || snapshot.hasError || data == null
-                ? const <Product>[]
-                : _search.filter(
-                    data.products,
-                    query: _query.text,
-                    categoryId: _category.isEmpty ? null : _category,
-                    minPrice: min,
-                    maxPrice: max,
-                  );
-            return CustomScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(25, 22, 25, 8),
-                  sliver: SliverToBoxAdapter(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Search products',
-                          style: WhyNotTextStyles.serif(size: 30),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Find saved items across all your wishlists.',
-                          style: WhyNotTextStyles.muted(size: 15),
-                        ),
-                        const SizedBox(height: 24),
-                        _filters(),
-                        const SizedBox(height: 8),
-                        if (canFilter) ...[
-                          if (fromCache)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Text(
-                                'Showing cached data; results may be incomplete.',
-                                style: WhyNotTextStyles.muted(size: 13),
-                              ),
+            final future = canFilter && !_debouncing
+                ? _searchFor(data, min, max)
+                : null;
+            if (!canFilter) {
+              _lastRequest = null;
+              _pendingSearch = null;
+            }
+            return FutureBuilder<List<Product>>(
+              future: future,
+              builder: (context, searchSnapshot) {
+                final searching =
+                    canFilter &&
+                    (_debouncing ||
+                        searchSnapshot.connectionState != ConnectionState.done);
+                final searchFailed =
+                    canFilter && !searching && searchSnapshot.hasError;
+                final results = canFilter && !searching && !searchFailed
+                    ? searchSnapshot.data ?? const <Product>[]
+                    : const <Product>[];
+                return CustomScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(25, 22, 25, 8),
+                      sliver: SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Search products',
+                              style: WhyNotTextStyles.serif(size: 30),
                             ),
-                          Text(
-                            'Results',
-                            style: WhyNotTextStyles.serif(size: 23),
-                          ),
-                          const SizedBox(height: 7),
-                          Text(
-                            '${results.length} products found',
-                            style: WhyNotTextStyles.muted(size: 14),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                if (!canFilter || results.isEmpty)
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 25),
-                    sliver: SliverToBoxAdapter(
-                      child: invalid
-                          ? _message('Enter a valid price range.')
-                          : _ownerId == null
-                          ? _message('Please log in.')
-                          : snapshot.hasError
-                          ? _message('Could not load products.')
-                          : data == null
-                          ? const Padding(
-                              padding: EdgeInsets.all(30),
-                              child: Center(child: CircularProgressIndicator()),
-                            )
-                          : _message('No matching products.'),
-                    ),
-                  )
-                else
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(25, 8, 25, 24),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => _productCard(results[index]),
-                        childCount: results.length,
+                            const SizedBox(height: 8),
+                            Text(
+                              'Find saved items across all your wishlists.',
+                              style: WhyNotTextStyles.muted(size: 15),
+                            ),
+                            const SizedBox(height: 24),
+                            _filters(),
+                            const SizedBox(height: 8),
+                            if (canFilter) ...[
+                              if (fromCache)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: Text(
+                                    'Showing cached data; results may be incomplete.',
+                                    style: WhyNotTextStyles.muted(size: 13),
+                                  ),
+                                ),
+                              Text(
+                                'Results',
+                                style: WhyNotTextStyles.serif(size: 23),
+                              ),
+                              const SizedBox(height: 7),
+                              if (!searching && !searchFailed)
+                                Text(
+                                  '${results.length} products found',
+                                  style: WhyNotTextStyles.muted(size: 14),
+                                ),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                    if (!canFilter ||
+                        searching ||
+                        searchFailed ||
+                        results.isEmpty)
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 25),
+                        sliver: SliverToBoxAdapter(
+                          child: invalid
+                              ? _message('Enter a valid price range.')
+                              : _ownerId == null
+                              ? _message('Please log in.')
+                              : snapshot.hasError
+                              ? _message('Could not load products.')
+                              : data == null
+                              ? const Padding(
+                                  padding: EdgeInsets.all(30),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
+                              : searching
+                              ? const Padding(
+                                  padding: EdgeInsets.all(30),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                )
+                              : searchFailed
+                              ? _message('Could not search products.')
+                              : _message('No matching products.'),
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(25, 8, 25, 24),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) => _productCard(results[index]),
+                            childCount: results.length,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
             );
           },
         ),

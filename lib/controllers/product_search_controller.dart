@@ -1,10 +1,33 @@
 import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart';
+
 import '../models/product.dart';
 
-/// Baseline prototype: synchronous filtering, before optimization.
+typedef ProductSearchRequest = ({
+  List<Product> products,
+  String query,
+  String? categoryId,
+  double? minPrice,
+  double? maxPrice,
+});
+
+// A top-level callback receives only plain product data, not UI or Firebase.
+List<Product> _filterInWorker(ProductSearchRequest request) =>
+    const ProductSearchController().filter(
+      request.products,
+      query: request.query,
+      categoryId: request.categoryId,
+      minPrice: request.minPrice,
+      maxPrice: request.maxPrice,
+    );
+
+/// Filtering can run in a background isolate on native Flutter.
 class ProductSearchController {
   const ProductSearchController();
+
+  Future<List<Product>> filterAsync(ProductSearchRequest request) =>
+      compute(_filterInWorker, request, debugLabel: 'product_search_worker');
 
   List<Product> filter(
     List<Product> products, {
