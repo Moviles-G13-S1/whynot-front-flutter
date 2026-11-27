@@ -261,6 +261,50 @@ StoreSummary groupProductsByStore(StoreGroupingInput input) {
   );
 }
 
+/// How the Stores view orders stores; the user's choice is saved per account.
+enum StoreSort {
+  /// Most saved products first (the grouping's own order).
+  products('Most products'),
+
+  /// Highest value still to buy first.
+  pendingValue('Most to buy'),
+
+  /// Alphabetical by store name.
+  name('A–Z');
+
+  const StoreSort(this.label);
+
+  final String label;
+
+  static StoreSort? fromName(Object? value) {
+    for (final sort in values) {
+      if (sort.name == value) return sort;
+    }
+    return null;
+  }
+}
+
+/// [groups] ordered by [sort]. Groups come sorted by products already, so
+/// that order is returned as it is.
+List<StoreGroup> sortStoreGroups(List<StoreGroup> groups, StoreSort sort) {
+  int byName(StoreGroup a, StoreGroup b) {
+    final name = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    return name != 0 ? name : a.domain.compareTo(b.domain);
+  }
+
+  return switch (sort) {
+    StoreSort.products => groups,
+    StoreSort.pendingValue =>
+      [...groups]..sort((a, b) {
+        final value = b.pendingValue.compareTo(a.pendingValue);
+        if (value != 0) return value;
+        final count = b.productCount.compareTo(a.productCount);
+        return count != 0 ? count : byName(a, b);
+      }),
+    StoreSort.name => [...groups]..sort(byName),
+  };
+}
+
 /// The product fields [groupProductsByStore] reads, in snapshot order.
 typedef StoreGroupingKey = (
   String,
