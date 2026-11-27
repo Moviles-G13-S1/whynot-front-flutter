@@ -8,6 +8,7 @@ import '../../app/whynot_theme.dart';
 import '../../controllers/product_search_controller.dart';
 import '../../controllers/product_search_result_cache.dart';
 import '../../controllers/connectivity_status.dart';
+import '../../infrastructure/repositories/search_filter_preferences.dart';
 import '../widgets/offline_notice.dart';
 import '../../models/category_catalog.dart';
 import '../../models/product.dart';
@@ -24,6 +25,53 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
   final _min = TextEditingController();
   final _max = TextEditingController();
   final _resultCache = ProductSearchResultCache();
+  final _preferences = SearchFilterPreferences();
+  int _filterRevision = 0;
+
+  void _persistFilters() {
+    final owner = _ownerId;
+    if (owner == null) return;
+    final filters = SearchFilterValues(
+      query: _query.text,
+      category: _category,
+      minPrice: _min.text,
+      maxPrice: _max.text,
+    );
+    unawaited(_saveFilters(owner, filters));
+  }
+
+  Future<void> _saveFilters(String owner, SearchFilterValues filters) async {
+    try {
+      await _preferences.save(owner, filters);
+    } catch (_) {
+      // Preferences are optional; failure must not block search.
+    }
+  }
+
+  Future<void> _restoreFilters(String owner, int revision) async {
+    SearchFilterValues? saved;
+    try {
+      saved = await _preferences.load(owner);
+    } catch (_) {
+      return;
+    }
+    if (!mounted ||
+        _ownerId != owner ||
+        _filterRevision != revision ||
+        saved == null) {
+      return;
+    }
+    final filters = saved;
+    setState(() {
+      _query.text = filters.query;
+      _min.text = filters.minPrice;
+      _max.text = filters.maxPrice;
+      _category = CategoryCatalog.labelsById.containsKey(filters.category)
+          ? filters.category
+          : '';
+    });
+  }
+
   String _category = '';
   String? _ownerId;
   Stream<OwnerProducts>? _products;
@@ -61,20 +109,24 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
   Future<List<Product>>? _pendingSearch;
 
   void _scheduleSearch() {
+    _filterRevision++;
     _debounce?.cancel();
     setState(() => _debouncing = true);
     _debounce = Timer(const Duration(milliseconds: 300), () {
       if (!mounted) return;
       setState(() => _debouncing = false);
+      _persistFilters();
     });
   }
 
   void _applyImmediately(VoidCallback change) {
+    _filterRevision++;
     _debounce?.cancel();
     setState(() {
       change();
       _debouncing = false;
     });
+    _persistFilters();
   }
 
   // Reuse the active task on rebuilds; the LFU cache handles past queries.
@@ -116,6 +168,12 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
     final controller = context.dependencies.productController;
     final ownerId = controller.currentUserId;
     if (_ownerId != ownerId || (_products == null && ownerId != null)) {
+      if (_debouncing) _persistFilters();
+      _filterRevision++;
+      _query.clear();
+      _min.clear();
+      _max.clear();
+      _category = '';
       _debounce?.cancel();
       _debouncing = false;
       _lastRequest = null;
@@ -123,11 +181,15 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
       _resultCache.invalidate();
       _ownerId = ownerId;
       _products = ownerId == null ? null : controller.watchSearchProducts();
+      if (ownerId != null) {
+        unawaited(_restoreFilters(ownerId, _filterRevision));
+      }
     }
   }
 
   @override
   void dispose() {
+    if (_debouncing) _persistFilters();
     _resultCache.invalidate();
     _connectivity?.removeListener(_networkChanged);
     _debounce?.cancel();
