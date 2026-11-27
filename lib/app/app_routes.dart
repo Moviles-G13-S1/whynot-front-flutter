@@ -4,6 +4,7 @@
 /// routing package while the navigation flow is still small.
 abstract final class AppRoutes {
   static const login = '/login';
+  static const faceIdUnlock = '/face-id-unlock';
   static const adminDashboard = adminSavedProducts;
   static const adminSavedProducts = '/admin/saved-products';
   static const adminRecommendedProducts = '/admin/recommended-products';

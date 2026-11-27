@@ -7,6 +7,7 @@ import '../../app/whynot_theme.dart';
 import '../../models/category_catalog.dart';
 import '../../models/city.dart';
 import '../widgets/brand_mark.dart';
+import '../widgets/face_id_offer.dart';
 import '../widgets/city_selector.dart';
 import '../widgets/form_controls.dart';
 import '../../models/user_profile.dart';
@@ -156,6 +157,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         cityId: selectedCity!.id,
       );
 
+      if (!mounted) return;
+
+      await offerFaceId(context);
       if (!mounted) return;
 
       Navigator.pushNamedAndRemoveUntil(context, AppRoutes.home, (_) => false);

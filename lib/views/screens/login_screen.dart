@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/app_routes.dart';
+import '../widgets/face_id_offer.dart';
 import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../controllers/admin_access_controller.dart';
@@ -60,6 +61,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final access = await dependencies.adminAccessController.resolve();
 
+      if (!mounted) return;
+      await offerFaceId(context);
       if (!mounted) return;
 
       Navigator.pushNamedAndRemoveUntil(

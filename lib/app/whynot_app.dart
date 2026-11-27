@@ -12,6 +12,7 @@ import '../views/screens/saved_products_screen.dart';
 
 import '../views/screens/create_account_screen.dart';
 import '../views/screens/login_screen.dart';
+import '../views/screens/face_id_unlock_screen.dart';
 
 import '../views/screens/home_screen.dart';
 
@@ -76,6 +77,7 @@ class _WhyNotAppState extends State<WhyNotApp> {
         routes: {
           // Authentication
           AppRoutes.login: (_) => const LoginScreen(),
+          AppRoutes.faceIdUnlock: (_) => const FaceIdUnlockScreen(),
           AppRoutes.createAccount: (_) => const CreateAccountScreen(),
 
           // Home
@@ -174,6 +176,10 @@ class _WhyNotAppState extends State<WhyNotApp> {
         ? AppRoutes.login
         : AppRoutes.home;
     if (!kIsWeb) {
+      if (sessionRoute == AppRoutes.home &&
+          _dependencies.faceIdController?.supportedPlatform == true) {
+        return AppRoutes.faceIdUnlock;
+      }
       return sessionRoute;
     }
 

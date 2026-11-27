@@ -27,6 +27,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 
+	<key>NSFaceIDUsageDescription</key>
+	<string>WhyNot uses Face ID to unlock your existing account session.</string>
+
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>WhyNot lets you choose a profile photo from your library.</string>
 
