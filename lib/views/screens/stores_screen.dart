@@ -8,13 +8,12 @@ import '../../models/store_summary.dart';
 import '../widgets/compact_connection_notice.dart';
 import '../widgets/store_logo.dart';
 
+final _thousands = RegExp(r'\B(?=(\d{3})+(?!\d))');
+
 /// Prices with thousands separators, as in "\$2.500.000".
 String formatStorePrice(double price) {
   final whole = price.truncate().abs().toString();
-  final grouped = whole.replaceAllMapped(
-    RegExp(r'\B(?=(\d{3})+(?!\d))'),
-    (_) => '.',
-  );
+  final grouped = whole.replaceAllMapped(_thousands, (_) => '.');
   final cents = (price.abs() * 100).round() % 100;
   final sign = price < 0 ? '-' : '';
   return cents == 0
@@ -65,6 +64,10 @@ class _StoresScreenState extends State<StoresScreen> {
   StoresController? _controller;
   bool _ownsController = false;
 
+  /// The groups [_tiles] were built for.
+  List<StoreGroup>? _tilesFor;
+  List<Widget> _tiles = const [];
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -81,7 +84,45 @@ class _StoresScreenState extends State<StoresScreen> {
       currentUserId: () => dependencies.productController.currentUserId,
       connectivity: dependencies.connectivity,
       store: dependencies.storeSummaryStore,
+      preferences: dependencies.storePreferencesStore,
     );
+  }
+
+  @override
+  void didUpdateWidget(StoresScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.loadLogos != widget.loadLogos) _tilesFor = null;
+  }
+
+  /// Santiago Casasbuenas: Sprint 4 micro-optimization. Connection notices and
+  /// "Last updated" change far more often than the stores themselves. While
+  /// the controller keeps the same groups, the same tile widgets are returned,
+  /// and Flutter skips rebuilding an identical widget, so no tile or logo is
+  /// rebuilt for a notice change.
+  List<Widget> _storeTiles(
+    StoresController controller,
+    List<StoreGroup> groups,
+  ) {
+    if (identical(groups, _tilesFor)) return _tiles;
+    _tilesFor = groups;
+    return _tiles = [
+      for (final group in groups) ...[
+        _StoreTile(
+          key: ValueKey('store-${group.domain}'),
+          group: group,
+          loadLogos: widget.loadLogos,
+          onTap: () => Navigator.pushNamed(
+            context,
+            AppRoutes.storeDetail,
+            arguments: StoreDetailArguments(
+              domain: group.domain,
+              controller: controller,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
+    ];
   }
 
   @override
@@ -165,23 +206,13 @@ class _StoresScreenState extends State<StoresScreen> {
                     'you edit a product to see it here.',
           style: WhyNotTextStyles.muted(size: 13),
         )
-      else
-        for (final group in summary.groups) ...[
-          _StoreTile(
-            key: ValueKey('store-${group.domain}'),
-            group: group,
-            loadLogos: widget.loadLogos,
-            onTap: () => Navigator.pushNamed(
-              context,
-              AppRoutes.storeDetail,
-              arguments: StoreDetailArguments(
-                domain: group.domain,
-                controller: controller,
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
+      else ...[
+        if (summary.groups.length > 1) ...[
+          _SortChips(selected: controller.sort, onSelected: controller.setSort),
+          const SizedBox(height: 14),
         ],
+        ..._storeTiles(controller, controller.visibleGroups),
+      ],
       if (summary.unattributed > 0) ...[
         const SizedBox(height: 12),
         Text(
@@ -239,6 +270,46 @@ Widget? storesNotice(StoresController controller, DateTime now) {
     );
   }
   return null;
+}
+
+/// "Sort by" choices; the selection is remembered for the account.
+class _SortChips extends StatelessWidget {
+  const _SortChips({required this.selected, required this.onSelected});
+
+  final StoreSort selected;
+  final ValueChanged<StoreSort> onSelected;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Text('Sort by', style: WhyNotTextStyles.muted(size: 12)),
+      const SizedBox(width: 8),
+      for (final sort in StoreSort.values) ...[
+        ChoiceChip(
+          key: ValueKey('stores-sort-${sort.name}'),
+          label: Text(sort.label),
+          selected: sort == selected,
+          showCheckmark: false,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          labelPadding: const EdgeInsets.symmetric(horizontal: 2),
+          labelStyle: TextStyle(
+            fontSize: 12,
+            color: sort == selected ? WhyNotColors.background : Colors.black87,
+          ),
+          color: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? Colors.black87
+                : WhyNotColors.form,
+          ),
+          side: BorderSide.none,
+          shape: const StadiumBorder(),
+          onSelected: (_) => onSelected(sort),
+        ),
+        if (sort != StoreSort.values.last) const SizedBox(width: 6),
+      ],
+    ],
+  );
 }
 
 class _Overview extends StatelessWidget {

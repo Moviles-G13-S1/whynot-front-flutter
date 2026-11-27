@@ -179,6 +179,16 @@ class StoreSummary {
   final DateTime computedAt;
 
   int get linkedProducts => totalProducts - withoutLink - invalidLink;
+
+  /// The same grouping, confirmed again at [at]. The [groups] list is shared,
+  /// so the views can tell nothing they show has changed.
+  StoreSummary withComputedAt(DateTime at) => StoreSummary(
+    groups: groups,
+    totalProducts: totalProducts,
+    withoutLink: withoutLink,
+    invalidLink: invalidLink,
+    computedAt: at,
+  );
   int get unattributed => withoutLink + invalidLink;
 
   Map<String, Object?> toJson() => {
@@ -250,6 +260,69 @@ StoreSummary groupProductsByStore(StoreGroupingInput input) {
     computedAt: input.computedAt,
   );
 }
+
+/// How the Stores view orders stores; the user's choice is saved per account.
+enum StoreSort {
+  /// Most saved products first (the grouping's own order).
+  products('Most products'),
+
+  /// Highest value still to buy first.
+  pendingValue('Most to buy'),
+
+  /// Alphabetical by store name.
+  name('A–Z');
+
+  const StoreSort(this.label);
+
+  final String label;
+
+  static StoreSort? fromName(Object? value) {
+    for (final sort in values) {
+      if (sort.name == value) return sort;
+    }
+    return null;
+  }
+}
+
+/// [groups] ordered by [sort]. Groups come sorted by products already, so
+/// that order is returned as it is.
+List<StoreGroup> sortStoreGroups(List<StoreGroup> groups, StoreSort sort) {
+  int byName(StoreGroup a, StoreGroup b) {
+    final name = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    return name != 0 ? name : a.domain.compareTo(b.domain);
+  }
+
+  return switch (sort) {
+    StoreSort.products => groups,
+    StoreSort.pendingValue =>
+      [...groups]..sort((a, b) {
+        final value = b.pendingValue.compareTo(a.pendingValue);
+        if (value != 0) return value;
+        final count = b.productCount.compareTo(a.productCount);
+        return count != 0 ? count : byName(a, b);
+      }),
+    StoreSort.name => [...groups]..sort(byName),
+  };
+}
+
+/// The product fields [groupProductsByStore] reads, in snapshot order.
+typedef StoreGroupingKey = (
+  String,
+  String,
+  String,
+  double,
+  String,
+  bool,
+  String,
+);
+
+/// Santiago Casasbuenas: Sprint 4 micro-optimization. Two snapshots with equal
+/// keys produce the same grouping, so the second needs no isolate. Records
+/// compare by value, so this is exact; a hash could collide.
+List<StoreGroupingKey> storeGroupingKey(List<Product> products) => [
+  for (final p in products)
+    (p.id, p.name, p.brand, p.price, p.imageUrl, p.purchased, p.productUrl),
+];
 
 /// The store's logo (its site icon), or a 404 when the store has none.
 ///

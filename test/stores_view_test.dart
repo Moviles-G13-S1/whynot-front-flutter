@@ -1,19 +1,24 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:whynot_mobile/controllers/connectivity_status.dart';
 import 'package:whynot_mobile/controllers/stores_controller.dart';
+import 'package:whynot_mobile/infrastructure/repositories/file_store_preferences_store.dart';
 import 'package:whynot_mobile/infrastructure/repositories/sqlite_store_summary_store.dart';
 import 'package:whynot_mobile/infrastructure/storage/whynot_local_database.dart';
 import 'package:whynot_mobile/models/product.dart';
+import 'package:whynot_mobile/models/repositories/store_preferences_store.dart';
 import 'package:whynot_mobile/models/repositories/store_summary_store.dart';
 import 'package:whynot_mobile/models/store_summary.dart';
 import 'package:whynot_mobile/app/app_routes.dart';
 import 'package:whynot_mobile/views/screens/store_detail_screen.dart';
 import 'package:whynot_mobile/views/screens/stores_screen.dart';
+import 'package:whynot_mobile/views/widgets/cover_resize_image.dart';
 import 'package:whynot_mobile/views/widgets/store_logo.dart';
 
 Product _product(
@@ -64,6 +69,27 @@ class _MemoryStore implements StoreSummaryStore {
   Future<void> write(String userId, StoreSummary summary) async {
     writes++;
     saved[userId] = summary;
+  }
+
+  @override
+  Future<void> clear(String userId) async => saved.remove(userId);
+}
+
+class _MemoryPreferences implements StorePreferencesStore {
+  final saved = <String, StoreSort>{};
+  int writes = 0;
+  Completer<void>? holdReads;
+
+  @override
+  Future<StoreSort?> readSort(String userId) async {
+    await holdReads?.future;
+    return saved[userId];
+  }
+
+  @override
+  Future<void> writeSort(String userId, StoreSort sort) async {
+    writes++;
+    saved[userId] = sort;
   }
 
   @override
@@ -183,6 +209,167 @@ void main() {
     final copy = StoreSummary.fromJson(summary.toJson());
     expect(copy.toJson(), summary.toJson());
     expect(copy.computedAt, DateTime(2026, 11, 25, 10));
+  });
+
+  group('micro-optimization helpers', () {
+    test('equal products give equal grouping keys', () {
+      final a = [_product('1', url: 'zara.com'), _product('2')];
+      final b = [_product('1', url: 'zara.com'), _product('2')];
+      expect(storeGroupingKey(a), storeGroupingKey(b));
+      expect(
+        storeGroupingKey([_product('1', url: 'zara.com', purchased: true)]),
+        isNot(storeGroupingKey([_product('1', url: 'zara.com')])),
+      );
+    });
+
+    test('withComputedAt keeps the same groups', () {
+      final summary = _saved('zara.com', 'Zara', DateTime(2026));
+      final again = summary.withComputedAt(DateTime(2027));
+      expect(identical(again.groups, summary.groups), isTrue);
+      expect(again.computedAt, DateTime(2027));
+    });
+
+    test('cover decoding keeps the ratio and fills the box', () {
+      // The measured product photo: 2696 x 1198 in a 192 px thumbnail.
+      expect(coverDecodeSize(2696, 1198, 192), (width: 432, height: 192));
+      expect(coverDecodeSize(600, 1000, 192), (width: 192, height: 320));
+      expect(coverDecodeSize(100, 50, 192), (width: 100, height: 50));
+    });
+
+    testWidgets('CoverResizeImage decodes at the cover size', (tester) async {
+      final info = await tester.runAsync(() async {
+        final recorder = ui.PictureRecorder();
+        Canvas(recorder).drawRect(
+          const Rect.fromLTWH(0, 0, 400, 200),
+          Paint()..color = const Color(0xFF336699),
+        );
+        final source = await recorder.endRecording().toImage(400, 200);
+        final png = await source.toByteData(format: ui.ImageByteFormat.png);
+        final provider = CoverResizeImage(
+          MemoryImage(png!.buffer.asUint8List()),
+          size: 50,
+        );
+        final completer = Completer<ImageInfo>();
+        provider
+            .resolve(ImageConfiguration.empty)
+            .addListener(
+              ImageStreamListener((info, _) => completer.complete(info)),
+            );
+        return completer.future;
+      });
+      expect(info!.image.width, 100);
+      expect(info.image.height, 50);
+    });
+
+    test('images are decoded at the size they are drawn', () {
+      expect(decodeWidthFor(40 * 0.72, 3), 87);
+      expect(decodeWidthFor(64, 3), 192);
+      expect(decodeWidthFor(64, 2), 128);
+    });
+  });
+
+  group('Stores sort (Sprint 4 local storage)', () {
+    final summary = groupProductsByStore((
+      products: [
+        _product('1', url: 'zara.com', brand: 'Zara', price: 10),
+        _product('2', url: 'zara.com', brand: 'Zara', price: 10),
+        _product('3', url: 'apple.com', brand: 'Apple', price: 900),
+        _product('4', url: 'hm.com', brand: 'H&M', price: 50),
+      ],
+      computedAt: DateTime(2026),
+    ));
+    List<String> order(StoreSort sort) => [
+      for (final group in sortStoreGroups(summary.groups, sort)) group.domain,
+    ];
+
+    test('orders by products, value still to buy, or name', () {
+      expect(order(StoreSort.products), ['zara.com', 'apple.com', 'hm.com']);
+      expect(order(StoreSort.pendingValue), [
+        'apple.com',
+        'hm.com',
+        'zara.com',
+      ]);
+      expect(order(StoreSort.name), ['apple.com', 'hm.com', 'zara.com']);
+      expect(
+        identical(
+          sortStoreGroups(summary.groups, StoreSort.products),
+          summary.groups,
+        ),
+        isTrue,
+      );
+    });
+
+    test('names round-trip and unknown names are ignored', () {
+      for (final sort in StoreSort.values) {
+        expect(StoreSort.fromName(sort.name), sort);
+      }
+      expect(StoreSort.fromName('price'), isNull);
+      expect(StoreSort.fromName(null), isNull);
+    });
+
+    group('FileStorePreferencesStore', () {
+      late Directory directory;
+      late FileStorePreferencesStore store;
+
+      setUp(() async {
+        directory = await Directory.systemTemp.createTemp('stores_prefs_');
+        addTearDown(() => directory.delete(recursive: true));
+        store = FileStorePreferencesStore(
+          directory: () async => directory,
+          now: () => DateTime.utc(2026, 11, 27, 10),
+        );
+      });
+
+      test('writes one JSON file per account and reads it back', () async {
+        await store.writeSort('user-1', StoreSort.pendingValue);
+        await store.writeSort('user-2', StoreSort.name);
+
+        expect(await store.readSort('user-1'), StoreSort.pendingValue);
+        expect(await store.readSort('user-2'), StoreSort.name);
+        expect(await store.readSort('user-3'), isNull);
+        final file = File('${directory.path}/stores_preferences/user-1.json');
+        expect(jsonDecode(await file.readAsString()), {
+          'version': 1,
+          'userId': 'user-1',
+          'sort': 'pendingValue',
+          'updatedAt': '2026-11-27T10:00:00.000Z',
+        });
+        expect(File('${file.path}.tmp').existsSync(), isFalse);
+      });
+
+      test('a later choice replaces the earlier one', () async {
+        await store.writeSort('user-1', StoreSort.name);
+        await store.writeSort('user-1', StoreSort.products);
+        expect(await store.readSort('user-1'), StoreSort.products);
+      });
+
+      test('corrupt, foreign or unknown files read as no preference', () async {
+        final file = await store.fileFor('user-1');
+        await file.parent.create(recursive: true);
+        await file.writeAsString('{not json');
+        expect(await store.readSort('user-1'), isNull);
+        await file.writeAsString('{"userId":"someone-else","sort":"name"}');
+        expect(await store.readSort('user-1'), isNull);
+        await file.writeAsString('{"userId":"user-1","sort":"price"}');
+        expect(await store.readSort('user-1'), isNull);
+      });
+
+      test('file names cannot leave the folder', () async {
+        final file = await store.fileFor('../../etc/x');
+        expect(
+          file.path,
+          '${directory.path}/stores_preferences/______etc_x.json',
+        );
+      });
+
+      test('clear removes the account file only', () async {
+        await store.writeSort('user-1', StoreSort.name);
+        await store.writeSort('user-2', StoreSort.name);
+        await store.clear('user-1');
+        expect(await store.readSort('user-1'), isNull);
+        expect(await store.readSort('user-2'), StoreSort.name);
+      });
+    });
   });
 
   group('SqliteStoreSummaryStore', () {
@@ -387,6 +574,165 @@ void main() {
       connectivity.setStatus(NetworkStatus.available);
       expect(subscriptions, 2);
     });
+
+    group('sort preference', () {
+      late _MemoryPreferences preferences;
+      var userId = 'user-1';
+
+      StoresController createWithPreferences() {
+        final controller = StoresController(
+          watchProducts: () => products.stream,
+          currentUserId: () => userId,
+          connectivity: connectivity,
+          store: store,
+          preferences: preferences,
+          grouper: _syncGrouper,
+        );
+        addTearDown(controller.dispose);
+        return controller;
+      }
+
+      setUp(() {
+        preferences = _MemoryPreferences();
+        userId = 'user-1';
+      });
+
+      test('restores the saved order and orders the visible stores', () async {
+        preferences.saved['user-1'] = StoreSort.name;
+        final controller = createWithPreferences()..start();
+        products.add(
+          _live([
+            _product('1', url: 'zara.com', brand: 'Zara'),
+            _product('2', url: 'zara.com', brand: 'Zara'),
+            _product('3', url: 'apple.com', brand: 'Apple'),
+          ]),
+        );
+        await pumpEventQueue();
+        expect(controller.sort, StoreSort.name);
+        expect(controller.visibleGroups.map((g) => g.domain), [
+          'apple.com',
+          'zara.com',
+        ]);
+        expect(
+          identical(controller.visibleGroups, controller.visibleGroups),
+          isTrue,
+        );
+      });
+
+      test('a new choice is saved for the account', () async {
+        final controller = createWithPreferences()..start();
+        await pumpEventQueue();
+        controller.setSort(StoreSort.pendingValue);
+        await pumpEventQueue();
+        expect(controller.sort, StoreSort.pendingValue);
+        expect(preferences.saved['user-1'], StoreSort.pendingValue);
+        controller.setSort(StoreSort.pendingValue);
+        expect(preferences.writes, 1);
+      });
+
+      test('a choice made before the file is read is kept', () async {
+        preferences
+          ..saved['user-1'] = StoreSort.name
+          ..holdReads = Completer<void>();
+        final controller = createWithPreferences()..start();
+        controller.setSort(StoreSort.pendingValue);
+        preferences.holdReads!.complete();
+        await pumpEventQueue();
+        expect(controller.sort, StoreSort.pendingValue);
+      });
+
+      test('another account gets its own order', () async {
+        preferences.saved['user-1'] = StoreSort.name;
+        final controller = createWithPreferences()..start();
+        await pumpEventQueue();
+        expect(controller.sort, StoreSort.name);
+        userId = 'user-2';
+        controller.start();
+        await pumpEventQueue();
+        expect(controller.sort, StoreSort.products);
+      });
+    });
+
+    group('micro-optimization: identical snapshots are not regrouped', () {
+      test('cache then server with the same products groups once', () async {
+        var groupings = 0;
+        final controller = create(
+          grouper: (input) async {
+            groupings++;
+            return groupProductsByStore(input);
+          },
+        )..start();
+        final items = [_product('1', url: 'zara.com', brand: 'Zara')];
+        products.add(_cached(items));
+        await pumpEventQueue();
+        final cachedGroups = controller.summary!.groups;
+        expect(store.writes, 0);
+
+        products.add(_live(items));
+        await pumpEventQueue();
+        expect(groupings, 1);
+        expect(controller.source, StoresSource.live);
+        expect(controller.mayBeOutdated, isFalse);
+        expect(identical(controller.summary!.groups, cachedGroups), isTrue);
+        expect(controller.confirmedAt, controller.summary!.computedAt);
+        // The server confirmation still refreshes the device copy.
+        expect(store.writes, 1);
+      });
+
+      test(
+        'refreshing with unchanged products needs no new grouping',
+        () async {
+          var groupings = 0;
+          final controller = create(
+            grouper: (input) async {
+              groupings++;
+              return groupProductsByStore(input);
+            },
+          )..start();
+          final items = [_product('1', url: 'zara.com')];
+          products.add(_live(items));
+          await pumpEventQueue();
+          await controller.retry();
+          products.add(_cached(items));
+          products.add(_live(items));
+          await pumpEventQueue();
+          expect(groupings, 1);
+          expect(controller.source, StoresSource.live);
+        },
+      );
+
+      test('a changed product is grouped again', () async {
+        var groupings = 0;
+        final controller = create(
+          grouper: (input) async {
+            groupings++;
+            return groupProductsByStore(input);
+          },
+        )..start();
+        products.add(_live([_product('1', url: 'zara.com', price: 10)]));
+        await pumpEventQueue();
+        products.add(_live([_product('1', url: 'zara.com', price: 20)]));
+        await pumpEventQueue();
+        expect(groupings, 2);
+        expect(controller.summary!.groups.single.pendingValue, 20);
+      });
+
+      test('the device copy is never treated as grouped products', () async {
+        store.saved['user-1'] = _saved('zara.com', 'Zara', DateTime(2026));
+        var groupings = 0;
+        final controller = create(
+          grouper: (input) async {
+            groupings++;
+            return groupProductsByStore(input);
+          },
+        )..start();
+        await pumpEventQueue();
+        products.add(_live([_product('old', url: 'zara.com', brand: 'Zara')]));
+        await pumpEventQueue();
+        expect(groupings, 1);
+        expect(controller.source, StoresSource.live);
+      });
+    });
   });
 
   test('sync age reads naturally', () {
@@ -453,6 +799,49 @@ void main() {
       );
       expect(find.text('You haven’t saved any products yet.'), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('store tiles are not rebuilt when only the notice changes', (
+      tester,
+    ) async {
+      connectivity.setStatus(NetworkStatus.available);
+      await pumpStores(tester);
+      final items = [_product('1', url: 'zara.com', brand: 'Zara')];
+      products.add(_cached(items));
+      await tester.pump();
+      await tester.pump();
+      final before = tester.widget(
+        find.byKey(const ValueKey('store-zara.com')),
+      );
+      expect(find.text('Saved information'), findsOneWidget);
+
+      products.add(_live(items));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Saved information'), findsNothing);
+      final after = tester.widget(find.byKey(const ValueKey('store-zara.com')));
+      expect(identical(before, after), isTrue);
+    });
+
+    testWidgets('Sort by chips reorder the stores', (tester) async {
+      await pumpStores(tester);
+      products.add(
+        _cached([
+          _product('1', url: 'zara.com', brand: 'Zara', price: 10),
+          _product('2', url: 'zara.com', brand: 'Zara', price: 10),
+          _product('3', url: 'apple.com', brand: 'Apple', price: 900),
+        ]),
+      );
+      await tester.pump();
+      await tester.pump();
+      double top(String domain) =>
+          tester.getTopLeft(find.byKey(ValueKey('store-$domain'))).dy;
+      expect(top('zara.com'), lessThan(top('apple.com')));
+
+      await tester.tap(find.byKey(const ValueKey('stores-sort-pendingValue')));
+      await tester.pump();
+      expect(controller.sort, StoreSort.pendingValue);
+      expect(top('apple.com'), lessThan(top('zara.com')));
     });
 
     testWidgets('lists cached stores with an offline notice', (tester) async {

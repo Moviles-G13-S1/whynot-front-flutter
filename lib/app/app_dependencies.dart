@@ -14,6 +14,8 @@ import '../controllers/profile_photo_cache.dart';
 import '../controllers/application_error_reporter.dart';
 import '../infrastructure/repositories/firebase_application_error_sink.dart';
 import '../infrastructure/repositories/sqlite_application_error_queue.dart';
+import '../infrastructure/repositories/store_preferences_store_factory.dart';
+import '../models/repositories/store_preferences_store.dart';
 import '../infrastructure/repositories/profile_photo_cache_stores.dart';
 import '../controllers/recommendation_controller.dart';
 import '../controllers/wishlist_controller.dart';
@@ -65,6 +67,7 @@ class AppDependencies {
     this.errorReporter,
     this.faceIdController,
     this.storeSummaryStore,
+    this.storePreferencesStore,
   }) : productDraftStore = productDraftStore ?? SqliteProductDraftStore(),
        _photoCacheManager = photoCacheManager;
 
@@ -135,6 +138,7 @@ class AppDependencies {
       errorReporter: errorReporter,
       productDraftStore: SqliteProductDraftStore.withDatabase(localDatabase),
       storeSummaryStore: SqliteStoreSummaryStore(localDatabase),
+      storePreferencesStore: createStorePreferencesStore(),
       photoCacheManager: () {
         final id = authRepository.currentUser?.id;
         return id != null && photoStore is ManagedProfilePhotoCacheStore
@@ -216,4 +220,7 @@ class AppDependencies {
 
   /// Santiago Casasbuenas: Device copy of the Stores grouping; tests may omit it.
   final StoreSummaryStore? storeSummaryStore;
+
+  /// Santiago Casasbuenas: Stores view preferences in a file per account.
+  final StorePreferencesStore? storePreferencesStore;
 }
