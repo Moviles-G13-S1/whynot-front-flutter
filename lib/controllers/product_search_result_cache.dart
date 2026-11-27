@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-import '../infrastructure/cache/ttl_cache.dart';
 import '../models/product.dart';
 import 'product_search_controller.dart';
 
@@ -11,23 +10,25 @@ typedef _SearchKey = ({
   double? maxPrice,
 });
 
-/// Screen-scoped, bounded TTL memoization of completed search results.
-/// A new account or product-list instance invalidates all previous results.
+class _LfuEntry {
+  _LfuEntry(this.results);
+
+  final List<Product> results;
+  int frequency = 1;
+}
+
+/// Screen-scoped LFU memoization. No time-based expiry is used.
+/// Product-list replacement or account change clears all frequencies and results.
 class ProductSearchResultCache {
   ProductSearchResultCache({
-    this.ttl = const Duration(seconds: 60),
     this.maxEntries = 32,
-    Duration Function()? elapsed,
     Future<List<Product>> Function(ProductSearchRequest)? worker,
   }) : assert(maxEntries > 0),
-       _elapsed = elapsed,
        _worker = worker ?? const ProductSearchController().filterAsync;
 
-  final Duration ttl;
   final int maxEntries;
-  final Duration Function()? _elapsed;
   final Future<List<Product>> Function(ProductSearchRequest) _worker;
-  final _entries = <_SearchKey, TtlCache<List<Product>>>{};
+  final _entries = <_SearchKey, _LfuEntry>{};
   String? _ownerId;
   List<Product>? _snapshot;
   int _generation = 0;
@@ -37,6 +38,18 @@ class ProductSearchResultCache {
     _entries.clear();
     _ownerId = null;
     _snapshot = null;
+  }
+
+  void _evictLeastFrequent() {
+    // Dart's default Map preserves insertion order. Equal frequencies keep
+    // the first candidate (FIFO tie-break), not the least recent access.
+    final victim = _entries.entries.reduce(
+      (a, b) => a.value.frequency <= b.value.frequency ? a : b,
+    );
+    _entries.remove(victim.key);
+    if (kDebugMode) {
+      debugPrint('[SearchLFU] EVICT frequency=${victim.value.frequency}');
+    }
   }
 
   Future<List<Product>> resolve({
@@ -54,27 +67,25 @@ class ProductSearchResultCache {
       minPrice: request.minPrice,
       maxPrice: request.maxPrice,
     );
-    final entry = _entries[key];
-    final hit = entry?.read();
+    final hit = _entries[key];
     if (hit != null) {
-      if (kDebugMode) debugPrint('[SearchTTL] HIT');
-      return hit;
+      hit.frequency++;
+      if (kDebugMode) debugPrint('[SearchLFU] HIT frequency=${hit.frequency}');
+      return hit.results;
     }
-    if (kDebugMode) {
-      debugPrint(entry == null ? '[SearchTTL] MISS' : '[SearchTTL] EXPIRED');
-    }
+    if (kDebugMode) debugPrint('[SearchLFU] MISS');
     final generation = _generation;
     final result = List<Product>.unmodifiable(await _worker(request));
-    // Never let a worker for an old snapshot repopulate a cleared cache.
+    // A stale worker cannot reinsert results after snapshot invalidation.
     if (generation == _generation) {
-      _entries.removeWhere((_, value) => value.read() == null);
-      if (!_entries.containsKey(key) && _entries.length >= maxEntries) {
-        // FIFO capacity guard, not LRU: reads do not reorder entries.
-        _entries.remove(_entries.keys.first);
+      // Another concurrent request for this key may have finished first.
+      final existing = _entries[key];
+      if (existing != null) {
+        existing.frequency++;
+        return existing.results;
       }
-      final fresh = TtlCache<List<Product>>(ttl: ttl, elapsed: _elapsed);
-      fresh.write(result);
-      _entries[key] = fresh;
+      if (_entries.length >= maxEntries) _evictLeastFrequent();
+      _entries[key] = _LfuEntry(result);
     }
     return result;
   }

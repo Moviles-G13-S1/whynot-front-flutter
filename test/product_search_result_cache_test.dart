@@ -36,17 +36,14 @@ ProductSearchRequest request(
 );
 
 void main() {
-  late Duration time;
   late int calls;
   late ProductSearchResultCache cache;
   late List<Product> products;
 
   setUp(() {
-    time = Duration.zero;
     calls = 0;
     products = [item('1', 'AirPods'), item('2', 'iPhone', price: 800)];
     cache = ProductSearchResultCache(
-      elapsed: () => time,
       worker: (r) async {
         calls++;
         return const ProductSearchController().filter(
@@ -75,15 +72,21 @@ void main() {
     expect(calls, 2);
   });
 
-  test('expiry at 60 seconds is not extended by reads', () async {
-    final r = request(products, 'Apple');
-    await cache.resolve(ownerId: 'u', request: r);
-    time = const Duration(seconds: 59);
-    await cache.resolve(ownerId: 'u', request: r);
-    expect(calls, 1);
-    time = const Duration(seconds: 60);
-    await cache.resolve(ownerId: 'u', request: r);
-    expect(calls, 2);
+  test('equal frequencies evict the oldest inserted entry', () async {
+    final bounded = ProductSearchResultCache(
+      maxEntries: 2,
+      worker: (r) async {
+        calls++;
+        return r.products;
+      },
+    );
+    // Both a and b have frequency 2; a was inserted first but accessed last.
+    for (final term in ['a', 'b', 'b', 'a', 'c', 'b']) {
+      await bounded.resolve(ownerId: 'u', request: request(products, term));
+    }
+    expect(calls, 3);
+    await bounded.resolve(ownerId: 'u', request: request(products, 'a'));
+    expect(calls, 4);
   });
 
   test(
@@ -148,17 +151,23 @@ void main() {
     expect(executions, 2);
   });
 
-  test('bounded cache evicts oldest inserted entry', () async {
-    final bounded = ProductSearchResultCache(
-      maxEntries: 2,
-      worker: (r) async {
-        calls++;
-        return r.products;
-      },
-    );
-    for (final term in ['a', 'b', 'a', 'c', 'a']) {
-      await bounded.resolve(ownerId: 'u', request: request(products, term));
-    }
-    expect(calls, 4);
-  });
+  test(
+    'LFU retains frequent results even when a rarer query was accessed later',
+    () async {
+      final bounded = ProductSearchResultCache(
+        maxEntries: 2,
+        worker: (r) async {
+          calls++;
+          return r.products;
+        },
+      );
+      // a: 3 accesses; b: 2 accesses and more recent. c must evict b, not a.
+      for (final term in ['a', 'b', 'a', 'a', 'b', 'c', 'a']) {
+        await bounded.resolve(ownerId: 'u', request: request(products, term));
+      }
+      expect(calls, 3);
+      await bounded.resolve(ownerId: 'u', request: request(products, 'b'));
+      expect(calls, 4);
+    },
+  );
 }

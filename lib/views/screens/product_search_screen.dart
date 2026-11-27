@@ -77,7 +77,7 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
     });
   }
 
-  // Reuse the active task on rebuilds; the TTL cache handles past queries.
+  // Reuse the active task on rebuilds; the LFU cache handles past queries.
   Future<List<Product>> _searchFor(
     OwnerProducts data,
     double? min,
