@@ -6,6 +6,8 @@ import '../../app/app_routes.dart';
 import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../controllers/product_search_controller.dart';
+import '../../controllers/connectivity_status.dart';
+import '../widgets/offline_notice.dart';
 import '../../models/category_catalog.dart';
 import '../../models/product.dart';
 
@@ -24,6 +26,34 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
   String _category = '';
   String? _ownerId;
   Stream<OwnerProducts>? _products;
+  ConnectivityStatus? _connectivity;
+  NetworkStatus? _previousNetworkStatus;
+
+  void _retryProducts() {
+    final controller = context.dependencies.productController;
+    if (_ownerId == null || controller.currentUserId != _ownerId) return;
+    setState(() {
+      _products = controller.watchSearchProducts();
+    });
+  }
+
+  void _networkChanged() {
+    if (!mounted) return;
+    final status = _connectivity?.status;
+    final recovered =
+        _previousNetworkStatus == NetworkStatus.offline &&
+        status == NetworkStatus.available;
+    _previousNetworkStatus = status;
+    if (recovered &&
+        _ownerId != null &&
+        context.dependencies.productController.currentUserId == _ownerId) {
+      // Restart the read even if the previous stream terminated with an error.
+      _retryProducts();
+    } else {
+      setState(() {});
+    }
+  }
+
   Timer? _debounce;
   bool _debouncing = false;
   ({String ownerId, ProductSearchRequest request})? _lastRequest;
@@ -73,6 +103,13 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final connectivity = context.dependencies.connectivity;
+    if (!identical(_connectivity, connectivity)) {
+      _connectivity?.removeListener(_networkChanged);
+      _connectivity = connectivity;
+      _previousNetworkStatus = connectivity.status;
+      connectivity.addListener(_networkChanged);
+    }
     final controller = context.dependencies.productController;
     final ownerId = controller.currentUserId;
     if (_ownerId != ownerId || (_products == null && ownerId != null)) {
@@ -87,6 +124,7 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
 
   @override
   void dispose() {
+    _connectivity?.removeListener(_networkChanged);
     _debounce?.cancel();
     _query.dispose();
     _min.dispose();
@@ -362,7 +400,17 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
                 _ownerId != null &&
                 !snapshot.hasError &&
                 data != null;
-            final fromCache = data?.fromCache ?? false;
+            final offline = _connectivity?.isOffline ?? false;
+            final fromCache =
+                (data?.fromCache ?? false) ||
+                (data != null &&
+                    (offline ||
+                        snapshot.connectionState == ConnectionState.waiting ||
+                        snapshot.connectionState == ConnectionState.done));
+            final needsRetry =
+                snapshot.hasError ||
+                fromCache ||
+                snapshot.connectionState == ConnectionState.done;
             final future = canFilter && !_debouncing
                 ? _searchFor(data, min, max)
                 : null;
@@ -402,14 +450,27 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
                               style: WhyNotTextStyles.muted(size: 15),
                             ),
                             const SizedBox(height: 24),
+                            const OfflineNotice(
+                              compact: true,
+                              message:
+                                  'You can search downloaded products. Results may be outdated.',
+                            ),
                             _filters(),
                             const SizedBox(height: 8),
+                            if (_ownerId != null && needsRetry && !offline)
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: _retryProducts,
+                                  child: const Text('Refresh products'),
+                                ),
+                              ),
                             if (canFilter) ...[
                               if (fromCache)
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 12),
                                   child: Text(
-                                    'Showing cached data; results may be incomplete.',
+                                    'Showing local data; waiting for server confirmation.',
                                     style: WhyNotTextStyles.muted(size: 13),
                                   ),
                                 ),
@@ -440,7 +501,15 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
                               : _ownerId == null
                               ? _message('Please log in.')
                               : snapshot.hasError
-                              ? _message('Could not load products.')
+                              ? _message(
+                                  offline
+                                      ? 'No products available locally. Reconnect to load them.'
+                                      : 'Could not load products. Refresh to try again.',
+                                )
+                              : data == null && offline
+                              ? _message(
+                                  'No products available yet. Reconnect to download them.',
+                                )
                               : data == null
                               ? const Padding(
                                   padding: EdgeInsets.all(30),
@@ -457,6 +526,10 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
                                 )
                               : searchFailed
                               ? _message('Could not search products.')
+                              : fromCache && data.products.isEmpty
+                              ? _message(
+                                  'No products available locally. Reconnect to confirm your list.',
+                                )
                               : _message('No matching products.'),
                         ),
                       )

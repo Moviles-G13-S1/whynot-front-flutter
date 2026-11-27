@@ -64,26 +64,43 @@ class ProductController {
     if (saved != null) {
       yield OwnerProducts(products: saved, fromCache: true);
     }
-    await for (final data in _productRepository.watchOwnerProducts(ownerId)) {
-      if (currentUserId != ownerId) return;
-      if (data.fromCache && !data.hasPendingWrites && saved != null) {
-        // A Firestore cache-only snapshot may be incomplete. Do not replace
-        // a complete server-confirmed local collection with it.
-        yield OwnerProducts(products: saved, fromCache: true);
-        continue;
-      }
-      if (!data.fromCache && !data.hasPendingWrites) {
-        saved = data.products;
-        if (store != null) {
-          try {
-            await store.save(ownerId, saved);
-          } catch (_) {
-            // The current remote result remains usable even if disk is full.
+    OwnerProducts? lastAvailable;
+    if (saved != null) {
+      lastAvailable = OwnerProducts(products: saved, fromCache: true);
+    }
+    try {
+      await for (final data in _productRepository.watchOwnerProducts(ownerId)) {
+        if (currentUserId != ownerId) return;
+        if (data.fromCache && !data.hasPendingWrites && saved != null) {
+          // Prefer the last complete server-confirmed local snapshot.
+          lastAvailable = OwnerProducts(products: saved, fromCache: true);
+          yield lastAvailable;
+          continue;
+        }
+        if (!data.fromCache && !data.hasPendingWrites) {
+          saved = data.products;
+          if (store != null) {
+            try {
+              await store.save(ownerId, saved);
+            } catch (_) {
+              // Storage failure does not prevent online search.
+            }
           }
         }
+        if (currentUserId != ownerId) return;
+        lastAvailable = data;
+        yield data;
       }
+    } catch (_) {
       if (currentUserId != ownerId) return;
-      yield data;
+      // A terminated remote stream must not hide previously usable results.
+      final fallback = lastAvailable;
+      if (fallback == null) rethrow;
+      yield OwnerProducts(
+        products: fallback.products,
+        fromCache: true,
+        hasPendingWrites: fallback.hasPendingWrites,
+      );
     }
   }
 
