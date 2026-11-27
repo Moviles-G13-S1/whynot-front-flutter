@@ -84,6 +84,7 @@ class _StoresScreenState extends State<StoresScreen> {
       currentUserId: () => dependencies.productController.currentUserId,
       connectivity: dependencies.connectivity,
       store: dependencies.storeSummaryStore,
+      preferences: dependencies.storePreferencesStore,
     );
   }
 
@@ -205,8 +206,13 @@ class _StoresScreenState extends State<StoresScreen> {
                     'you edit a product to see it here.',
           style: WhyNotTextStyles.muted(size: 13),
         )
-      else
-        ..._storeTiles(controller, summary.groups),
+      else ...[
+        if (summary.groups.length > 1) ...[
+          _SortChips(selected: controller.sort, onSelected: controller.setSort),
+          const SizedBox(height: 14),
+        ],
+        ..._storeTiles(controller, controller.visibleGroups),
+      ],
       if (summary.unattributed > 0) ...[
         const SizedBox(height: 12),
         Text(
@@ -264,6 +270,46 @@ Widget? storesNotice(StoresController controller, DateTime now) {
     );
   }
   return null;
+}
+
+/// "Sort by" choices; the selection is remembered for the account.
+class _SortChips extends StatelessWidget {
+  const _SortChips({required this.selected, required this.onSelected});
+
+  final StoreSort selected;
+  final ValueChanged<StoreSort> onSelected;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Text('Sort by', style: WhyNotTextStyles.muted(size: 12)),
+      const SizedBox(width: 8),
+      for (final sort in StoreSort.values) ...[
+        ChoiceChip(
+          key: ValueKey('stores-sort-${sort.name}'),
+          label: Text(sort.label),
+          selected: sort == selected,
+          showCheckmark: false,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          labelPadding: const EdgeInsets.symmetric(horizontal: 2),
+          labelStyle: TextStyle(
+            fontSize: 12,
+            color: sort == selected ? WhyNotColors.background : Colors.black87,
+          ),
+          color: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? Colors.black87
+                : WhyNotColors.form,
+          ),
+          side: BorderSide.none,
+          shape: const StadiumBorder(),
+          onSelected: (_) => onSelected(sort),
+        ),
+        if (sort != StoreSort.values.last) const SizedBox(width: 6),
+      ],
+    ],
+  );
 }
 
 class _Overview extends StatelessWidget {
