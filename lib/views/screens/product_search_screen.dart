@@ -6,6 +6,7 @@ import '../../app/app_routes.dart';
 import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../../controllers/product_search_controller.dart';
+import '../../controllers/product_search_result_cache.dart';
 import '../../controllers/connectivity_status.dart';
 import '../widgets/offline_notice.dart';
 import '../../models/category_catalog.dart';
@@ -22,7 +23,7 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
   final _query = TextEditingController();
   final _min = TextEditingController();
   final _max = TextEditingController();
-  final _search = const ProductSearchController();
+  final _resultCache = ProductSearchResultCache();
   String _category = '';
   String? _ownerId;
   Stream<OwnerProducts>? _products;
@@ -76,8 +77,7 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
     });
   }
 
-  // Memoize only the active task, not a cache of past search results.
-  // Rebuilds with identical inputs must not spawn additional isolates.
+  // Reuse the active task on rebuilds; the TTL cache handles past queries.
   Future<List<Product>> _searchFor(
     OwnerProducts data,
     double? min,
@@ -95,7 +95,10 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
     );
     if (_lastRequest != request || _pendingSearch == null) {
       _lastRequest = request;
-      _pendingSearch = _search.filterAsync(request.request);
+      _pendingSearch = _resultCache.resolve(
+        ownerId: request.ownerId,
+        request: request.request,
+      );
     }
     return _pendingSearch!;
   }
@@ -117,6 +120,7 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
       _debouncing = false;
       _lastRequest = null;
       _pendingSearch = null;
+      _resultCache.invalidate();
       _ownerId = ownerId;
       _products = ownerId == null ? null : controller.watchSearchProducts();
     }
@@ -124,6 +128,7 @@ class _ProductSearchScreenState extends State<ProductSearchScreen> {
 
   @override
   void dispose() {
+    _resultCache.invalidate();
     _connectivity?.removeListener(_networkChanged);
     _debounce?.cancel();
     _query.dispose();
