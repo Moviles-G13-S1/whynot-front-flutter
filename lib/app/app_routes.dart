@@ -20,6 +20,7 @@ abstract final class AppRoutes {
   static const newWishlist = '/new-wishlist';
 
   static const productDetail = '/product-detail';
+  static const productSearch = '/product-search';
   static const recommendationDetail = '/recommendation-detail';
   static const nearbyStoreDetail = '/nearby-store-detail';
   static const recommendationCatalog = '/recommendation-catalog';
