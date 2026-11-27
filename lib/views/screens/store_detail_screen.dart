@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../app/app_routes.dart';
 import '../../app/whynot_theme.dart';
 import '../../models/store_summary.dart';
+import '../widgets/cover_resize_image.dart';
 import '../widgets/store_logo.dart';
 import 'stores_screen.dart';
 
@@ -140,11 +141,24 @@ class _StoreProductTile extends StatelessWidget {
               // placeholder instead of a broken image.
               child: image.isEmpty || !loadImage
                   ? placeholder
-                  : CachedNetworkImage(
-                      imageUrl: image,
+                  : Image(
+                      // Santiago Casasbuenas: Sprint 4 micro-optimization.
+                      // Product photos can be thousands of pixels wide; decode
+                      // them just large enough to cover the 64 pt thumbnail.
+                      // The disk cache still comes from CachedNetworkImage.
+                      image: CoverResizeImage(
+                        CachedNetworkImageProvider(image),
+                        size: decodeWidthFor(
+                          64,
+                          MediaQuery.devicePixelRatioOf(context),
+                        ),
+                      ),
                       fit: BoxFit.cover,
-                      placeholder: (_, _) => placeholder,
-                      errorWidget: (_, _, _) => placeholder,
+                      frameBuilder: (_, child, frame, wasSynchronous) =>
+                          frame == null && !wasSynchronous
+                          ? placeholder
+                          : child,
+                      errorBuilder: (_, _, _) => placeholder,
                     ),
             ),
           ),
