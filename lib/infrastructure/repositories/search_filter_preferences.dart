@@ -47,8 +47,9 @@ class SearchFilterPreferences {
     final key = _key(owner);
     await _writes;
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.get(key);
-    if (raw is! List<String> || raw.length != 4) return null;
+    await prefs.reload();
+    final raw = prefs.getStringList(key);
+    if (raw == null || raw.length != 4) return null;
     return SearchFilterValues(
       query: raw[0],
       category: raw[1],
