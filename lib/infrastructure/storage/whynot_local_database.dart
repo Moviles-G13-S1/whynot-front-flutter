@@ -15,6 +15,7 @@ class WhyNotLocalDatabase {
   static const productDraftsTable = 'product_drafts';
   static const recentRecommendationsTable = 'recent_recommendations';
   static const storeSummariesTable = 'store_summaries';
+  static const searchProductsTable = 'search_product_snapshots';
 
   // Resolve the native factory only when SQLite is actually used.
   final DatabaseFactory? _injectedFactory;
@@ -50,16 +51,18 @@ class WhyNotLocalDatabase {
     return _factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 4,
+        version: 5,
         onCreate: (db, version) async {
           await _createDrafts(db);
           await _createHistory(db);
           await _createStoreSummaries(db);
+          await _createSearchProducts(db);
         },
         onUpgrade: (db, oldVersion, newVersion) async {
           if (oldVersion < 2) await _upgradeDraftsFromV1(db);
           if (oldVersion < 3) await _createHistory(db);
           if (oldVersion < 4) await _createStoreSummaries(db);
+          if (oldVersion < 5) await _createSearchProducts(db);
         },
       ),
     );
@@ -142,6 +145,14 @@ class WhyNotLocalDatabase {
     CREATE TABLE $storeSummariesTable (
       user_id TEXT PRIMARY KEY,
       computed_at INTEGER NOT NULL,
+      payload TEXT NOT NULL
+    )
+  ''');
+
+  // Account-scoped, complete search snapshots; empty snapshots are valid.
+  static Future<void> _createSearchProducts(Database db) => db.execute('''
+    CREATE TABLE $searchProductsTable (
+      user_id TEXT PRIMARY KEY,
       payload TEXT NOT NULL
     )
   ''');

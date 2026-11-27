@@ -25,6 +25,7 @@ import '../views/screens/wishlist_detail_screen.dart';
 import '../views/screens/new_wishlist_screen.dart';
 
 import '../views/screens/product_detail_screen.dart';
+import '../views/screens/product_search_screen.dart';
 import '../views/screens/recommendation_detail_screen.dart';
 import '../views/screens/nearby_store_detail_screen.dart';
 import '../views/screens/recommendation_catalog_screen.dart';
@@ -94,6 +95,7 @@ class _WhyNotAppState extends State<WhyNotApp> {
 
           // Products
           AppRoutes.productDetail: (_) => const ProductDetailScreen(),
+          AppRoutes.productSearch: (_) => const ProductSearchScreen(),
           AppRoutes.recommendationDetail: (_) =>
               const RecommendationDetailScreen(),
           AppRoutes.recommendationCatalog: (_) =>

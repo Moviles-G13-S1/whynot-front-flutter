@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../../app/app_routes.dart';
@@ -53,6 +52,15 @@ class WishlistsScreen extends StatelessWidget {
                           'Every thing you want, all in one place.',
                           style: WhyNotTextStyles.muted(size: 15),
                         ),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.productSearch,
+                          ),
+                          icon: const Icon(Icons.search),
+                          label: const Text('Search products'),
+                        ),
                       ],
                     ),
                   ),
@@ -70,9 +78,7 @@ class WishlistsScreen extends StatelessWidget {
                 else if (wishlistSnapshot.connectionState ==
                     ConnectionState.waiting)
                   const SliverToBoxAdapter(
-                    child: Center(
-                      child: CircularProgressIndicator(),
-                    ),
+                    child: Center(child: CircularProgressIndicator()),
                   )
                 else if (wishlistSnapshot.hasError)
                   SliverToBoxAdapter(
@@ -112,8 +118,7 @@ class WishlistsScreen extends StatelessWidget {
                           stream: context.dependencies.productController
                               .watchByWishlist(wishlist.id),
                           builder: (context, countSnapshot) {
-                            final itemCount =
-                                countSnapshot.data?.length ?? 0;
+                            final itemCount = countSnapshot.data?.length ?? 0;
 
                             return WishlistCard(
                               label: summary.categoryName,
@@ -156,17 +161,13 @@ class WishlistsScreen extends StatelessWidget {
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: () {
-                          Navigator.pushNamed(
-                            context,
-                            AppRoutes.newWishlist,
-                          );
+                          Navigator.pushNamed(context, AppRoutes.newWishlist);
                         },
                         style: TextButton.styleFrom(
                           foregroundColor: WhyNotColors.muted,
                           padding: EdgeInsets.zero,
                           minimumSize: Size.zero,
-                          tapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         child: const Text(
                           'New Wishlist',
@@ -186,9 +187,7 @@ class WishlistsScreen extends StatelessWidget {
         ),
       ),
 
-      bottomNavigationBar: const AppBottomNavigation(
-        selectedIndex: 1,
-      ),
+      bottomNavigationBar: const AppBottomNavigation(selectedIndex: 1),
     );
   }
 }

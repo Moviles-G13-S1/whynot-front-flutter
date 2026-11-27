@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../models/repositories/auth_repository.dart';
+import '../infrastructure/repositories/sqlite_search_product_store.dart';
 import 'wishlist_controller.dart';
 import '../models/wishlist.dart';
 import '../models/product.dart';
@@ -13,6 +14,7 @@ class ProductController {
     required ProductRepository productRepository,
     required WishlistController wishlistController,
     this.onRecommendationInputsChanged,
+    this.searchProductStore,
   }) : _authRepository = authRepository,
        _productRepository = productRepository,
        _wishlistController = wishlistController;
@@ -20,6 +22,7 @@ class ProductController {
   final AuthRepository _authRepository;
   final ProductRepository _productRepository;
   final WishlistController _wishlistController;
+  final SqliteSearchProductStore? searchProductStore;
   final FutureOr<void> Function(String userId)? onRecommendationInputsChanged;
 
   String? get currentUserId => _authRepository.currentUser?.id;
@@ -42,6 +45,63 @@ class ProductController {
     return ownerId == null
         ? Stream.value(const OwnerProducts(products: []))
         : _productRepository.watchOwnerProducts(ownerId);
+  }
+
+  /// Search has its own durable snapshot without changing other product views.
+  Stream<OwnerProducts> watchSearchProducts() async* {
+    final ownerId = currentUserId;
+    if (ownerId == null) return;
+    final store = searchProductStore;
+    List<Product>? saved;
+    if (store != null) {
+      try {
+        saved = await store.load(ownerId);
+      } catch (_) {
+        // A local storage failure must not prevent online search.
+      }
+    }
+    if (currentUserId != ownerId) return;
+    if (saved != null) {
+      yield OwnerProducts(products: saved, fromCache: true);
+    }
+    OwnerProducts? lastAvailable;
+    if (saved != null) {
+      lastAvailable = OwnerProducts(products: saved, fromCache: true);
+    }
+    try {
+      await for (final data in _productRepository.watchOwnerProducts(ownerId)) {
+        if (currentUserId != ownerId) return;
+        if (data.fromCache && !data.hasPendingWrites && saved != null) {
+          // Prefer the last complete server-confirmed local snapshot.
+          lastAvailable = OwnerProducts(products: saved, fromCache: true);
+          yield lastAvailable;
+          continue;
+        }
+        if (!data.fromCache && !data.hasPendingWrites) {
+          saved = data.products;
+          if (store != null) {
+            try {
+              await store.save(ownerId, saved);
+            } catch (_) {
+              // Storage failure does not prevent online search.
+            }
+          }
+        }
+        if (currentUserId != ownerId) return;
+        lastAvailable = data;
+        yield data;
+      }
+    } catch (_) {
+      if (currentUserId != ownerId) return;
+      // A terminated remote stream must not hide previously usable results.
+      final fallback = lastAvailable;
+      if (fallback == null) rethrow;
+      yield OwnerProducts(
+        products: fallback.products,
+        fromCache: true,
+        hasPendingWrites: fallback.hasPendingWrites,
+      );
+    }
   }
 
   Stream<Product?> watch(String productId) =>
