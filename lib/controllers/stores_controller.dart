@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
 
@@ -82,6 +83,9 @@ class StoresController extends ChangeNotifier {
   /// The user whose grouping is visible; never shown to another account.
   String? _userId;
 
+  /// The products [summary] was grouped from; null for the device copy.
+  List<StoreGroupingKey>? _groupedKey;
+
   bool get isOffline => connectivity.isOffline;
   bool get isLoading => summary == null && error == null;
 
@@ -101,6 +105,7 @@ class StoresController extends ChangeNotifier {
     final userId = _currentUserId();
     if (userId != _userId) {
       summary = null;
+      _groupedKey = null;
       source = StoresSource.none;
       confirmedAt = null;
       hasPendingWrites = false;
@@ -150,6 +155,7 @@ class StoresController extends ChangeNotifier {
       // A cached grouping with products is newer than the copy.
       if (source != StoresSource.cache || summary!.totalProducts == 0) {
         summary = saved;
+        _groupedKey = null;
         source = StoresSource.device;
       }
       _notify();
@@ -166,31 +172,55 @@ class StoresController extends ChangeNotifier {
     final products = snapshot.products;
     if (_disposed || generation != _generation) return;
     final ticket = ++_groupingTicket;
-    grouping = true;
-    _notify();
-    final StoreSummary result;
-    try {
-      result = await _grouper((products: products, computedAt: _now()));
-    } catch (failure) {
-      if (_disposed || ticket != _groupingTicket) return;
-      grouping = false;
-      error = failure;
-      _notify();
-      return;
-    }
-    // Only the newest snapshot may replace what is on screen.
-    if (_disposed || generation != _generation || ticket != _groupingTicket) {
-      return;
-    }
     final fromCache = snapshot.fromCache;
-    grouping = false;
     // An empty cache only means Firestore has nothing stored yet. It must not
     // read as "no products": keep the device copy, or wait for the server.
     if (fromCache && products.isEmpty && source != StoresSource.cache) {
+      grouping = false;
       cacheWasEmpty = true;
       _notify();
       return;
     }
+    final key = storeGroupingKey(products);
+    final current = summary;
+    final StoreSummary result;
+    if (current != null && listEquals(key, _groupedKey)) {
+      // Santiago Casasbuenas: Sprint 4 micro-optimization. Firestore sends the
+      // same products again when only metadata changes (cache -> server,
+      // pending writes confirmed) and after every resubscription. Grouping
+      // them again would start an isolate and rebuild every tile for an
+      // identical result, so the visible grouping is reused.
+      Timeline.instantSync(
+        'Stores snapshot reused',
+        arguments: {'products': products.length, 'fromCache': fromCache},
+      );
+      result = fromCache ? current : current.withComputedAt(_now());
+    } else {
+      grouping = true;
+      // Visible in DevTools > Performance (profile builds).
+      final task = TimelineTask()
+        ..start(
+          'Stores grouping',
+          arguments: {'products': products.length, 'fromCache': fromCache},
+        );
+      try {
+        result = await _grouper((products: products, computedAt: _now()));
+      } catch (failure) {
+        if (_disposed || ticket != _groupingTicket) return;
+        grouping = false;
+        error = failure;
+        _notify();
+        return;
+      } finally {
+        task.finish();
+      }
+      // Only the newest snapshot may replace what is on screen.
+      if (_disposed || generation != _generation || ticket != _groupingTicket) {
+        return;
+      }
+    }
+    grouping = false;
+    _groupedKey = key;
     summary = result;
     source = fromCache ? StoresSource.cache : StoresSource.live;
     hasPendingWrites = snapshot.hasPendingWrites;

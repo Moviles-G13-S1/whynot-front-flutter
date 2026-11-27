@@ -179,6 +179,16 @@ class StoreSummary {
   final DateTime computedAt;
 
   int get linkedProducts => totalProducts - withoutLink - invalidLink;
+
+  /// The same grouping, confirmed again at [at]. The [groups] list is shared,
+  /// so the views can tell nothing they show has changed.
+  StoreSummary withComputedAt(DateTime at) => StoreSummary(
+    groups: groups,
+    totalProducts: totalProducts,
+    withoutLink: withoutLink,
+    invalidLink: invalidLink,
+    computedAt: at,
+  );
   int get unattributed => withoutLink + invalidLink;
 
   Map<String, Object?> toJson() => {
@@ -250,6 +260,25 @@ StoreSummary groupProductsByStore(StoreGroupingInput input) {
     computedAt: input.computedAt,
   );
 }
+
+/// The product fields [groupProductsByStore] reads, in snapshot order.
+typedef StoreGroupingKey = (
+  String,
+  String,
+  String,
+  double,
+  String,
+  bool,
+  String,
+);
+
+/// Santiago Casasbuenas: Sprint 4 micro-optimization. Two snapshots with equal
+/// keys produce the same grouping, so the second needs no isolate. Records
+/// compare by value, so this is exact; a hash could collide.
+List<StoreGroupingKey> storeGroupingKey(List<Product> products) => [
+  for (final p in products)
+    (p.id, p.name, p.brand, p.price, p.imageUrl, p.purchased, p.productUrl),
+];
 
 /// The store's logo (its site icon), or a 404 when the store has none.
 ///

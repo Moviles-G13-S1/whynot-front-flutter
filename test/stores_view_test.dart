@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +15,7 @@ import 'package:whynot_mobile/models/store_summary.dart';
 import 'package:whynot_mobile/app/app_routes.dart';
 import 'package:whynot_mobile/views/screens/store_detail_screen.dart';
 import 'package:whynot_mobile/views/screens/stores_screen.dart';
+import 'package:whynot_mobile/views/widgets/cover_resize_image.dart';
 import 'package:whynot_mobile/views/widgets/store_logo.dart';
 
 Product _product(
@@ -183,6 +185,63 @@ void main() {
     final copy = StoreSummary.fromJson(summary.toJson());
     expect(copy.toJson(), summary.toJson());
     expect(copy.computedAt, DateTime(2026, 11, 25, 10));
+  });
+
+  group('micro-optimization helpers', () {
+    test('equal products give equal grouping keys', () {
+      final a = [_product('1', url: 'zara.com'), _product('2')];
+      final b = [_product('1', url: 'zara.com'), _product('2')];
+      expect(storeGroupingKey(a), storeGroupingKey(b));
+      expect(
+        storeGroupingKey([_product('1', url: 'zara.com', purchased: true)]),
+        isNot(storeGroupingKey([_product('1', url: 'zara.com')])),
+      );
+    });
+
+    test('withComputedAt keeps the same groups', () {
+      final summary = _saved('zara.com', 'Zara', DateTime(2026));
+      final again = summary.withComputedAt(DateTime(2027));
+      expect(identical(again.groups, summary.groups), isTrue);
+      expect(again.computedAt, DateTime(2027));
+    });
+
+    test('cover decoding keeps the ratio and fills the box', () {
+      // The measured product photo: 2696 x 1198 in a 192 px thumbnail.
+      expect(coverDecodeSize(2696, 1198, 192), (width: 432, height: 192));
+      expect(coverDecodeSize(600, 1000, 192), (width: 192, height: 320));
+      expect(coverDecodeSize(100, 50, 192), (width: 100, height: 50));
+    });
+
+    testWidgets('CoverResizeImage decodes at the cover size', (tester) async {
+      final info = await tester.runAsync(() async {
+        final recorder = ui.PictureRecorder();
+        Canvas(recorder).drawRect(
+          const Rect.fromLTWH(0, 0, 400, 200),
+          Paint()..color = const Color(0xFF336699),
+        );
+        final source = await recorder.endRecording().toImage(400, 200);
+        final png = await source.toByteData(format: ui.ImageByteFormat.png);
+        final provider = CoverResizeImage(
+          MemoryImage(png!.buffer.asUint8List()),
+          size: 50,
+        );
+        final completer = Completer<ImageInfo>();
+        provider
+            .resolve(ImageConfiguration.empty)
+            .addListener(
+              ImageStreamListener((info, _) => completer.complete(info)),
+            );
+        return completer.future;
+      });
+      expect(info!.image.width, 100);
+      expect(info.image.height, 50);
+    });
+
+    test('images are decoded at the size they are drawn', () {
+      expect(decodeWidthFor(40 * 0.72, 3), 87);
+      expect(decodeWidthFor(64, 3), 192);
+      expect(decodeWidthFor(64, 2), 128);
+    });
   });
 
   group('SqliteStoreSummaryStore', () {
@@ -387,6 +446,87 @@ void main() {
       connectivity.setStatus(NetworkStatus.available);
       expect(subscriptions, 2);
     });
+
+    group('micro-optimization: identical snapshots are not regrouped', () {
+      test('cache then server with the same products groups once', () async {
+        var groupings = 0;
+        final controller = create(
+          grouper: (input) async {
+            groupings++;
+            return groupProductsByStore(input);
+          },
+        )..start();
+        final items = [_product('1', url: 'zara.com', brand: 'Zara')];
+        products.add(_cached(items));
+        await pumpEventQueue();
+        final cachedGroups = controller.summary!.groups;
+        expect(store.writes, 0);
+
+        products.add(_live(items));
+        await pumpEventQueue();
+        expect(groupings, 1);
+        expect(controller.source, StoresSource.live);
+        expect(controller.mayBeOutdated, isFalse);
+        expect(identical(controller.summary!.groups, cachedGroups), isTrue);
+        expect(controller.confirmedAt, controller.summary!.computedAt);
+        // The server confirmation still refreshes the device copy.
+        expect(store.writes, 1);
+      });
+
+      test(
+        'refreshing with unchanged products needs no new grouping',
+        () async {
+          var groupings = 0;
+          final controller = create(
+            grouper: (input) async {
+              groupings++;
+              return groupProductsByStore(input);
+            },
+          )..start();
+          final items = [_product('1', url: 'zara.com')];
+          products.add(_live(items));
+          await pumpEventQueue();
+          await controller.retry();
+          products.add(_cached(items));
+          products.add(_live(items));
+          await pumpEventQueue();
+          expect(groupings, 1);
+          expect(controller.source, StoresSource.live);
+        },
+      );
+
+      test('a changed product is grouped again', () async {
+        var groupings = 0;
+        final controller = create(
+          grouper: (input) async {
+            groupings++;
+            return groupProductsByStore(input);
+          },
+        )..start();
+        products.add(_live([_product('1', url: 'zara.com', price: 10)]));
+        await pumpEventQueue();
+        products.add(_live([_product('1', url: 'zara.com', price: 20)]));
+        await pumpEventQueue();
+        expect(groupings, 2);
+        expect(controller.summary!.groups.single.pendingValue, 20);
+      });
+
+      test('the device copy is never treated as grouped products', () async {
+        store.saved['user-1'] = _saved('zara.com', 'Zara', DateTime(2026));
+        var groupings = 0;
+        final controller = create(
+          grouper: (input) async {
+            groupings++;
+            return groupProductsByStore(input);
+          },
+        )..start();
+        await pumpEventQueue();
+        products.add(_live([_product('old', url: 'zara.com', brand: 'Zara')]));
+        await pumpEventQueue();
+        expect(groupings, 1);
+        expect(controller.source, StoresSource.live);
+      });
+    });
   });
 
   test('sync age reads naturally', () {
@@ -453,6 +593,28 @@ void main() {
       );
       expect(find.text('You haven’t saved any products yet.'), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('store tiles are not rebuilt when only the notice changes', (
+      tester,
+    ) async {
+      connectivity.setStatus(NetworkStatus.available);
+      await pumpStores(tester);
+      final items = [_product('1', url: 'zara.com', brand: 'Zara')];
+      products.add(_cached(items));
+      await tester.pump();
+      await tester.pump();
+      final before = tester.widget(
+        find.byKey(const ValueKey('store-zara.com')),
+      );
+      expect(find.text('Saved information'), findsOneWidget);
+
+      products.add(_live(items));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Saved information'), findsNothing);
+      final after = tester.widget(find.byKey(const ValueKey('store-zara.com')));
+      expect(identical(before, after), isTrue);
     });
 
     testWidgets('lists cached stores with an offline notice', (tester) async {

@@ -55,6 +55,12 @@ class StoreLogo extends StatelessWidget {
                 child: CachedNetworkImage(
                   imageUrl: storeLogoUrl(domain).toString(),
                   fit: BoxFit.contain,
+                  // Santiago Casasbuenas: Sprint 4 micro-optimization. Decode
+                  // the 128 px icon at the size it is drawn, not in full.
+                  memCacheWidth: decodeWidthFor(
+                    size * 0.72,
+                    MediaQuery.devicePixelRatioOf(context),
+                  ),
                   fadeInDuration: const Duration(milliseconds: 150),
                   placeholder: (_, _) => initial,
                   errorWidget: (_, _, _) => initial,
@@ -64,3 +70,8 @@ class StoreLogo extends StatelessWidget {
     );
   }
 }
+
+/// Physical pixels needed to draw an image [logicalWidth] wide, so it is
+/// decoded no larger than it is shown.
+int decodeWidthFor(double logicalWidth, double devicePixelRatio) =>
+    (logicalWidth * devicePixelRatio).ceil();
