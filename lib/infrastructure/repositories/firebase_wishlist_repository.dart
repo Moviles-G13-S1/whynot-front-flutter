@@ -4,9 +4,10 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart'
-    show kIsWeb, defaultTargetPlatform, TargetPlatform;
+    show kIsWeb, kDebugMode, debugPrint, defaultTargetPlatform, TargetPlatform;
 
 import '../../models/category.dart';
+import '../cache/ttl_cache.dart';
 import '../../models/wishlist.dart';
 import '../../models/repositories/wishlist_repository.dart';
 
@@ -18,6 +19,10 @@ class FirebaseWishlistRepository implements WishlistRepository {
        _functions =
            functions ?? FirebaseFunctions.instanceFor(region: 'us-central1');
 
+  // Shared public category catalog; no user-specific products are cached.
+  final TtlCache<List<Category>> _categoryCache = TtlCache<List<Category>>(
+    ttl: const Duration(minutes: 20),
+  );
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;
   final Map<String, String> _pendingDeletes = {};
@@ -104,8 +109,15 @@ class FirebaseWishlistRepository implements WishlistRepository {
 
   @override
   Future<List<Category>> getCategories() async {
+    final cached = _categoryCache.read();
+    if (cached != null) {
+      if (kDebugMode) debugPrint('[CategoryTTL] HIT');
+      return List<Category>.of(cached);
+    }
+
+    if (kDebugMode) debugPrint('[CategoryTTL] MISS: fetching categories');
     final snapshot = await _firestore.collection('categories').get();
-    return snapshot.docs
+    final categories = snapshot.docs
         .map(
           (document) => Category(
             id: document.id,
@@ -113,6 +125,16 @@ class FirebaseWishlistRepository implements WishlistRepository {
           ),
         )
         .toList();
+
+    // Keep Firestore's existing offline behavior, but do not start a new
+    // freshness window from an SDK-cache-only or unconfirmed response.
+    if (!snapshot.metadata.isFromCache && !snapshot.metadata.hasPendingWrites) {
+      _categoryCache.write(List<Category>.unmodifiable(categories));
+      if (kDebugMode) debugPrint('[CategoryTTL] STORED: 20 minutes');
+    } else {
+      if (kDebugMode) debugPrint('[CategoryTTL] LOCAL: TTL not renewed');
+    }
+    return categories;
   }
 
   @override
