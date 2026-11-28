@@ -36,6 +36,8 @@ import '../views/screens/new_product_manual_screen.dart';
 import '../views/screens/edit_product_screen.dart';
 
 import '../views/screens/purchases_screen.dart';
+import '../views/screens/monthly_spending_screen.dart';
+import '../views/screens/category_spending_detail_screen.dart';
 
 import 'app_routes.dart';
 import 'whynot_theme.dart';
@@ -112,6 +114,9 @@ class _WhyNotAppState extends State<WhyNotApp> {
 
           // Purchases
           AppRoutes.purchases: (_) => const PurchasesScreen(),
+          AppRoutes.monthlySpending: (_) => const MonthlySpendingScreen(),
+          AppRoutes.categorySpendingDetail: (_) =>
+              const CategorySpendingDetailScreen(),
 
           // Profile
           AppRoutes.profile: (_) => const ProfileScreen(),
@@ -207,6 +212,7 @@ class _WhyNotAppState extends State<WhyNotApp> {
       'new-wishlist' => AppRoutes.newWishlist,
 
       'purchases' => AppRoutes.purchases,
+      'monthly-spending' => AppRoutes.monthlySpending,
 
       'profile' => AppRoutes.profile,
 

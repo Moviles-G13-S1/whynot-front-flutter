@@ -51,18 +51,20 @@ class WhyNotLocalDatabase {
     return _factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 5,
+        version: 6,
         onCreate: (db, version) async {
           await _createDrafts(db);
           await _createHistory(db);
           await _createStoreSummaries(db);
           await _createSearchProducts(db);
+          await _createSpending(db);
         },
         onUpgrade: (db, oldVersion, newVersion) async {
           if (oldVersion < 2) await _upgradeDraftsFromV1(db);
           if (oldVersion < 3) await _createHistory(db);
           if (oldVersion < 4) await _createStoreSummaries(db);
           if (oldVersion < 5) await _createSearchProducts(db);
+          if (oldVersion < 6) await _createSpending(db);
         },
       ),
     );
@@ -156,6 +158,27 @@ class WhyNotLocalDatabase {
       payload TEXT NOT NULL
     )
   ''');
+
+  static Future<void> _createSpending(Database db) async {
+    await db.execute('''
+      CREATE TABLE spending_sync (
+        user_id TEXT PRIMARY KEY,
+        synced_at INTEGER NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE spending_purchases (
+        user_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        category_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        brand TEXT NOT NULL,
+        amount_cents INTEGER NOT NULL CHECK (amount_cents >= 0),
+        purchased_at INTEGER,
+        PRIMARY KEY (user_id, product_id)
+      )
+    ''');
+  }
 
   /// Called by the owner once its stores have finished using the connection.
   Future<void> close() async {

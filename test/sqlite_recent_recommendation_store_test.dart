@@ -100,7 +100,7 @@ void main() {
       final drafts = SqliteProductDraftStore.withDatabase(database);
       await Future.wait([history.record('a', entry('bag')), drafts.load('a')]);
       final db = await database.open();
-      expect(await db.getVersion(), 5);
+      expect(await db.getVersion(), 6);
       expect(
         await db.query('product_drafts', orderBy: 'draft_scope'),
         oldDrafts,

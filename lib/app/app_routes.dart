@@ -32,6 +32,8 @@ abstract final class AppRoutes {
   static const editProduct = '/edit-product';
 
   static const purchases = '/purchases';
+  static const monthlySpending = '/monthly-spending';
+  static const categorySpendingDetail = '/category-spending-detail';
 
   static const profile = '/profile';
   static const editProfile = '/edit-profile';

@@ -6,6 +6,9 @@ import '../controllers/city_controller.dart';
 import '../controllers/connectivity_status.dart';
 import '../controllers/nearby_store_controller.dart';
 import '../controllers/product_controller.dart';
+import '../controllers/monthly_spending_controller.dart';
+import '../infrastructure/repositories/sqlite_spending_store.dart';
+import '../models/repositories/spending_store.dart';
 import '../controllers/profile_controller.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -68,6 +71,7 @@ class AppDependencies {
     this.faceIdController,
     this.storeSummaryStore,
     this.storePreferencesStore,
+    this.spendingStore,
   }) : productDraftStore = productDraftStore ?? SqliteProductDraftStore(),
        _photoCacheManager = photoCacheManager;
 
@@ -113,6 +117,7 @@ class AppDependencies {
     // Santiago Casasbuenas: Both SQLite stores use the same schema owner.
     final localDatabase = WhyNotLocalDatabase.shared;
     final searchProductStore = SqliteSearchProductStore(localDatabase);
+    final spendingStore = SqliteSpendingStore(localDatabase);
     final recommendationController = RecommendationController(
       recommendationRepository: recommendationRepository,
       recentRecommendations: SqliteRecentRecommendationStore(localDatabase),
@@ -139,6 +144,7 @@ class AppDependencies {
       productDraftStore: SqliteProductDraftStore.withDatabase(localDatabase),
       storeSummaryStore: SqliteStoreSummaryStore(localDatabase),
       storePreferencesStore: createStorePreferencesStore(),
+      spendingStore: spendingStore,
       photoCacheManager: () {
         final id = authRepository.currentUser?.id;
         return id != null && photoStore is ManagedProfilePhotoCacheStore
@@ -151,6 +157,11 @@ class AppDependencies {
         onAuthChanged: recommendationController.handleAuthChange,
         connectivity: connectivity,
         onSessionEnded: (userId) async {
+          try {
+            await spendingStore.clear(userId);
+          } catch (_) {
+            // A disk failure must not prevent sign-out.
+          }
           try {
             await photoCache.clear(userId);
           } finally {
@@ -223,4 +234,15 @@ class AppDependencies {
 
   /// Santiago Casasbuenas: Stores view preferences in a file per account.
   final StorePreferencesStore? storePreferencesStore;
+
+  final SpendingStore? spendingStore;
+
+  MonthlySpendingController createMonthlySpendingController() =>
+      MonthlySpendingController(
+        ownerId: authController.currentUser?.id ?? '',
+        currentUserId: () => authController.currentUser?.id,
+        watchProducts: productController.watchCurrentOwnerProducts,
+        connectivity: connectivity,
+        store: spendingStore,
+      );
 }
