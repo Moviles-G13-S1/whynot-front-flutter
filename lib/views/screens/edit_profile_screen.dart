@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/services.dart';
 
@@ -16,6 +17,9 @@ import '../../models/input_policy.dart';
 import '../../models/profile_photo.dart';
 import '../../models/network_failure.dart';
 import '../../controllers/connection_recovery.dart';
+import '../../models/profile_draft.dart';
+import '../../models/repositories/profile_draft_store.dart';
+import '../widgets/compact_connection_notice.dart';
 import '../widgets/offline_notice.dart';
 
 /// Form for editing the fields displayed in the profile summary.
@@ -53,6 +57,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _citiesFailed = false;
   ConnectionRecovery? _recovery;
   List<String> _lastInputs = const [];
+  ProfileDraftStore? _draftStore;
+  String? _draftOwner;
+  String? _draftNote;
+  bool _draftReady = false;
+  bool _draftRestored = false;
+  int _draftVersion = 0;
+  String _initialCityText = '';
 
   List<TextEditingController> get _controllers => [
     _nameController,
@@ -91,6 +102,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
     });
     if (!_profileRequested) {
+      _draftStore = context.dependencies.profileDraftStore;
       _profileRequested = true;
       _loadProfile();
     }
@@ -103,12 +115,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _loadFailed = false;
     });
     final profileController = context.dependencies.profileController;
-    if (profileController.currentUserId == null) {
+    final userId = profileController.currentUserId;
+    if (userId == null) {
       if (mounted) {
         setState(() => _isLoading = false);
       }
       return;
     }
+    _draftOwner = userId;
+    _draftReady = false;
 
     try {
       // City failure must not discard a successfully loaded profile.
@@ -126,7 +141,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final results = await (citiesFuture, profileFuture).wait;
       final cities = results.$1;
       final profile = results.$2;
-      if (!mounted) return;
+      if (!mounted || profileController.currentUserId != userId) return;
       if (profile == null) {
         if (mounted) {
           setState(() {
@@ -161,6 +176,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _cities = cities;
       _cityId = profile.cityId;
       _cityController.text = city?.name ?? '';
+      _initialCityText = _cityController.text;
+
+      // Load drafts independently of remote-save success: a disk error must
+      // never hide a successfully loaded profile or city catalog.
+      try {
+        final draft = await _draftStore?.load(userId);
+        if (!mounted || profileController.currentUserId != userId) return;
+        if (draft != null) {
+          _nameController.text = draft.name;
+          _ageController.text = draft.ageText;
+          _gender = const ['Female', 'Male', 'Other'].contains(draft.gender)
+              ? draft.gender
+              : null;
+          _category = CategoryCatalog.labelsById[draft.categoryId];
+          _cityId = draft.cityId;
+          final restoredCity = _cities
+              .where((c) => c.id == draft.cityId)
+              .firstOrNull;
+          _cityController.text = restoredCity?.name ?? draft.cityText;
+          _draftRestored = true;
+          _draftNote =
+              'Unsaved draft restored. Review it before saving your profile.';
+        }
+      } catch (_) {
+        if (mounted) {
+          _draftNote =
+              'Could not restore the draft on this device. Your profile is still available.';
+        }
+      }
+      if (!mounted || profileController.currentUserId != userId) return;
+      _draftReady = true;
 
       if (mounted) {
         setState(() => _isLoading = false);
@@ -188,10 +234,97 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (mounted) {
       setState(() {});
     }
+    _persistDraft();
+  }
+
+  void _persistDraft() {
+    final store = _draftStore;
+    final owner = _draftOwner;
+    if (!_draftReady ||
+        _isLoading ||
+        !mounted ||
+        store == null ||
+        owner == null ||
+        context.dependencies.profileController.currentUserId != owner) {
+      return;
+    }
+    final version = ++_draftVersion;
+    final changed = _hasChanges;
+    final operation = changed
+        ? store.save(
+            owner,
+            ProfileDraft(
+              name: _nameController.text,
+              ageText: _ageController.text,
+              gender: _gender,
+              categoryId: CategoryCatalog.idsByLabel[_category],
+              cityId: _cityId,
+              cityText: _cityController.text,
+            ),
+          )
+        : store.clear(owner);
+    unawaited(
+      operation.then(
+        (_) {
+          if (!mounted ||
+              version != _draftVersion ||
+              context.dependencies.profileController.currentUserId != owner) {
+            return;
+          }
+          setState(() {
+            _draftRestored = false;
+            _draftNote = changed
+                ? 'Draft saved on this device. It has not been sent to your profile.'
+                : null;
+          });
+        },
+        onError: (Object _, StackTrace _) {
+          if (mounted && version == _draftVersion) {
+            setState(
+              () => _draftNote =
+                  'Could not save the draft on this device. Keep this form open to retain your edits.',
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  Future<void> _discardDraft() async {
+    if (_isSaving) return;
+    final owner = _draftOwner;
+    if (owner == null ||
+        context.dependencies.profileController.currentUserId != owner) {
+      return;
+    }
+    final version = ++_draftVersion;
+    _draftReady = false;
+    setState(() {
+      _nameController.text = _initialName;
+      _ageController.text = _initialAge;
+      _gender = _initialGender;
+      _category = _initialCategory;
+      _cityId = _initialCityId;
+      _cityController.text = _initialCityText;
+      _draftRestored = false;
+      _draftNote = null;
+    });
+    _draftReady = true;
+    try {
+      await _draftStore?.clear(owner);
+    } catch (_) {
+      if (mounted && version == _draftVersion) {
+        setState(
+          () => _draftNote =
+              'Could not remove the saved draft. Try discarding it again.',
+        );
+      }
+    }
   }
 
   @override
   void dispose() {
+    _draftVersion++;
     _recovery?.dispose();
     for (final controller in _controllers) {
       controller.dispose();
@@ -262,11 +395,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
       );
 
+      // Clear only after acknowledgement; failures/offline rejections retain it.
+      _draftVersion++;
+      var draftClearFailed = false;
+      final owner = _draftOwner;
+      if (owner != null) {
+        try {
+          await _draftStore?.clear(owner);
+        } catch (_) {
+          draftClearFailed = true;
+        }
+      }
+
       if (!mounted) return;
 
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('Profile updated')));
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              draftClearFailed
+                  ? 'Profile updated, but the local draft could not be removed. Discard it when reopening the form.'
+                  : 'Profile updated',
+            ),
+          ),
+        );
 
       Navigator.pop(context);
     } on InputPolicyException catch (error) {
@@ -407,8 +560,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               OfflineNotice(
                 message: _isSaving
                     ? 'Your submitted changes are waiting for server confirmation. Keep this form open; confirmation resumes when connected.'
+                    : _draftStore != null
+                    ? 'You can edit the available information. Changes are kept as a draft on this device; reconnect to save your profile.'
                     : 'You can edit the available information here. Reconnect before saving; your unsaved inputs stay in this open form.',
               ),
+              if (_draftNote != null)
+                CompactConnectionNotice(
+                  title: _draftRestored
+                      ? 'Unsaved draft restored'
+                      : 'Profile draft',
+                  message: _draftNote!,
+                  icon: Icons.edit_note_rounded,
+                  actionLabel: 'Discard draft',
+                  onAction: _isSaving ? null : _discardDraft,
+                ),
               if (_citiesFailed)
                 TextButton(
                   onPressed: _reloadCities,
@@ -479,7 +644,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       DesignDropdown(
                         value: _gender,
                         items: const ['Female', 'Male', 'Other'],
-                        onChanged: (value) => setState(() => _gender = value),
+                        onChanged: (value) {
+                          setState(() => _gender = value);
+                          _persistDraft();
+                        },
                       ),
                     ),
                     _field(
@@ -488,7 +656,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         cities: _cities,
                         controller: _cityController,
                         selectedId: _cityId,
-                        onSelected: (id) => setState(() => _cityId = id),
+                        onSelected: (id) {
+                          setState(() => _cityId = id);
+                          _persistDraft();
+                        },
                       ),
                     ),
                     Row(
@@ -525,8 +696,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 'Gifts',
                                 'Other',
                               ],
-                              onChanged: (value) =>
-                                  setState(() => _category = value),
+                              onChanged: (value) {
+                                setState(() => _category = value);
+                                _persistDraft();
+                              },
                             ),
                             bottom: 0,
                           ),

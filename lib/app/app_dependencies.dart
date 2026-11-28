@@ -10,6 +10,8 @@ import '../controllers/monthly_spending_controller.dart';
 import '../infrastructure/repositories/sqlite_spending_store.dart';
 import '../models/repositories/spending_store.dart';
 import '../controllers/profile_controller.dart';
+import '../models/repositories/profile_draft_store.dart';
+import '../infrastructure/repositories/profile_draft_store_factory.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../models/repositories/profile_photo_cache_store.dart';
@@ -72,6 +74,7 @@ class AppDependencies {
     this.storeSummaryStore,
     this.storePreferencesStore,
     this.spendingStore,
+    this.profileDraftStore,
   }) : productDraftStore = productDraftStore ?? SqliteProductDraftStore(),
        _photoCacheManager = photoCacheManager;
 
@@ -118,6 +121,7 @@ class AppDependencies {
     final localDatabase = WhyNotLocalDatabase.shared;
     final searchProductStore = SqliteSearchProductStore(localDatabase);
     final spendingStore = SqliteSpendingStore(localDatabase);
+    final profileDraftStore = createProfileDraftStore();
     final recommendationController = RecommendationController(
       recommendationRepository: recommendationRepository,
       recentRecommendations: SqliteRecentRecommendationStore(localDatabase),
@@ -145,6 +149,7 @@ class AppDependencies {
       storeSummaryStore: SqliteStoreSummaryStore(localDatabase),
       storePreferencesStore: createStorePreferencesStore(),
       spendingStore: spendingStore,
+      profileDraftStore: profileDraftStore,
       photoCacheManager: () {
         final id = authRepository.currentUser?.id;
         return id != null && photoStore is ManagedProfilePhotoCacheStore
@@ -157,6 +162,11 @@ class AppDependencies {
         onAuthChanged: recommendationController.handleAuthChange,
         connectivity: connectivity,
         onSessionEnded: (userId) async {
+          try {
+            await profileDraftStore?.clear(userId);
+          } catch (_) {
+            // Local storage failure must not prevent signing out.
+          }
           try {
             await spendingStore.clear(userId);
           } catch (_) {
@@ -236,6 +246,7 @@ class AppDependencies {
   final StorePreferencesStore? storePreferencesStore;
 
   final SpendingStore? spendingStore;
+  final ProfileDraftStore? profileDraftStore;
 
   MonthlySpendingController createMonthlySpendingController() =>
       MonthlySpendingController(
