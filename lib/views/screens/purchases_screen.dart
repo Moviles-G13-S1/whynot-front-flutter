@@ -5,6 +5,7 @@ import '../../app/dependencies_scope.dart';
 import '../../app/whynot_theme.dart';
 import '../widgets/app_bottom_navigation.dart';
 import '../../models/product.dart';
+import '../widgets/offline_notice.dart';
 
 enum _PurchaseSort { none, lowToHigh, highToLow }
 
@@ -69,119 +70,166 @@ class _PurchasesScreenState extends State<PurchasesScreen> {
     return Scaffold(
       backgroundColor: WhyNotColors.background,
       extendBody: true,
-      body: SafeArea(
-        bottom: false,
-        child: productController.currentUserId == null
-            ? Center(
-                child: Text(
-                  'No user logged in.',
-                  style: WhyNotTextStyles.muted(size: 14),
-                ),
-              )
-            : StreamBuilder<List<Product>>(
-                stream: productController.watchCurrentProducts(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (snapshot.hasError) {
-                    return Center(
+      body: Column(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(25, 8, 25, 0),
+              child: Column(
+                children: [
+                  const OfflineNotice(
+                    message:
+                        'Showing saved purchases. Connect to update your spending.',
+                    compact: true,
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pushNamed(
+                        context,
+                        AppRoutes.monthlySpending,
+                      ),
+                      icon: const Icon(Icons.bar_chart_rounded),
+                      label: const Text('Monthly Spending'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: SafeArea(
+              bottom: false,
+              child: productController.currentUserId == null
+                  ? Center(
                       child: Text(
-                        'Could not load purchases.',
+                        'No user logged in.',
                         style: WhyNotTextStyles.muted(size: 14),
                       ),
-                    );
-                  }
+                    )
+                  : StreamBuilder<List<Product>>(
+                      stream: productController.watchCurrentProducts(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
 
-                  final allProducts = snapshot.data ?? const [];
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text(
+                              'Could not load purchases.',
+                              style: WhyNotTextStyles.muted(size: 14),
+                            ),
+                          );
+                        }
 
-                  final purchasedProducts = allProducts.where((product) {
-                    return product.purchased;
-                  }).toList();
+                        final allProducts = snapshot.data ?? const [];
 
-                  final visibleProducts = _sortProducts(purchasedProducts);
+                        final purchasedProducts = allProducts.where((product) {
+                          return product.purchased;
+                        }).toList();
 
-                  return SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(0, 47, 0, 135),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 25),
+                        final visibleProducts = _sortProducts(
+                          purchasedProducts,
+                        );
+
+                        return SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(0, 47, 0, 135),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'Purchases',
-                                style: WhyNotTextStyles.serif(size: 30),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 25,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Purchases',
+                                      style: WhyNotTextStyles.serif(size: 30),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '${purchasedProducts.length} items',
+                                      style: WhyNotTextStyles.muted(size: 15),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '${purchasedProducts.length} items',
-                                style: WhyNotTextStyles.muted(size: 15),
+
+                              const SizedBox(height: 28),
+
+                              _PurchaseFilters(
+                                sort: _sort,
+                                onLowToHigh: _toggleLowToHigh,
+                                onHighToLow: _toggleHighToLow,
                               ),
+
+                              const SizedBox(height: 32),
+
+                              if (purchasedProducts.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 25,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'You have no purchased items yet.',
+                                      style: WhyNotTextStyles.muted(size: 14),
+                                    ),
+                                  ),
+                                )
+                              else
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 25,
+                                  ),
+                                  child: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      const spacing = 20.0;
+
+                                      final cardWidth =
+                                          (constraints.maxWidth - spacing) / 2;
+
+                                      return Wrap(
+                                        spacing: spacing,
+                                        runSpacing: 30,
+                                        children: visibleProducts.map((
+                                          product,
+                                        ) {
+                                          return SizedBox(
+                                            width: cardWidth,
+                                            child: _PurchaseCard(
+                                              productId: product.id,
+                                              name: product.name.isEmpty
+                                                  ? 'Product'
+                                                  : product.name,
+                                              brand: product.brand,
+                                              price: _formatPrice(
+                                                product.price,
+                                              ),
+                                              imageUrl: product.imageUrl,
+                                            ),
+                                          );
+                                        }).toList(),
+                                      );
+                                    },
+                                  ),
+                                ),
                             ],
                           ),
-                        ),
-
-                        const SizedBox(height: 28),
-
-                        _PurchaseFilters(
-                          sort: _sort,
-                          onLowToHigh: _toggleLowToHigh,
-                          onHighToLow: _toggleHighToLow,
-                        ),
-
-                        const SizedBox(height: 32),
-
-                        if (purchasedProducts.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 25),
-                            child: Center(
-                              child: Text(
-                                'You have no purchased items yet.',
-                                style: WhyNotTextStyles.muted(size: 14),
-                              ),
-                            ),
-                          )
-                        else
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 25),
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                const spacing = 20.0;
-
-                                final cardWidth =
-                                    (constraints.maxWidth - spacing) / 2;
-
-                                return Wrap(
-                                  spacing: spacing,
-                                  runSpacing: 30,
-                                  children: visibleProducts.map((product) {
-                                    return SizedBox(
-                                      width: cardWidth,
-                                      child: _PurchaseCard(
-                                        productId: product.id,
-                                        name: product.name.isEmpty
-                                            ? 'Product'
-                                            : product.name,
-                                        brand: product.brand,
-                                        price: _formatPrice(product.price),
-                                        imageUrl: product.imageUrl,
-                                      ),
-                                    );
-                                  }).toList(),
-                                );
-                              },
-                            ),
-                          ),
-                      ],
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: const AppBottomNavigation(selectedIndex: 3),
     );
