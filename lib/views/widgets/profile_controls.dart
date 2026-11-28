@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../../controllers/connectivity_status.dart';
+import '../../controllers/rebuild_trace.dart';
 
 import '../../app/whynot_theme.dart';
 import 'form_controls.dart';
@@ -96,6 +97,7 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
   @override
   // Santiago Casasbuenas: Show the preview, stored image, or SVG fallback.
   Widget build(BuildContext context) {
+    RebuildTrace.record('Profile avatar');
     // Santiago Casasbuenas: Render the original avatar when no photo is available.
     Widget fallback() => SvgPicture.asset(
       'assets/figma/profile_avatar.svg',
@@ -164,6 +166,7 @@ class ProfileValue extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    RebuildTrace.record('Profile field: $label');
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
