@@ -7,6 +7,8 @@ import '../widgets/app_bottom_navigation.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/nearby_store_section.dart';
 import '../../controllers/home_controller.dart';
+import '../../controllers/rebuild_trace.dart';
+import '../widgets/selected_listenable_builder.dart';
 import '../widgets/smart_recommendation_section.dart';
 import '../widgets/home_content.dart';
 import '../widgets/form_controls.dart';
@@ -131,12 +133,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   //
                   // Uses the real profile stored for the authenticated user.
                   if (profileController.currentUserId != null)
-                    AnimatedBuilder(
-                      animation: _loads!.profile,
-                      builder: (context, _) {
-                        final section = _loads!.profile;
-                        final snapshot = section.visibleSnapshot;
-                        if (section.snapshot.hasError && !section.hasValue) {
+                    SelectedListenableBuilder<
+                      ({String firstName, bool failed})
+                    >(
+                      listenable: _loads!.profile,
+                      select: () => (
+                        firstName: _firstName(
+                          _loads!.profile.visibleSnapshot.data?.name,
+                        ),
+                        failed:
+                            _loads!.profile.snapshot.hasError &&
+                            !_loads!.profile.hasValue,
+                      ),
+                      builder: (context, value, _) {
+                        RebuildTrace.record('Home greeting');
+                        if (value.failed) {
                           return TextButton(
                             onPressed: _loads!.profile.start,
                             child: const Text(
@@ -144,8 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           );
                         }
-                        final fullName = snapshot.data?.name;
-                        final firstName = _firstName(fullName);
+                        final firstName = value.firstName;
 
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
