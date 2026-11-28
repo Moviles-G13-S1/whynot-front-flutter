@@ -1,4 +1,5 @@
 import 'package:whynot_mobile/models/profile_photo.dart';
+import 'package:whynot_mobile/models/repositories/profile_draft_store.dart';
 import 'package:whynot_mobile/models/repositories/profile_photo_repository.dart';
 import 'package:whynot_mobile/app/app_dependencies.dart';
 import 'package:whynot_mobile/controllers/admin_access_controller.dart';
@@ -45,6 +46,7 @@ AppDependencies createTestDependencies({
   ConnectivityStatus? connectivity,
   InMemoryAuthRepository? authRepositoryOverride,
   InMemoryUserRepository? userRepositoryOverride,
+  ProfileDraftStore? profileDraftStore,
 }) {
   final auth =
       authRepositoryOverride ??
@@ -81,6 +83,7 @@ AppDependencies createTestDependencies({
   );
 
   return AppDependencies(
+    profileDraftStore: profileDraftStore,
     authController: AuthController(
       authRepository: auth,
       userRepository: users,
